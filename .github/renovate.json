@@ -1,0 +1,68 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:base"
+  ],
+  "labels": [
+    "renovate"
+  ],
+  "packageRules": [
+    {
+      "matchPackagePrefixes": [
+        "github.com/elastic/"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "enabled": true,
+      "automerge": true
+    },
+    {
+      "matchPackagePrefixes": [
+        "github.com/elastic/"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": true,
+      "automerge": false
+    },
+    {
+      "excludePackagePrefixes": [
+        "github.com/elastic/"
+      ],
+      "matchUpdateTypes": [
+        "minor",
+        "patch",
+        "pin"
+      ],
+      "enabled": true,
+      "automerge": true
+    },
+    {
+      "excludePackagePrefixes": [
+        "github.com/elastic/"
+      ],
+      "matchUpdateTypes": [
+        "major"
+      ],
+      "enabled": true,
+      "automerge": false
+    },
+    {
+      "excludePackagePrefixes": [
+        "github.com/elastic/"
+      ],
+      "matchUpdateTypes": [
+        "digest"
+      ],
+      "enabled": false
+    }
+  ],
+  "automergeStrategy": "squash",
+  "automergeType": "branch",
+  "separateMajorMinor": true
+}
