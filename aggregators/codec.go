@@ -17,8 +17,8 @@ import (
 
 	"github.com/axiomhq/hyperloglog"
 
+	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
-	"github.com/elastic/apm-aggregation/modelproto"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -62,11 +62,11 @@ func (k *CombinedMetricsKey) SizeBinary() int {
 }
 
 // ToProto converts CombinedMetrics to its protobuf representation.
-func (m *CombinedMetrics) ToProto() *modelproto.CombinedMetrics {
-	pb := modelproto.CombinedMetricsFromVTPool()
-	pb.ServiceMetrics = make([]*modelproto.KeyedServiceMetrics, 0, len(m.Services))
+func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
+	pb := aggregationpb.CombinedMetricsFromVTPool()
+	pb.ServiceMetrics = make([]*aggregationpb.KeyedServiceMetrics, 0, len(m.Services))
 	for k, m := range m.Services {
-		ksm := modelproto.KeyedServiceMetricsFromVTPool()
+		ksm := aggregationpb.KeyedServiceMetricsFromVTPool()
 		ksm.Key = k.ToProto()
 		ksm.Metrics = m.ToProto()
 		pb.ServiceMetrics = append(pb.ServiceMetrics, ksm)
@@ -78,7 +78,7 @@ func (m *CombinedMetrics) ToProto() *modelproto.CombinedMetrics {
 }
 
 // FromProto converts protobuf representation to CombinedMetrics.
-func (m *CombinedMetrics) FromProto(pb *modelproto.CombinedMetrics) {
+func (m *CombinedMetrics) FromProto(pb *aggregationpb.CombinedMetrics) {
 	m.Services = make(map[ServiceAggregationKey]ServiceMetrics, len(pb.ServiceMetrics))
 	for _, ksm := range pb.ServiceMetrics {
 		var k ServiceAggregationKey
@@ -103,7 +103,7 @@ func (m *CombinedMetrics) MarshalBinary() ([]byte, error) {
 
 // UnmarshalBinary unmarshals binary protobuf to CombinedMetrics.
 func (m *CombinedMetrics) UnmarshalBinary(data []byte) error {
-	pb := modelproto.CombinedMetricsFromVTPool()
+	pb := aggregationpb.CombinedMetricsFromVTPool()
 	defer pb.ReturnToVTPool()
 	if err := pb.UnmarshalVT(data); err != nil {
 		return err
@@ -113,8 +113,8 @@ func (m *CombinedMetrics) UnmarshalBinary(data []byte) error {
 }
 
 // ToProto converts ServiceAggregationKey to its protobuf representation.
-func (k *ServiceAggregationKey) ToProto() *modelproto.ServiceAggregationKey {
-	pb := modelproto.ServiceAggregationKeyFromVTPool()
+func (k *ServiceAggregationKey) ToProto() *aggregationpb.ServiceAggregationKey {
+	pb := aggregationpb.ServiceAggregationKeyFromVTPool()
 	pb.Timestamp = timestamppb.New(k.Timestamp)
 	pb.ServiceName = k.ServiceName
 	pb.ServiceEnvironment = k.ServiceEnvironment
@@ -124,7 +124,7 @@ func (k *ServiceAggregationKey) ToProto() *modelproto.ServiceAggregationKey {
 }
 
 // FromProto converts protobuf representation to ServiceAggregationKey.
-func (k *ServiceAggregationKey) FromProto(pb *modelproto.ServiceAggregationKey) {
+func (k *ServiceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKey) {
 	k.Timestamp = pb.Timestamp.AsTime()
 	k.ServiceName = pb.ServiceName
 	k.ServiceEnvironment = pb.ServiceEnvironment
@@ -133,11 +133,11 @@ func (k *ServiceAggregationKey) FromProto(pb *modelproto.ServiceAggregationKey) 
 }
 
 // ToProto converts ServiceMetrics to its protobuf representation.
-func (m *ServiceMetrics) ToProto() *modelproto.ServiceMetrics {
-	pb := modelproto.ServiceMetricsFromVTPool()
-	pb.ServiceInstanceMetrics = make([]*modelproto.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
+func (m *ServiceMetrics) ToProto() *aggregationpb.ServiceMetrics {
+	pb := aggregationpb.ServiceMetricsFromVTPool()
+	pb.ServiceInstanceMetrics = make([]*aggregationpb.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
 	for k, m := range m.ServiceInstanceGroups {
-		ksim := modelproto.KeyedServiceInstanceMetricsFromVTPool()
+		ksim := aggregationpb.KeyedServiceInstanceMetricsFromVTPool()
 		ksim.Key = k.ToProto()
 		ksim.Metrics = m.ToProto()
 		pb.ServiceInstanceMetrics = append(pb.ServiceInstanceMetrics, ksim)
@@ -147,7 +147,7 @@ func (m *ServiceMetrics) ToProto() *modelproto.ServiceMetrics {
 }
 
 // FromProto converts protobuf representation to ServiceMetrics.
-func (m *ServiceMetrics) FromProto(pb *modelproto.ServiceMetrics) {
+func (m *ServiceMetrics) FromProto(pb *aggregationpb.ServiceMetrics) {
 	m.ServiceInstanceGroups = make(map[ServiceInstanceAggregationKey]ServiceInstanceMetrics, len(pb.ServiceInstanceMetrics))
 	for _, ksim := range pb.ServiceInstanceMetrics {
 		var k ServiceInstanceAggregationKey
@@ -160,37 +160,37 @@ func (m *ServiceMetrics) FromProto(pb *modelproto.ServiceMetrics) {
 }
 
 // ToProto converts ServiceInstanceAggregationKey to its protobuf representation.
-func (k *ServiceInstanceAggregationKey) ToProto() *modelproto.ServiceInstanceAggregationKey {
-	pb := modelproto.ServiceInstanceAggregationKeyFromVTPool()
+func (k *ServiceInstanceAggregationKey) ToProto() *aggregationpb.ServiceInstanceAggregationKey {
+	pb := aggregationpb.ServiceInstanceAggregationKeyFromVTPool()
 	pb.GlobalLabelsStr = []byte(k.GlobalLabelsStr)
 	return pb
 }
 
 // FromProto converts protobuf representation to ServiceInstanceAggregationKey.
-func (k *ServiceInstanceAggregationKey) FromProto(pb *modelproto.ServiceInstanceAggregationKey) {
+func (k *ServiceInstanceAggregationKey) FromProto(pb *aggregationpb.ServiceInstanceAggregationKey) {
 	k.GlobalLabelsStr = string(pb.GlobalLabelsStr)
 }
 
 // ToProto converts ServiceInstanceMetrics to its protobuf representation.
-func (m *ServiceInstanceMetrics) ToProto() *modelproto.ServiceInstanceMetrics {
-	pb := modelproto.ServiceInstanceMetricsFromVTPool()
-	pb.TransactionMetrics = make([]*modelproto.KeyedTransactionMetrics, 0, len(m.TransactionGroups))
+func (m *ServiceInstanceMetrics) ToProto() *aggregationpb.ServiceInstanceMetrics {
+	pb := aggregationpb.ServiceInstanceMetricsFromVTPool()
+	pb.TransactionMetrics = make([]*aggregationpb.KeyedTransactionMetrics, 0, len(m.TransactionGroups))
 	for k, m := range m.TransactionGroups {
-		ktm := modelproto.KeyedTransactionMetricsFromVTPool()
+		ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
 		ktm.Key = k.ToProto()
 		ktm.Metrics = m.ToProto()
 		pb.TransactionMetrics = append(pb.TransactionMetrics, ktm)
 	}
-	pb.ServiceTransactionMetrics = make([]*modelproto.KeyedServiceTransactionMetrics, 0, len(m.ServiceTransactionGroups))
+	pb.ServiceTransactionMetrics = make([]*aggregationpb.KeyedServiceTransactionMetrics, 0, len(m.ServiceTransactionGroups))
 	for k, m := range m.ServiceTransactionGroups {
-		kstm := modelproto.KeyedServiceTransactionMetricsFromVTPool()
+		kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
 		kstm.Key = k.ToProto()
 		kstm.Metrics = m.ToProto()
 		pb.ServiceTransactionMetrics = append(pb.ServiceTransactionMetrics, kstm)
 	}
-	pb.SpanMetrics = make([]*modelproto.KeyedSpanMetrics, 0, len(m.SpanGroups))
+	pb.SpanMetrics = make([]*aggregationpb.KeyedSpanMetrics, 0, len(m.SpanGroups))
 	for k, m := range m.SpanGroups {
-		ksm := modelproto.KeyedSpanMetricsFromVTPool()
+		ksm := aggregationpb.KeyedSpanMetricsFromVTPool()
 		ksm.Key = k.ToProto()
 		ksm.Metrics = m.ToProto()
 		pb.SpanMetrics = append(pb.SpanMetrics, ksm)
@@ -199,7 +199,7 @@ func (m *ServiceInstanceMetrics) ToProto() *modelproto.ServiceInstanceMetrics {
 }
 
 // FromProto converts protobuf representation to ServiceInstanceMetrics.
-func (m *ServiceInstanceMetrics) FromProto(pb *modelproto.ServiceInstanceMetrics) {
+func (m *ServiceInstanceMetrics) FromProto(pb *aggregationpb.ServiceInstanceMetrics) {
 	m.TransactionGroups = make(map[TransactionAggregationKey]TransactionMetrics, len(pb.TransactionMetrics))
 	for _, ktm := range pb.TransactionMetrics {
 		var k TransactionAggregationKey
@@ -228,8 +228,8 @@ func (m *ServiceInstanceMetrics) FromProto(pb *modelproto.ServiceInstanceMetrics
 }
 
 // ToProto converts TransactionAggregationKey to its protobuf representation.
-func (k *TransactionAggregationKey) ToProto() *modelproto.TransactionAggregationKey {
-	pb := modelproto.TransactionAggregationKeyFromVTPool()
+func (k *TransactionAggregationKey) ToProto() *aggregationpb.TransactionAggregationKey {
+	pb := aggregationpb.TransactionAggregationKeyFromVTPool()
 	pb.TraceRoot = k.TraceRoot
 
 	pb.ContainerId = k.ContainerID
@@ -271,7 +271,7 @@ func (k *TransactionAggregationKey) ToProto() *modelproto.TransactionAggregation
 }
 
 // FromProto converts protobuf representation to TransactionAggregationKey.
-func (k *TransactionAggregationKey) FromProto(pb *modelproto.TransactionAggregationKey) {
+func (k *TransactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggregationKey) {
 	k.TraceRoot = pb.TraceRoot
 
 	k.ContainerID = pb.ContainerId
@@ -312,14 +312,14 @@ func (k *TransactionAggregationKey) FromProto(pb *modelproto.TransactionAggregat
 }
 
 // ToProto converts the TransactionMetrics to its protobuf representation.
-func (m *TransactionMetrics) ToProto() *modelproto.TransactionMetrics {
-	pb := modelproto.TransactionMetricsFromVTPool()
+func (m *TransactionMetrics) ToProto() *aggregationpb.TransactionMetrics {
+	pb := aggregationpb.TransactionMetricsFromVTPool()
 	pb.Histogram = HistogramToProto(m.Histogram)
 	return pb
 }
 
 // FromProto converts protobuf representation to TransactionMetrics.
-func (m *TransactionMetrics) FromProto(pb *modelproto.TransactionMetrics) {
+func (m *TransactionMetrics) FromProto(pb *aggregationpb.TransactionMetrics) {
 	if m.Histogram == nil && pb.Histogram != nil {
 		m.Histogram = hdrhistogram.New()
 	}
@@ -327,20 +327,20 @@ func (m *TransactionMetrics) FromProto(pb *modelproto.TransactionMetrics) {
 }
 
 // ToProto converts ServiceTransactionAggregationKey to its protobuf representation.
-func (k *ServiceTransactionAggregationKey) ToProto() *modelproto.ServiceTransactionAggregationKey {
-	pb := modelproto.ServiceTransactionAggregationKeyFromVTPool()
+func (k *ServiceTransactionAggregationKey) ToProto() *aggregationpb.ServiceTransactionAggregationKey {
+	pb := aggregationpb.ServiceTransactionAggregationKeyFromVTPool()
 	pb.TransactionType = k.TransactionType
 	return pb
 }
 
 // FromProto converts protobuf representation to ServiceTransactionAggregationKey.
-func (k *ServiceTransactionAggregationKey) FromProto(pb *modelproto.ServiceTransactionAggregationKey) {
+func (k *ServiceTransactionAggregationKey) FromProto(pb *aggregationpb.ServiceTransactionAggregationKey) {
 	k.TransactionType = pb.TransactionType
 }
 
 // ToProto converts the ServiceTransactionMetrics to its protobuf representation.
-func (m *ServiceTransactionMetrics) ToProto() *modelproto.ServiceTransactionMetrics {
-	pb := modelproto.ServiceTransactionMetricsFromVTPool()
+func (m *ServiceTransactionMetrics) ToProto() *aggregationpb.ServiceTransactionMetrics {
+	pb := aggregationpb.ServiceTransactionMetricsFromVTPool()
 	pb.Histogram = HistogramToProto(m.Histogram)
 	pb.FailureCount = m.FailureCount
 	pb.SuccessCount = m.SuccessCount
@@ -348,7 +348,7 @@ func (m *ServiceTransactionMetrics) ToProto() *modelproto.ServiceTransactionMetr
 }
 
 // FromProto converts protobuf representation to ServiceTransactionMetrics.
-func (m *ServiceTransactionMetrics) FromProto(pb *modelproto.ServiceTransactionMetrics) {
+func (m *ServiceTransactionMetrics) FromProto(pb *aggregationpb.ServiceTransactionMetrics) {
 	m.FailureCount = pb.FailureCount
 	m.SuccessCount = pb.SuccessCount
 	if m.Histogram == nil && pb.Histogram != nil {
@@ -358,11 +358,11 @@ func (m *ServiceTransactionMetrics) FromProto(pb *modelproto.ServiceTransactionM
 }
 
 // HistogramToProto converts the histogram representation to protobuf.
-func HistogramToProto(h *hdrhistogram.HistogramRepresentation) *modelproto.HDRHistogram {
+func HistogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HDRHistogram {
 	if h == nil {
 		return nil
 	}
-	pb := modelproto.HDRHistogramFromVTPool()
+	pb := aggregationpb.HDRHistogramFromVTPool()
 	pb.LowestTrackableValue = h.LowestTrackableValue
 	pb.HighestTrackableValue = h.HighestTrackableValue
 	pb.SignificantFigures = h.SignificantFigures
@@ -376,7 +376,7 @@ func HistogramToProto(h *hdrhistogram.HistogramRepresentation) *modelproto.HDRHi
 }
 
 // HistogramFromProto converts protobuf to histogram representation.
-func HistogramFromProto(h *hdrhistogram.HistogramRepresentation, pb *modelproto.HDRHistogram) {
+func HistogramFromProto(h *hdrhistogram.HistogramRepresentation, pb *aggregationpb.HDRHistogram) {
 	if pb == nil {
 		return
 	}
@@ -395,8 +395,8 @@ func HistogramFromProto(h *hdrhistogram.HistogramRepresentation, pb *modelproto.
 }
 
 // ToProto converts SpanAggregationKey to its protobuf representation.
-func (k *SpanAggregationKey) ToProto() *modelproto.SpanAggregationKey {
-	pb := modelproto.SpanAggregationKeyFromVTPool()
+func (k *SpanAggregationKey) ToProto() *aggregationpb.SpanAggregationKey {
+	pb := aggregationpb.SpanAggregationKeyFromVTPool()
 	pb.SpanName = k.SpanName
 	pb.Outcome = k.Outcome
 
@@ -408,7 +408,7 @@ func (k *SpanAggregationKey) ToProto() *modelproto.SpanAggregationKey {
 }
 
 // FromProto converts protobuf representation to SpanAggregationKey.
-func (k *SpanAggregationKey) FromProto(pb *modelproto.SpanAggregationKey) {
+func (k *SpanAggregationKey) FromProto(pb *aggregationpb.SpanAggregationKey) {
 	k.SpanName = pb.SpanName
 	k.Outcome = pb.Outcome
 
@@ -419,22 +419,22 @@ func (k *SpanAggregationKey) FromProto(pb *modelproto.SpanAggregationKey) {
 }
 
 // ToProto converts the SpanMetrics to its protobuf representation.
-func (m *SpanMetrics) ToProto() *modelproto.SpanMetrics {
-	pb := modelproto.SpanMetricsFromVTPool()
+func (m *SpanMetrics) ToProto() *aggregationpb.SpanMetrics {
+	pb := aggregationpb.SpanMetricsFromVTPool()
 	pb.Count = m.Count
 	pb.Sum = m.Sum
 	return pb
 }
 
 // FromProto converts protobuf representation to SpanMetrics.
-func (m *SpanMetrics) FromProto(pb *modelproto.SpanMetrics) {
+func (m *SpanMetrics) FromProto(pb *aggregationpb.SpanMetrics) {
 	m.Count = pb.Count
 	m.Sum = pb.Sum
 }
 
 // ToProto converts Overflow to its protobuf representation.
-func (o *Overflow) ToProto() *modelproto.Overflow {
-	pb := modelproto.OverflowFromVTPool()
+func (o *Overflow) ToProto() *aggregationpb.Overflow {
+	pb := aggregationpb.OverflowFromVTPool()
 	pb.OverflowTransactions = o.OverflowTransaction.Metrics.ToProto()
 	pb.OverflowServiceTransactions = o.OverflowServiceTransaction.Metrics.ToProto()
 	pb.OverflowSpans = o.OverflowSpan.Metrics.ToProto()
@@ -445,7 +445,7 @@ func (o *Overflow) ToProto() *modelproto.Overflow {
 }
 
 // FromProto converts protobuf representation to Overflow.
-func (o *Overflow) FromProto(pb *modelproto.Overflow) {
+func (o *Overflow) FromProto(pb *aggregationpb.Overflow) {
 	o.OverflowTransaction.Metrics.FromProto(pb.OverflowTransactions)
 	o.OverflowServiceTransaction.Metrics.FromProto(pb.OverflowServiceTransactions)
 	o.OverflowSpan.Metrics.FromProto(pb.OverflowSpans)
@@ -455,14 +455,14 @@ func (o *Overflow) FromProto(pb *modelproto.Overflow) {
 }
 
 // ToProto converts GlobalLabels to its protobuf representation.
-func (gl *GlobalLabels) ToProto() *modelproto.GlobalLabels {
-	pb := modelproto.GlobalLabelsFromVTPool()
+func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
+	pb := aggregationpb.GlobalLabelsFromVTPool()
 
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
 	// i.e. Protobuf formats are equal if and only if the structs are equal
-	pb.Labels = make([]*modelproto.Label, 0, len(gl.Labels))
+	pb.Labels = make([]*aggregationpb.Label, 0, len(gl.Labels))
 	for k, v := range gl.Labels {
-		l := modelproto.LabelFromVTPool()
+		l := aggregationpb.LabelFromVTPool()
 		l.Key = k
 		l.Value = v.Value
 		l.Values = v.Values
@@ -473,9 +473,9 @@ func (gl *GlobalLabels) ToProto() *modelproto.GlobalLabels {
 		return pb.Labels[i].Key < pb.Labels[j].Key
 	})
 
-	pb.NumericLabels = make([]*modelproto.NumericLabel, 0, len(gl.NumericLabels))
+	pb.NumericLabels = make([]*aggregationpb.NumericLabel, 0, len(gl.NumericLabels))
 	for k, v := range gl.NumericLabels {
-		l := modelproto.NumericLabelFromVTPool()
+		l := aggregationpb.NumericLabelFromVTPool()
 		l.Key = k
 		l.Value = v.Value
 		l.Values = v.Values
@@ -490,7 +490,7 @@ func (gl *GlobalLabels) ToProto() *modelproto.GlobalLabels {
 }
 
 // FromProto converts protobuf representation to GlobalLabels.
-func (gl *GlobalLabels) FromProto(pb *modelproto.GlobalLabels) {
+func (gl *GlobalLabels) FromProto(pb *aggregationpb.GlobalLabels) {
 	gl.Labels = make(modelpb.Labels, len(pb.Labels))
 	for _, l := range pb.Labels {
 		gl.Labels[l.Key] = &modelpb.LabelValue{Value: l.Value, Values: l.Values, Global: true}
@@ -524,7 +524,7 @@ func (gl *GlobalLabels) UnmarshalBinary(data []byte) error {
 		gl.NumericLabels = nil
 		return nil
 	}
-	pb := modelproto.GlobalLabelsFromVTPool()
+	pb := aggregationpb.GlobalLabelsFromVTPool()
 	defer pb.ReturnToVTPool()
 	if err := pb.UnmarshalVT(data); err != nil {
 		return err

@@ -2,7 +2,7 @@ syntax = "proto3";
 
 package elastic.apm;
 
-option go_package = "./modelproto";
+option go_package = "./aggregationpb";
 option optimize_for = SPEED;
 
 message GlobalLabels {

@@ -6,7 +6,7 @@
 // protoc-gen-go-vtproto version: v0.4.0
 // source: proto/aggregation.proto
 
-package modelproto
+package aggregationpb
 
 import (
 	binary "encoding/binary"
