@@ -45,8 +45,9 @@ func EventToCombinedMetrics(
 		sim ServiceInstanceMetrics
 	)
 
-	// combined metrics is representing a single APM event
-	cm.eventsTotal = 1
+	cm.eventsTotal = 1 // combined metrics is representing a single APM event
+	cm.youngestEventTimestamp = e.GetEvent().GetReceived().AsTime()
+
 	processor := e.GetProcessor()
 	switch {
 	case processor.IsTransaction():

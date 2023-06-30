@@ -650,19 +650,33 @@ func (a *Aggregator) harvestForInterval(
 			errs = append(errs, fmt.Errorf("failed to unmarshal key: %w", err))
 			continue
 		}
-		eventsProcessed, err := a.processHarvest(ctx, cmk, iter.Value(), ivl)
+		harvestStats, err := a.processHarvest(ctx, cmk, iter.Value(), ivl)
 		if err != nil {
 			errs = append(errs, err)
 			continue
 		}
 		cmCount++
+
 		attrs := append([]attribute.KeyValue{ivlAttr}, a.combinedMetricsIDToKVs(cmk.ID)...)
-		a.metrics.EventsProcessed.Add(
-			ctx, eventsProcessed,
-			metric.WithAttributeSet(
-				attribute.NewSet(attrs...),
-			),
-		)
+		attrSet := metric.WithAttributeSet(attribute.NewSet(attrs...))
+		// processingDelay is normalized by substracting aggregation interval and
+		// harvest delay, both of which are expected delays. Normalization helps
+		// us to use the lower (higher resolution) range of the histogram for the
+		// important values. The normalized processingDelay can be negative as a
+		// result of premature harvest triggered by a stop of the aggregator. The
+		// negative value is accepted as a good value and recorded in the lower
+		// histogram buckets.
+		processingDelay := time.Since(cmk.ProcessingTime).Seconds() -
+			(ivl.Seconds() + a.harvestDelay.Seconds())
+		// queuedDelay is not explicitly normalized because we want to record the
+		// full delay. For a healthy deployment, the queued delay would be
+		// implicitly normalized due to the usage of youngest event timestamp.
+		// Negative values are possible at edges due to delays in running the
+		// harvest loop or time sync issues between agents and server.
+		queuedDelay := time.Since(harvestStats.youngestEventTimestamp).Seconds()
+		a.metrics.MinQueuedDelay.Record(ctx, queuedDelay, attrSet)
+		a.metrics.ProcessingDelay.Record(ctx, processingDelay, attrSet)
+		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, attrSet)
 	}
 	err := a.db.DeleteRange(lb, ub, pebble.Sync)
 	if len(errs) > 0 {
@@ -674,21 +688,28 @@ func (a *Aggregator) harvestForInterval(
 	return cmCount, err
 }
 
+type harvestStats struct {
+	eventsTotal            int64
+	youngestEventTimestamp time.Time
+}
+
 func (a *Aggregator) processHarvest(
 	ctx context.Context,
 	cmk CombinedMetricsKey,
 	cmb []byte,
 	aggIvl time.Duration,
-) (int64, error) {
-	var cm CombinedMetrics
+) (harvestStats, error) {
+	var (
+		cm CombinedMetrics
+		hs harvestStats
+	)
 	if err := cm.UnmarshalBinary(cmb); err != nil {
-		return 0, fmt.Errorf("failed to unmarshal metrics: %w", err)
+		return hs, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
 	if err := a.processor(ctx, cmk, cm, aggIvl); err != nil {
-		return 0, fmt.Errorf(
-			"failed to process combined metrics ID %s: %w",
-			cmk.ID, err,
-		)
+		return hs, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
-	return cm.eventsTotal, nil
+	hs.eventsTotal = cm.eventsTotal
+	hs.youngestEventTimestamp = cm.youngestEventTimestamp
+	return hs, nil
 }

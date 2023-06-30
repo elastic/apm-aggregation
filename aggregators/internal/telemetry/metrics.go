@@ -14,8 +14,9 @@ import (
 )
 
 const (
-	bytesUnit = "by"
-	countUnit = "1"
+	bytesUnit    = "by"
+	countUnit    = "1"
+	durationUnit = "s"
 )
 
 // Metrics are a collection of metric used to record all the
@@ -32,6 +33,8 @@ type Metrics struct {
 	EventsTotal     metric.Int64Counter
 	EventsProcessed metric.Int64Counter
 	BytesIngested   metric.Int64Counter
+	MinQueuedDelay  metric.Float64Histogram
+	ProcessingDelay metric.Float64Histogram
 
 	// Asynchronous metrics used to get pebble metrics and
 	// record measurements. These are kept unexported as they are
@@ -106,6 +109,22 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for bytes processed: %w", err)
+	}
+	i.MinQueuedDelay, err = meter.Float64Histogram(
+		"events.queued-delay",
+		metric.WithDescription("Records total duration for aggregating a batch w.r.t. its youngest member"),
+		metric.WithUnit(durationUnit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric for queued delay: %w", err)
+	}
+	i.ProcessingDelay, err = meter.Float64Histogram(
+		"events.processing-delay",
+		metric.WithDescription("Records the processing delays, removes expected delays due to aggreagtion intervals"),
+		metric.WithUnit(durationUnit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric for processing delay: %w", err)
 	}
 
 	// Pebble metrics

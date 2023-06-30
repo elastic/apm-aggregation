@@ -25,6 +25,7 @@ import (
 
 func TestEventToCombinedMetrics(t *testing.T) {
 	ts := time.Now().UTC()
+	receivedTS := ts.Add(time.Second)
 	event := &modelpb.APMEvent{
 		Processor: modelpb.TransactionProcessor(),
 		Timestamp: timestamppb.New(ts),
@@ -37,6 +38,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		Event: &modelpb.Event{
 			Duration: durationpb.New(time.Second),
 			Outcome:  "success",
+			Received: timestamppb.New(receivedTS),
 		},
 		Transaction: &modelpb.Transaction{
 			RepresentativeCount: 1,
@@ -47,7 +49,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 	cm, err := EventToCombinedMetrics(event, time.Minute)
 	require.NoError(t, err)
 	expected := CombinedMetrics(
-		*createTestCombinedMetrics(1).
+		*createTestCombinedMetrics(withEventsTotal(1), withYoungestEventTimestamp(receivedTS)).
 			addTransaction(ts.Truncate(time.Minute), event.Service.Name, "", testTransaction{txnName: event.Transaction.Name, txnType: event.Transaction.Type, eventOutcome: event.Event.Outcome, count: 1}).
 			addServiceTransaction(ts.Truncate(time.Minute), event.Service.Name, "", testServiceTransaction{txnType: event.Transaction.Type, count: 1}),
 	)
@@ -84,7 +86,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 			name:                "no_overflow_without_faas",
 			aggregationInterval: aggIvl,
 			combinedMetrics: CombinedMetrics(
-				*createTestCombinedMetrics(0).
+				*createTestCombinedMetrics().
 					addTransaction(ts, svcName, "", txn).
 					addServiceTransaction(ts, svcName, "", svcTxn).
 					addSpan(ts, svcName, "", span),
@@ -100,7 +102,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 			name:                "no_overflow",
 			aggregationInterval: aggIvl,
 			combinedMetrics: CombinedMetrics(
-				*createTestCombinedMetrics(0).
+				*createTestCombinedMetrics().
 					addTransaction(ts, svcName, "", txnFaas).
 					addServiceTransaction(ts, svcName, "", svcTxn).
 					addSpan(ts, svcName, "", span),
@@ -116,7 +118,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 			name:                "overflow",
 			aggregationInterval: aggIvl,
 			combinedMetrics: CombinedMetrics(
-				*createTestCombinedMetrics(0).
+				*createTestCombinedMetrics().
 					addTransaction(ts, svcName, "", txnFaas).
 					addServiceTransaction(ts, svcName, "", svcTxn).
 					addSpan(ts, svcName, "", span).
@@ -141,7 +143,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 			name:                "service_instance_overflow_in_global_and_per_svc",
 			aggregationInterval: aggIvl,
 			combinedMetrics: CombinedMetrics(
-				*createTestCombinedMetrics(0).
+				*createTestCombinedMetrics().
 					addServiceInstance(ts, "svc1", "").
 					addGlobalServiceOverflowServiceInstance(ts, "svc1", "1").
 					addGlobalServiceOverflowServiceInstance(ts, "svc2", "1"),
@@ -189,7 +191,7 @@ func BenchmarkCombinedMetricsToBatch(b *testing.B) {
 	ts := time.Now()
 	pt := ts.Truncate(ai)
 	cardinality := 10
-	tcm := createTestCombinedMetrics(0)
+	tcm := createTestCombinedMetrics()
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)

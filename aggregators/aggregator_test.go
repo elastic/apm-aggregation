@@ -132,6 +132,7 @@ func TestAggregateBatch(t *testing.T) {
 	uniqueEventCount := 100 // for each of txns and spans
 	uniqueServices := 10
 	repCount := 5
+	ts := time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC)
 	batch := make(modelpb.Batch, 0, uniqueEventCount*repCount*2)
 	// Distribute the total unique transaction count amongst the total
 	// unique services uniformly.
@@ -141,6 +142,7 @@ func TestAggregateBatch(t *testing.T) {
 			Event: &modelpb.Event{
 				Outcome:  "success",
 				Duration: durationpb.New(txnDuration),
+				Received: timestamppb.New(ts),
 			},
 			Transaction: &modelpb.Transaction{
 				Name:                fmt.Sprintf("foo%d", i%uniqueEventCount),
@@ -161,6 +163,9 @@ func TestAggregateBatch(t *testing.T) {
 		})
 		batch = append(batch, &modelpb.APMEvent{
 			Processor: modelpb.SpanProcessor(),
+			Event: &modelpb.Event{
+				Received: timestamppb.New(ts),
+			},
 			Span: &modelpb.Span{
 				Name:                fmt.Sprintf("bar%d", i%uniqueEventCount),
 				RepresentativeCount: 1,
@@ -222,14 +227,15 @@ func TestAggregateBatch(t *testing.T) {
 	assert.NotNil(t, span)
 
 	expectedCombinedMetrics := CombinedMetrics{
-		Services:    make(map[ServiceAggregationKey]ServiceMetrics),
-		eventsTotal: int64(len(batch)),
+		Services:               make(map[ServiceAggregationKey]ServiceMetrics),
+		eventsTotal:            int64(len(batch)),
+		youngestEventTimestamp: ts,
 	}
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 134750},
+				"aggregator.bytes.ingested": {Value: 142750},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: cmID},
@@ -239,6 +245,8 @@ func TestAggregateBatch(t *testing.T) {
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.events.total":     {Value: float64(len(batch))},
 				"aggregator.events.processed": {Value: float64(len(batch))},
+				"events.processing-delay":     {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
+				"events.queued-delay":         {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: aggregationIvlKey, Value: formatDuration(aggIvl)},
@@ -306,7 +314,12 @@ func TestAggregateBatch(t *testing.T) {
 		cmp.AllowUnexported(CombinedMetrics{}),
 	))
 	assert.Empty(t, cmp.Diff(
-		expectedMeasurements, gatherMetrics(gatherer, "pebble."),
+		expectedMeasurements,
+		gatherMetrics(
+			gatherer,
+			withIgnoreMetricPrefix("pebble."),
+			withZeroHistogramValues(true),
+		),
 		cmpopts.IgnoreUnexported(apmmodel.Time{}),
 	))
 }
@@ -811,7 +824,7 @@ func TestHarvest(t *testing.T) {
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 267},
+				"aggregator.bytes.ingested": {Value: 273},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: cmID},
@@ -822,6 +835,8 @@ func TestHarvest(t *testing.T) {
 				Samples: map[string]apmmodel.Metric{
 					"aggregator.events.total":     {Value: float64(len(batch))},
 					"aggregator.events.processed": {Value: float64(len(batch))},
+					"events.processing-delay":     {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
+					"events.queued-delay":         {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
 				},
 				Labels: apmmodel.StringMap{
 					apmmodel.StringMapItem{Key: aggregationIvlKey, Value: ivl.String()},
@@ -843,7 +858,12 @@ func TestHarvest(t *testing.T) {
 		t.Fatal("harvest didn't finish within expected time")
 	}
 	assert.Empty(t, cmp.Diff(
-		expectedMeasurements, gatherMetrics(gatherer, "pebble."),
+		expectedMeasurements,
+		gatherMetrics(
+			gatherer,
+			withIgnoreMetricPrefix("pebble."),
+			withZeroHistogramValues(true),
+		),
 		cmpopts.IgnoreUnexported(apmmodel.Time{}),
 		cmpopts.SortSlices(func(a, b apmmodel.Metrics) bool {
 			if len(a.Labels) != len(b.Labels) {
@@ -1251,7 +1271,36 @@ func sliceProcessor(slice *[]*modelpb.APMEvent) Processor {
 	}
 }
 
-func gatherMetrics(g apm.MetricsGatherer, ignoreMetricPrefix string) []apmmodel.Metrics {
+type gatherMetricsCfg struct {
+	ignoreMetricPrefix  string
+	zeroHistogramValues bool
+}
+
+type gatherMetricsOpt func(gatherMetricsCfg) gatherMetricsCfg
+
+// withIgnoreMetricPrefix ignores some metric prefixes from the gathered
+// metrics.
+func withIgnoreMetricPrefix(s string) gatherMetricsOpt {
+	return func(cfg gatherMetricsCfg) gatherMetricsCfg {
+		cfg.ignoreMetricPrefix = s
+		return cfg
+	}
+}
+
+// withZeroHistogramValues zeroes all histogram values if true. Useful
+// for testing where histogram values are harder to estimate correctly.
+func withZeroHistogramValues(b bool) gatherMetricsOpt {
+	return func(cfg gatherMetricsCfg) gatherMetricsCfg {
+		cfg.zeroHistogramValues = b
+		return cfg
+	}
+}
+
+func gatherMetrics(g apm.MetricsGatherer, opts ...gatherMetricsOpt) []apmmodel.Metrics {
+	var cfg gatherMetricsCfg
+	for _, opt := range opts {
+		cfg = opt(cfg)
+	}
 	tracer := apmtest.NewRecordingTracer()
 	defer tracer.Close()
 	tracer.RegisterMetricsGatherer(g)
@@ -1262,12 +1311,22 @@ func gatherMetrics(g apm.MetricsGatherer, ignoreMetricPrefix string) []apmmodel.
 	}
 
 	for i, m := range metrics {
-		for k := range m.Samples {
-			// Remove internal and any metrics that has been explicitly ignored
-			if strings.HasPrefix(k, "golang.") ||
-				strings.HasPrefix(k, "system.") ||
-				strings.HasPrefix(k, ignoreMetricPrefix) {
+		for k, s := range m.Samples {
+			// Remove internal metrics
+			if strings.HasPrefix(k, "golang.") || strings.HasPrefix(k, "system.") {
 				delete(m.Samples, k)
+				continue
+			}
+			// Remove any metrics that has been explicitly ignored
+			if cfg.ignoreMetricPrefix != "" && strings.HasPrefix(k, cfg.ignoreMetricPrefix) {
+				delete(m.Samples, k)
+				continue
+			}
+			// Zero out histogram values if required
+			if s.Type == "histogram" && cfg.zeroHistogramValues {
+				for j := range s.Values {
+					s.Values[j] = 0
+				}
 			}
 		}
 
