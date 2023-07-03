@@ -129,15 +129,19 @@ type CombinedMetrics struct {
 	// that overflowed due to max services limit being reached.
 	OverflowServices Overflow
 
+	// OverflowServiceInstancesEstimator estimates the number of unique service
+	// instance aggregation keys that overflowed due to max services limit or
+	// max service instances per service limit.
+	OverflowServiceInstancesEstimator *hyperloglog.Sketch
+
 	// eventsTotal is the total number of individual events, including
 	// all overflows, that were aggregated for this combined metrics. It
 	// is used for internal monitoring purposes.
 	eventsTotal int64
 
-	// OverflowServiceInstancesEstimator estimates the number of unique service
-	// instance aggregation keys that overflowed due to max services limit or
-	// max service instances per service limit.
-	OverflowServiceInstancesEstimator *hyperloglog.Sketch
+	// youngestEventTimestamp is the yougest event that was aggregated
+	// in the combined metrics based on the received timestamp.
+	youngestEventTimestamp time.Time
 }
 
 // ServiceAggregationKey models the key used to store service specific

@@ -72,8 +72,9 @@ func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 		pb.ServiceMetrics = append(pb.ServiceMetrics, ksm)
 	}
 	pb.OverflowServices = m.OverflowServices.ToProto()
-	pb.EventsTotal = m.eventsTotal
 	pb.OverflowServiceInstancesEstimator = hllBytes(m.OverflowServiceInstancesEstimator)
+	pb.EventsTotal = m.eventsTotal
+	pb.YoungestEventTimestamp = timestamppb.New(m.youngestEventTimestamp)
 	return pb
 }
 
@@ -90,8 +91,9 @@ func (m *CombinedMetrics) FromProto(pb *aggregationpb.CombinedMetrics) {
 	if pb.OverflowServices != nil {
 		m.OverflowServices.FromProto(pb.OverflowServices)
 	}
-	m.eventsTotal = pb.EventsTotal
 	m.OverflowServiceInstancesEstimator = hllSketch(pb.OverflowServiceInstancesEstimator)
+	m.eventsTotal = pb.EventsTotal
+	m.youngestEventTimestamp = pb.GetYoungestEventTimestamp().AsTime()
 }
 
 // MarshalBinary marshals CombinedMetrics to binary using protobuf.

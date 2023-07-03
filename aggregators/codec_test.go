@@ -71,7 +71,7 @@ func TestHistogramRepresentation(t *testing.T) {
 func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 	ts := time.Now()
 	cardinality := 10
-	tcm := createTestCombinedMetrics(0)
+	tcm := createTestCombinedMetrics()
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)
@@ -91,7 +91,7 @@ func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 func BenchmarkCombinedMetricsDecoding(b *testing.B) {
 	ts := time.Now()
 	cardinality := 10
-	tcm := createTestCombinedMetrics(0)
+	tcm := createTestCombinedMetrics()
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)

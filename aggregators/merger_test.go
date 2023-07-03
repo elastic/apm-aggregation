@@ -36,17 +36,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           2,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(10).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(10)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 5}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 5}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 5}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(4).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(4)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 2}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 2}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 2}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(14).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(14)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}),
@@ -64,17 +64,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           2,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(1000).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1000)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 500}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 500}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 500}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(4).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(4)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 2}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 2}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 2}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(1004).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1004)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 502}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 502}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 502}),
@@ -92,17 +92,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           2,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(4).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(4)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 2}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 2}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 2}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(1000).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1000)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 500}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 500}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 500}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(1004).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1004)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 502}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 502}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 502}),
@@ -120,17 +120,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           2,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(1400).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1400)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 700}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 700}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 700}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(1000).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1000)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 500}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 500}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 500}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(2400).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(2400)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 1200}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 1200}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 1200}),
@@ -148,17 +148,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(14).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(14)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(10).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(10)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn2", txnType: "type2", count: 5}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type2", count: 5}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span2", count: 5}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(24).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(24)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).                   // no merge as transactions will overflow
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).                      // no merge as service transactions will overflow
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}).                                                 // no merge as spans will overflow
@@ -179,7 +179,7 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(34).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(34)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}).
@@ -187,12 +187,12 @@ func TestMerge(t *testing.T) {
 				addPerServiceOverflowServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type2", count: 10}).
 				addPerServiceOverflowSpan(ts, "svc1", "", testSpan{spanName: "", count: 10}), // since max span groups per svc limit is 1, span.name will be dropped
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(10).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(10)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn2", txnType: "type2", count: 5}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type2", count: 5}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span2", count: 5}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(44).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(44)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}).
@@ -213,12 +213,12 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(14).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(14)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(26).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(26)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn2", txnType: "type2", count: 5}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type2", count: 5}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span2", count: 5}).
@@ -226,7 +226,7 @@ func TestMerge(t *testing.T) {
 				addPerServiceOverflowServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type3", count: 8}).
 				addPerServiceOverflowSpan(ts, "svc1", "", testSpan{spanName: "", count: 8}), // since max span groups per svc limit is 1, span.name will be dropped
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(40).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(40)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}).
@@ -250,17 +250,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(14).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(14)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(10).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(10)).
 				addTransaction(ts, "svc2", "", testTransaction{txnName: "txn1", txnType: "type1", count: 5}).
 				addServiceTransaction(ts, "svc2", "", testServiceTransaction{txnType: "type1", count: 5}).
 				addSpan(ts, "svc2", "", testSpan{spanName: "span1", count: 5}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(24).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(24)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}).
@@ -281,13 +281,13 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(111).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(111)).
 				addServiceInstance(ts, "svc1", ""),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(222).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(222)).
 				addServiceInstance(ts, "svc2", ""),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(333).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(333)).
 				addServiceInstance(ts, "svc1", "").
 				addGlobalServiceOverflowServiceInstance(ts, "svc2", ""),
 			),
@@ -304,17 +304,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(14).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(14)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(10).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(10)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn2", txnType: "type2", count: 5}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type2", count: 5}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span2", count: 5}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(24).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(24)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}).
 				addSpan(ts, "svc1", "", testSpan{spanName: "span1", count: 7}).
@@ -335,13 +335,13 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    2,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(1).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1)).
 				addServiceInstance(ts, "svc1", "1"),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(2).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(2)).
 				addServiceInstance(ts, "svc1", "2"),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(3).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(3)).
 				addServiceInstance(ts, "svc1", "1").
 				addServiceInstance(ts, "svc1", "2"),
 			),
@@ -358,13 +358,13 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(1).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1)).
 				addServiceInstance(ts, "svc1", "1"),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(2).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(2)).
 				addServiceInstance(ts, "svc1", "2"),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(3).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(3)).
 				addServiceInstance(ts, "svc1", "1").
 				addGlobalServiceOverflowServiceInstance(ts, "svc1", "2"),
 			),
@@ -381,13 +381,13 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(1).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1)).
 				addServiceInstance(ts, "svc1", "1"),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(2).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(2)).
 				addServiceInstance(ts, "svc2", "2"),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(3).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(3)).
 				addServiceInstance(ts, "svc1", "1").
 				addGlobalServiceOverflowServiceInstance(ts, "svc2", "2"),
 			),
@@ -404,13 +404,13 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(1).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1)).
 				addTransaction(ts, "svc1", "1", testTransaction{txnName: "txn1", txnType: "type1", count: 1}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(2).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(2)).
 				addTransaction(ts, "svc1", "2", testTransaction{txnName: "txn1", txnType: "type1", count: 2}),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(3).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(3)).
 				addTransaction(ts, "svc1", "1", testTransaction{txnName: "txn1", txnType: "type1", count: 1}).
 				addPerServiceOverflowTransaction(ts, "svc1", "2", testTransaction{txnName: "txn1", txnType: "type1", count: 2}).
 				addGlobalServiceOverflowServiceInstance(ts, "svc1", "2"),
@@ -428,17 +428,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(1).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1)).
 				addTransaction(ts, "svc1", "1", testTransaction{txnName: "txn1", txnType: "type1", count: 1}).
 				addGlobalServiceOverflowServiceInstance(ts, "svc1", "2").
 				addGlobalServiceOverflowServiceInstance(ts, "svc3", "3"),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(2).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(2)).
 				addTransaction(ts, "svc2", "2", testTransaction{txnName: "txn1", txnType: "type1", count: 2}).
 				addGlobalServiceOverflowServiceInstance(ts, "svc2", "3").
 				addGlobalServiceOverflowServiceInstance(ts, "svc3", "3"),
 			),
-			expected: CombinedMetrics(*createTestCombinedMetrics(3).
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(3)).
 				addTransaction(ts, "svc1", "1", testTransaction{txnName: "txn1", txnType: "type1", count: 1}).
 				addGlobalServiceOverflowTransaction(ts, "svc2", "2", testTransaction{txnName: "txn1", txnType: "type1", count: 2}).
 				addGlobalServiceOverflowServiceInstance(ts, "svc2", "2").
@@ -458,12 +458,12 @@ func TestMerge(t *testing.T) {
 				MaxServiceTransactionGroupsPerService: 1,
 				MaxServices:                           1,
 			},
-			to: CombinedMetrics(*createTestCombinedMetrics(7).
+			to: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(7)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}),
 			),
-			from: CombinedMetrics(*createTestCombinedMetrics(1)),
-			expected: CombinedMetrics(*createTestCombinedMetrics(8).
+			from: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(1))),
+			expected: CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(8)).
 				addTransaction(ts, "svc1", "", testTransaction{txnName: "txn1", txnType: "type1", count: 7}).
 				addServiceTransaction(ts, "svc1", "", testServiceTransaction{txnType: "type1", count: 7}),
 			),
@@ -476,10 +476,38 @@ func TestMerge(t *testing.T) {
 	}
 }
 
+type testCombinedMetricsCfg struct {
+	eventsTotal            int64
+	youngestEventTimestamp time.Time
+}
+
+type testCombinedMetricsOpt func(cfg testCombinedMetricsCfg) testCombinedMetricsCfg
+
+func withEventsTotal(total int64) testCombinedMetricsOpt {
+	return func(cfg testCombinedMetricsCfg) testCombinedMetricsCfg {
+		cfg.eventsTotal = total
+		return cfg
+	}
+}
+
+func withYoungestEventTimestamp(ts time.Time) testCombinedMetricsOpt {
+	return func(cfg testCombinedMetricsCfg) testCombinedMetricsCfg {
+		cfg.youngestEventTimestamp = ts
+		return cfg
+	}
+}
+
 type TestCombinedMetrics CombinedMetrics
 
-func createTestCombinedMetrics(eventsTotal int64) *TestCombinedMetrics {
-	return &TestCombinedMetrics{eventsTotal: eventsTotal}
+func createTestCombinedMetrics(opts ...testCombinedMetricsOpt) *TestCombinedMetrics {
+	var cfg testCombinedMetricsCfg
+	for _, opt := range opts {
+		cfg = opt(cfg)
+	}
+	return &TestCombinedMetrics{
+		eventsTotal:            cfg.eventsTotal,
+		youngestEventTimestamp: cfg.youngestEventTimestamp,
+	}
 }
 
 type testTransaction struct {
@@ -754,14 +782,14 @@ func TestCardinalityEstimationOnSubKeyCollision(t *testing.T) {
 		MaxServices:                           1,
 	}
 	ts := time.Time{}
-	to := CombinedMetrics(*createTestCombinedMetrics(0).
+	to := CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(0)).
 		addServiceInstance(ts, "svc1", ""))
-	from1 := CombinedMetrics(*createTestCombinedMetrics(10).
+	from1 := CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(10)).
 		addTransaction(ts, "svc2", "", testTransaction{txnName: "txn1", txnType: "type1", count: 5}).
 		addServiceTransaction(ts, "svc2", "", testServiceTransaction{txnType: "type1", count: 5}).
 		addSpan(ts, "svc2", "", testSpan{spanName: "", count: 5}),
 	)
-	from2 := CombinedMetrics(*createTestCombinedMetrics(10).
+	from2 := CombinedMetrics(*createTestCombinedMetrics(withEventsTotal(10)).
 		addTransaction(ts, "svc3", "", testTransaction{txnName: "txn1", txnType: "type1", count: 5}).
 		addServiceTransaction(ts, "svc3", "", testServiceTransaction{txnType: "type1", count: 5}).
 		addSpan(ts, "svc3", "", testSpan{spanName: "", count: 5}),

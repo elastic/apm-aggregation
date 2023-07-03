@@ -66,11 +66,14 @@ func (c *Constraint) value() int {
 
 // merge merges two combined metrics considering the configured limits.
 func merge(to, from *CombinedMetrics, limits Limits) {
-	// eventsTotal tracks the total number of events merged in a single combined metrics
-	// irrespective of overflows. We merge the events total irrespective
-	// of the services present because it is possible for services to be empty
-	// if the event does not fit the criteria for aggregations.
+	// We merge the below fields irrespective of the services present
+	// because it is possible for services to be empty if the event
+	// does not fit the criteria for aggregations.
 	to.eventsTotal += from.eventsTotal
+	if to.youngestEventTimestamp.Before(from.youngestEventTimestamp) {
+		to.youngestEventTimestamp = from.youngestEventTimestamp
+	}
+
 	if len(from.Services) == 0 {
 		// Accounts for overflow too as overflow cannot happen with 0 entries.
 		return
