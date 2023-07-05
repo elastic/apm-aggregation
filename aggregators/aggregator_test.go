@@ -11,6 +11,7 @@ import (
 	"net/netip"
 	"sort"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
@@ -1187,11 +1188,8 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	}
 }
 
-func BenchmarkAggregateBatch(b *testing.B) {
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		b.Fatal(err)
-	}
+func benchmarkAggregateBatchConcurrent(b *testing.B, concurrency int) {
+	b.ReportAllocs()
 	agg, err := New(AggregatorConfig{
 		DataDir: b.TempDir(),
 		Limits: Limits{
@@ -1205,17 +1203,11 @@ func BenchmarkAggregateBatch(b *testing.B) {
 			MaxServiceInstanceGroupsPerService:    100,
 		},
 		Processor:            noOpProcessor(),
-		AggregationIntervals: []time.Duration{time.Minute},
-	}, logger)
+		AggregationIntervals: []time.Duration{time.Second, time.Minute, time.Hour},
+	}, zap.NewNop())
 	if err != nil {
 		b.Fatal(err)
 	}
-	go func() {
-		agg.Run(context.Background())
-	}()
-	b.Cleanup(func() {
-		agg.Stop(context.Background())
-	})
 	batch := &modelpb.Batch{
 		&modelpb.APMEvent{
 			Processor: modelpb.TransactionProcessor(),
@@ -1226,10 +1218,41 @@ func BenchmarkAggregateBatch(b *testing.B) {
 			},
 		},
 	}
-	for i := 0; i < b.N; i++ {
-		if err := agg.AggregateBatch(context.Background(), "test", batch); err != nil {
+	wg := sync.WaitGroup{}
+	b.ResetTimer()
+
+	for j := 0; j < concurrency; j++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			for i := 0; i < b.N; i++ {
+				if err := agg.AggregateBatch(context.Background(), "test", batch); err != nil {
+					b.Fatal(err)
+				}
+			}
+		}()
+	}
+	wg.Wait()
+
+	if agg.batch != nil {
+		if err := agg.batch.Commit(pebble.Sync); err != nil {
 			b.Fatal(err)
 		}
+		if err := agg.batch.Close(); err != nil {
+			b.Fatal(err)
+		}
+		agg.batch = nil
+	}
+	if err := agg.db.Close(); err != nil {
+		b.Fatal(err)
+	}
+}
+
+func BenchmarkAggregateBatchConcurrent(b *testing.B) {
+	for _, concurrency := range []int{1, 10, 100, 1000} {
+		b.Run(fmt.Sprintf("%d", concurrency), func(b *testing.B) {
+			benchmarkAggregateBatchConcurrent(b, concurrency)
+		})
 	}
 }
 
