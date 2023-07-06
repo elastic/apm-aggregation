@@ -86,8 +86,10 @@ func WithProcessor(processor Processor) Option {
 	}
 }
 
-// WithPartitioner configures a  partitioner for partitioning the combined
-// metrics in pebble.
+// WithPartitioner configures a partitioner for partitioning the combined
+// metrics in pebble. Partition IDs are encoded in a way that all the
+// partitions of a specific combined metric are listed before any other if
+// compared using the bytes comparer.
 func WithPartitioner(partitioner Partitioner) Option {
 	return func(c Config) Config {
 		c.Partitioner = partitioner

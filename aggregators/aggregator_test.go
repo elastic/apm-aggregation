@@ -658,6 +658,56 @@ func TestCombinedMetricsKeyOrdered(t *testing.T) {
 	}
 }
 
+// Keys should be ordered such that all the partitions for a specific ID is listed
+// before any other combined metrics ID.
+func TestCombinedMetricsKeyOrderedByProjectID(t *testing.T) {
+	// To Allow for retrieving combined metrics by time range, the metrics should
+	// be ordered by processing time.
+	ts := time.Now().Add(-time.Hour)
+	ivl := time.Minute
+
+	keyTemplate := CombinedMetricsKey{
+		ProcessingTime: ts.Truncate(time.Minute),
+		Interval:       ivl,
+	}
+	cmCount := 1000
+	pidCount := 500
+	keys := make([]CombinedMetricsKey, 0, cmCount*pidCount)
+
+	for i := 0; i < cmCount; i++ {
+		cmID := fmt.Sprintf("cm%05d", i)
+		for k := 0; k < pidCount; k++ {
+			key := keyTemplate
+			key.PartitionID = uint16(k)
+			key.ID = cmID
+			keys = append(keys, key)
+		}
+	}
+
+	before := keys[0]
+	marshaledBufferSize := before.SizeBinary()
+	beforeBytes := make([]byte, marshaledBufferSize)
+	afterBytes := make([]byte, marshaledBufferSize)
+
+	for i := 1; i < len(keys); i++ {
+		ts = ts.Add(time.Minute)
+		after := keys[i]
+		require.NoError(t, after.MarshalBinaryToSizedBuffer(afterBytes))
+		require.NoError(t, before.MarshalBinaryToSizedBuffer(beforeBytes))
+
+		// before should always come first
+		if !assert.Equal(
+			t, -1,
+			pebble.DefaultComparer.Compare(beforeBytes, afterBytes),
+			fmt.Sprintf("(%s, %d) should come before (%s, %d)", before.ID, before.PartitionID, after.ID, after.PartitionID),
+		) {
+			assert.FailNow(t, "keys not in expected order")
+		}
+
+		before = after
+	}
+}
+
 func TestHarvest(t *testing.T) {
 	cmCount := 5
 	ivls := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}

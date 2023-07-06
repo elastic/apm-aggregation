@@ -29,22 +29,20 @@ import (
 // interval, the next 8 bytes of the encoded slice is the processing time
 // the next 2 bytes is the partition ID and finally the combined metrics ID.
 func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
-	var offset int
-
 	ivlSeconds := uint16(k.Interval.Seconds())
 	if len(data) < k.SizeBinary() {
 		return errors.New("sized buffer of insufficient length")
 	}
+	var offset int
 	binary.BigEndian.PutUint16(data[offset:], ivlSeconds)
 	offset += 2
 
 	binary.BigEndian.PutUint64(data[offset:], uint64(k.ProcessingTime.Unix()))
 	offset += 8
 
-	binary.BigEndian.PutUint16(data[offset:], k.PartitionID)
-	offset += 2
+	offset += copy(data[offset:], k.ID)
 
-	copy(data[offset:], k.ID)
+	binary.BigEndian.PutUint16(data[offset:], k.PartitionID)
 	return nil
 }
 
@@ -55,8 +53,10 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 	}
 	k.Interval = time.Duration(binary.BigEndian.Uint16(data[0:2])) * time.Second
 	k.ProcessingTime = time.Unix(int64(binary.BigEndian.Uint64(data[2:10])), 0)
-	k.PartitionID = binary.BigEndian.Uint16(data[10:12])
-	k.ID = string(data[12:])
+
+	partitionIDOffset := len(data) - 2
+	k.PartitionID = binary.BigEndian.Uint16(data[partitionIDOffset:])
+	k.ID = string(data[10:partitionIDOffset])
 	return nil
 }
 
