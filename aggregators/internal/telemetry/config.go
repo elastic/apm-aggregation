@@ -9,14 +9,8 @@ import (
 	"go.opentelemetry.io/otel/metric"
 )
 
-const (
-	instrumentationName = "aggregators"
-)
-
 type config struct {
 	Meter metric.Meter
-
-	MeterProvider metric.MeterProvider
 }
 
 // Option interface is used to configure optional config options.
@@ -32,23 +26,18 @@ func (o optionFunc) apply(c *config) {
 
 func newConfig(opts ...Option) *config {
 	c := &config{
-		MeterProvider: otel.GetMeterProvider(),
+		Meter: otel.GetMeterProvider().Meter("aggregators"),
 	}
 	for _, opt := range opts {
 		opt.apply(c)
 	}
-
-	c.Meter = c.MeterProvider.Meter(instrumentationName)
-
 	return c
 }
 
-// WithMeterProvider configures a provier to use for creating a meter.
-// If nil or no provider is passed then the global provider is used.
-func WithMeterProvider(provider metric.MeterProvider) Option {
+// WithMeter configures a meter to use for telemetry. If no meter is
+// passed then the meter is created using the global provider.
+func WithMeter(meter metric.Meter) Option {
 	return optionFunc(func(cfg *config) {
-		if provider != nil {
-			cfg.MeterProvider = provider
-		}
+		cfg.Meter = meter
 	})
 }
