@@ -9,13 +9,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"sort"
 	"sync"
 	"sync/atomic"
 	"time"
 
 	"github.com/cockroachdb/pebble"
-	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -39,14 +37,6 @@ var (
 	ErrAggregatorAlreadyRunning = errors.New("aggregator is already running")
 )
 
-// Processor defines handling of the aggregated metrics post harvest.
-type Processor func(
-	ctx context.Context,
-	cmk CombinedMetricsKey,
-	cm CombinedMetrics,
-	aggregationIvl time.Duration,
-) error
-
 // Aggregator represents a LSM based aggregator instance to generate
 // aggregated metrics. The metrics aggregated by the aggregator are
 // harvested based on the aggregation interval and processed by the
@@ -56,12 +46,8 @@ type Processor func(
 // same processing time bucket and thereafter the processing time
 // bucket is advanced in factors of aggregation interval.
 type Aggregator struct {
-	db        *pebble.DB
-	limits    Limits
-	processor Processor
-
-	aggregationIntervals []time.Duration
-	harvestDelay         time.Duration
+	db  *pebble.DB
+	cfg Config
 
 	mu             sync.Mutex
 	processingTime time.Time
@@ -73,55 +59,6 @@ type Aggregator struct {
 	runStopped chan struct{}
 
 	metrics *telemetry.Metrics
-	tracer  trace.Tracer
-	logger  *zap.Logger
-
-	combinedMetricsIDToKVs func(string) []attribute.KeyValue
-}
-
-// AggregatorConfig contains the required config for running the
-// aggregator.
-type AggregatorConfig struct {
-	DataDir string
-	Limits  Limits
-	// Processor defines handling of the aggregated metrics post
-	// harvest. Processor is called for each decoded combined metrics
-	// after they are harvested.
-	Processor Processor
-	// AggregationIntervals defines the intervals that aggregator
-	// will aggregate for. Note that the aggregation intervals
-	// used for second level aggregation must be equal to the
-	// aggregation intervals used for first level aggregations.
-	AggregationIntervals []time.Duration
-	// HarvestDelay delays the harvest by the configured duration.
-	// This means that harvest for a specific processing time
-	// would be performed with HarvestDelay.
-	//
-	// Without delay, a normal harvest schedule will harvest metrics
-	// aggregated for processing time, say `t0`, at time `t1`, where
-	// `t1 = t0 + aggregation_interval`. With delay of, say `d`, the
-	// harvester will harvest the metrics for `t0` at `t1 + d`. In
-	// addition to harvest the duration for which the metrics are
-	// aggregated by the AggregateBatch API will also be affected.
-	//
-	// The main purpose of the delay is to handle the latency of
-	// receiving the l1 aggregated metrics in l2 aggregation. Thus
-	// the value must be configured for the l2 aggregator and is
-	// not required for l1 aggregator. If used as such then the
-	// harvest delay has no effects on the duration for which the
-	// metrics are aggregated. This is because AggregateBatch API is
-	// not used by the l2 aggregator.
-	HarvestDelay time.Duration
-	// A custom tracer which will be used by the aggregator.
-	// Defaults to a tracer retrieved from the global TracerProvider.
-	Tracer trace.Tracer
-	// A custom meter provider which will be used by the telemetry.
-	// Defaults to the global MeterProvider.
-	MeterProvider metric.MeterProvider
-
-	// Optional. A function that converts a combined metrics ID
-	// to zero or more attribute.KeyValue for telemetry.
-	CombinedMetricsIDToKVs func(string) []attribute.KeyValue
 }
 
 // stats is used to cache request based stats accepted by the
@@ -138,9 +75,10 @@ func (s *stats) merge(from stats) {
 }
 
 // New returns a new aggregator instance.
-func New(cfg AggregatorConfig, logger *zap.Logger) (*Aggregator, error) {
-	if err := validateCfg(cfg); err != nil {
-		return nil, err
+func New(opts ...Option) (*Aggregator, error) {
+	cfg, err := NewConfig(opts...)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create aggregation config: %w", err)
 	}
 
 	pb, err := pebble.Open(cfg.DataDir, &pebble.Options{
@@ -163,72 +101,21 @@ func New(cfg AggregatorConfig, logger *zap.Logger) (*Aggregator, error) {
 
 	metrics, err := telemetry.NewMetrics(
 		func() *pebble.Metrics { return pb.Metrics() },
-		telemetry.WithMeterProvider(cfg.MeterProvider),
+		telemetry.WithMeter(cfg.Meter),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metrics: %w", err)
 	}
-	tracer := cfg.Tracer
-	if tracer == nil {
-		tracer = otel.Tracer("aggregators")
-	}
-
-	combinedMetricsIDToKVs := cfg.CombinedMetricsIDToKVs
-	if combinedMetricsIDToKVs == nil {
-		combinedMetricsIDToKVs = func(_ string) []attribute.KeyValue { return nil }
-	}
 
 	return &Aggregator{
-		db:                     pb,
-		limits:                 cfg.Limits,
-		processor:              cfg.Processor,
-		harvestDelay:           cfg.HarvestDelay,
-		aggregationIntervals:   cfg.AggregationIntervals,
-		processingTime:         time.Now().Truncate(cfg.AggregationIntervals[0]),
-		cachedStats:            newCachedStats(cfg.AggregationIntervals),
-		stopping:               make(chan struct{}),
-		runStopped:             make(chan struct{}),
-		metrics:                metrics,
-		logger:                 logger,
-		tracer:                 tracer,
-		combinedMetricsIDToKVs: combinedMetricsIDToKVs,
+		db:             pb,
+		cfg:            cfg,
+		processingTime: time.Now().Truncate(cfg.AggregationIntervals[0]),
+		cachedStats:    newCachedStats(cfg.AggregationIntervals),
+		stopping:       make(chan struct{}),
+		runStopped:     make(chan struct{}),
+		metrics:        metrics,
 	}, nil
-}
-
-func validateCfg(cfg AggregatorConfig) error {
-	if cfg.DataDir == "" {
-		return errors.New("data directory is required")
-	}
-	if cfg.Processor == nil {
-		return errors.New("processor is required")
-	}
-	if len(cfg.AggregationIntervals) == 0 {
-		return errors.New("at least one aggregation interval is required")
-	}
-	if !sort.SliceIsSorted(cfg.AggregationIntervals, func(i, j int) bool {
-		return cfg.AggregationIntervals[i] < cfg.AggregationIntervals[j]
-	}) {
-		return errors.New("aggregation intervals must be in ascending order")
-	}
-	lowest := cfg.AggregationIntervals[0]
-	highest := cfg.AggregationIntervals[len(cfg.AggregationIntervals)-1]
-	for i := 1; i < len(cfg.AggregationIntervals); i++ {
-		ivl := cfg.AggregationIntervals[i]
-		if ivl%lowest != 0 {
-			return errors.New("aggregation intervals must be a factor of lowest interval")
-		}
-	}
-	// For encoding/decoding the processing time for combined metrics we only consider
-	// seconds granularity making 1 sec the lowest possible aggregation interval. We
-	// also encode interval as 2 unsigned bytes making 65535 (~18 hours) the highest
-	// possible aggregation interval.
-	if lowest < time.Second {
-		return errors.New("aggregation interval less than one second is not supported")
-	}
-	if highest > 18*time.Hour {
-		return errors.New("aggregation interval greater than 18 hours is not supported")
-	}
-	return nil
 }
 
 func newCachedStats(ivls []time.Duration) map[time.Duration]map[string]stats {
@@ -247,8 +134,8 @@ func (a *Aggregator) AggregateBatch(
 	id string,
 	b *modelpb.Batch,
 ) error {
-	cmIDAttrs := a.combinedMetricsIDToKVs(id)
-	ctx, span := a.tracer.Start(ctx, "AggregateBatch", trace.WithAttributes(cmIDAttrs...))
+	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(id)
+	ctx, span := a.cfg.Tracer.Start(ctx, "AggregateBatch", trace.WithAttributes(cmIDAttrs...))
 	defer span.End()
 
 	a.mu.Lock()
@@ -265,7 +152,7 @@ func (a *Aggregator) AggregateBatch(
 	var errs []error
 	var totalBytesIn int64
 	cmk := CombinedMetricsKey{ID: id}
-	for _, ivl := range a.aggregationIntervals {
+	for _, ivl := range a.cfg.AggregationIntervals {
 		cmk.ProcessingTime = a.processingTime.Truncate(ivl)
 		cmk.Interval = ivl
 		for _, e := range *b {
@@ -301,11 +188,11 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	cmk CombinedMetricsKey,
 	cm CombinedMetrics,
 ) error {
-	cmIDAttrs := a.combinedMetricsIDToKVs(cmk.ID)
+	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(cmk.ID)
 	traceAttrs := append(append([]attribute.KeyValue{}, cmIDAttrs...),
 		attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
 		attribute.String("processing_time", cmk.ProcessingTime.String()))
-	ctx, span := a.tracer.Start(ctx, "AggregateCombinedMetrics", trace.WithAttributes(traceAttrs...))
+	ctx, span := a.cfg.Tracer.Start(ctx, "AggregateCombinedMetrics", trace.WithAttributes(traceAttrs...))
 	defer span.End()
 
 	a.mu.Lock()
@@ -350,9 +237,9 @@ func (a *Aggregator) Run(ctx context.Context) error {
 	}
 	defer close(a.runStopped)
 
-	to := a.processingTime.Add(a.aggregationIntervals[0])
-	timer := time.NewTimer(time.Until(to.Add(a.harvestDelay)))
-	harvestStats := newCachedStats(a.aggregationIntervals)
+	to := a.processingTime.Add(a.cfg.AggregationIntervals[0])
+	timer := time.NewTimer(time.Until(to.Add(a.cfg.HarvestDelay)))
+	harvestStats := newCachedStats(a.cfg.AggregationIntervals)
 	defer timer.Stop()
 	for {
 		select {
@@ -383,10 +270,10 @@ func (a *Aggregator) Run(ctx context.Context) error {
 		a.mu.Unlock()
 
 		if err := a.commitAndHarvest(ctx, batch, to, harvestStats); err != nil {
-			a.logger.Warn("failed to commit and harvest metrics", zap.Error(err))
+			a.cfg.Logger.Warn("failed to commit and harvest metrics", zap.Error(err))
 		}
-		to = to.Add(a.aggregationIntervals[0])
-		timer.Reset(time.Until(to.Add(a.harvestDelay)))
+		to = to.Add(a.cfg.AggregationIntervals[0])
+		timer.Reset(time.Until(to.Add(a.cfg.HarvestDelay)))
 	}
 }
 
@@ -394,7 +281,7 @@ func (a *Aggregator) Run(ctx context.Context) error {
 // will return an error. Stop can be called multiple times but concurrent
 // calls to stop will block.
 func (a *Aggregator) Stop(ctx context.Context) error {
-	ctx, span := a.tracer.Start(ctx, "Aggregator.Stop")
+	ctx, span := a.cfg.Tracer.Start(ctx, "Aggregator.Stop")
 	defer span.End()
 
 	a.mu.Lock()
@@ -412,12 +299,12 @@ func (a *Aggregator) Stop(ctx context.Context) error {
 		}
 	}
 
-	a.logger.Info("stopping aggregator")
+	a.cfg.Logger.Info("stopping aggregator")
 	a.mu.Lock()
 	defer a.mu.Unlock()
 
 	if a.db != nil {
-		a.logger.Info("running final aggregation")
+		a.cfg.Logger.Info("running final aggregation")
 		if a.batch != nil {
 			if err := a.batch.Commit(pebble.Sync); err != nil {
 				span.RecordError(err)
@@ -430,7 +317,7 @@ func (a *Aggregator) Stop(ctx context.Context) error {
 			a.batch = nil
 		}
 		var errs []error
-		for _, ivl := range a.aggregationIntervals {
+		for _, ivl := range a.cfg.AggregationIntervals {
 			// At any particular time there will be 1 harvest candidate for
 			// each aggregation interval. We will align the end time and
 			// process each of these.
@@ -467,10 +354,12 @@ func (a *Aggregator) aggregateAPMEvent(
 	cmk CombinedMetricsKey,
 	e *modelpb.APMEvent,
 ) (int, error) {
-	traceAttrs := append(append([]attribute.KeyValue{}, a.combinedMetricsIDToKVs(cmk.ID)...),
+	traceAttrs := append(
+		a.cfg.CombinedMetricsIDToKVs(cmk.ID),
 		attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
-		attribute.String("processing_time", cmk.ProcessingTime.String()))
-	ctx, span := a.tracer.Start(ctx, "aggregateAPMEvent", trace.WithAttributes(traceAttrs...))
+		attribute.String("processing_time", cmk.ProcessingTime.String()),
+	)
+	ctx, span := a.cfg.Tracer.Start(ctx, "aggregateAPMEvent", trace.WithAttributes(traceAttrs...))
 	defer span.End()
 
 	cm, err := EventToCombinedMetrics(e, cmk.Interval)
@@ -533,7 +422,7 @@ func (a *Aggregator) commitAndHarvest(
 	to time.Time,
 	harvestStats map[time.Duration]map[string]stats,
 ) error {
-	ctx, span := a.tracer.Start(ctx, "commitAndHarvest")
+	ctx, span := a.cfg.Tracer.Start(ctx, "commitAndHarvest")
 	defer span.End()
 
 	var errs []error
@@ -569,7 +458,7 @@ func (a *Aggregator) harvest(
 	defer snap.Close()
 
 	var errs []error
-	for _, ivl := range a.aggregationIntervals {
+	for _, ivl := range a.cfg.AggregationIntervals {
 		// Check if the given aggregation interval needs to be harvested now
 		if end.Truncate(ivl).Equal(end) {
 			start := end.Add(-ivl)
@@ -582,7 +471,7 @@ func (a *Aggregator) harvest(
 					ivl, err,
 				))
 			}
-			a.logger.Debug(
+			a.cfg.Logger.Debug(
 				"Finished harvesting aggregated metrics",
 				zap.Int("combined_metrics_successfully_harvested", cmCount),
 				zap.Duration("aggregation_interval_ns", ivl),
@@ -625,7 +514,7 @@ func (a *Aggregator) harvestForInterval(
 	// premature harvest as part of the graceful shutdown process.
 	ivlAttr := attribute.String(aggregationIvlKey, formatDuration(ivl))
 	for cmID, stats := range cmStats {
-		attrs := append([]attribute.KeyValue{ivlAttr}, a.combinedMetricsIDToKVs(cmID)...)
+		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmID), ivlAttr)
 		a.metrics.EventsTotal.Add(
 			ctx, stats.eventsTotal,
 			metric.WithAttributeSet(
@@ -657,7 +546,7 @@ func (a *Aggregator) harvestForInterval(
 		}
 		cmCount++
 
-		attrs := append([]attribute.KeyValue{ivlAttr}, a.combinedMetricsIDToKVs(cmk.ID)...)
+		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmk.ID), ivlAttr)
 		attrSet := metric.WithAttributeSet(attribute.NewSet(attrs...))
 		// processingDelay is normalized by substracting aggregation interval and
 		// harvest delay, both of which are expected delays. Normalization helps
@@ -667,7 +556,7 @@ func (a *Aggregator) harvestForInterval(
 		// negative value is accepted as a good value and recorded in the lower
 		// histogram buckets.
 		processingDelay := time.Since(cmk.ProcessingTime).Seconds() -
-			(ivl.Seconds() + a.harvestDelay.Seconds())
+			(ivl.Seconds() + a.cfg.HarvestDelay.Seconds())
 		// queuedDelay is not explicitly normalized because we want to record the
 		// full delay. For a healthy deployment, the queued delay would be
 		// implicitly normalized due to the usage of youngest event timestamp.
@@ -706,7 +595,7 @@ func (a *Aggregator) processHarvest(
 	if err := cm.UnmarshalBinary(cmb); err != nil {
 		return hs, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
-	if err := a.processor(ctx, cmk, cm, aggIvl); err != nil {
+	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
 		return hs, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
 	hs.eventsTotal = cm.eventsTotal
