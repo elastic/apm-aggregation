@@ -28,11 +28,18 @@ type Processor func(
 	aggregationIvl time.Duration,
 ) error
 
+// Partitioner partitions the aggregation key based on the configured
+// partition logic.
+type Partitioner interface {
+	Partition(uint64) uint16
+}
+
 // Config contains the required config for running the aggregator.
 type Config struct {
 	DataDir                string
 	Limits                 Limits
 	Processor              Processor
+	Partitioner            Partitioner
 	AggregationIntervals   []time.Duration
 	HarvestDelay           time.Duration
 	CombinedMetricsIDToKVs func(string) []attribute.KeyValue
@@ -75,6 +82,15 @@ func WithLimits(limits Limits) Option {
 func WithProcessor(processor Processor) Option {
 	return func(c Config) Config {
 		c.Processor = processor
+		return c
+	}
+}
+
+// WithPartitioner configures a  partitioner for partitioning the combined
+// metrics in pebble.
+func WithPartitioner(partitioner Partitioner) Option {
+	return func(c Config) Config {
+		c.Partitioner = partitioner
 		return c
 	}
 }
@@ -152,6 +168,7 @@ func defaultCfg() Config {
 	return Config{
 		DataDir:                "/tmp",
 		Processor:              stdoutProcessor,
+		Partitioner:            NewNoPartitioner(),
 		AggregationIntervals:   []time.Duration{time.Minute},
 		Meter:                  otel.Meter(instrumentationName),
 		Tracer:                 otel.Tracer(instrumentationName),
@@ -166,6 +183,9 @@ func validateCfg(cfg Config) error {
 	}
 	if cfg.Processor == nil {
 		return errors.New("processor is required")
+	}
+	if cfg.Partitioner == nil {
+		return errors.New("partitioner is required")
 	}
 	if len(cfg.AggregationIntervals) == 0 {
 		return errors.New("at least one aggregation interval is required")

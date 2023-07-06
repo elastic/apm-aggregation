@@ -146,14 +146,14 @@ func TestAggregateBatch(t *testing.T) {
 
 	expectedCombinedMetrics := CombinedMetrics{
 		Services:               make(map[ServiceAggregationKey]ServiceMetrics),
-		eventsTotal:            int64(len(batch)),
+		eventsTotal:            float64(len(batch)),
 		youngestEventTimestamp: ts,
 	}
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 142750},
+				"aggregator.bytes.ingested": {Value: 200750},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: cmID},
@@ -229,6 +229,7 @@ func TestAggregateBatch(t *testing.T) {
 	assert.Empty(t, cmp.Diff(
 		expectedCombinedMetrics, cm,
 		cmpopts.EquateEmpty(),
+		cmpopts.EquateApprox(0, 0.01),
 		cmp.AllowUnexported(CombinedMetrics{}),
 	))
 	assert.Empty(t, cmp.Diff(
@@ -239,6 +240,7 @@ func TestAggregateBatch(t *testing.T) {
 			withZeroHistogramValues(true),
 		),
 		cmpopts.IgnoreUnexported(apmmodel.Time{}),
+		cmpopts.EquateApprox(0, 0.01),
 	))
 }
 
@@ -736,7 +738,7 @@ func TestHarvest(t *testing.T) {
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 273},
+				"aggregator.bytes.ingested": {Value: 417},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: cmID},

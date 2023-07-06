@@ -67,7 +67,7 @@ type Aggregator struct {
 // Mostly useful for metrics which needs to be correlated with
 // harvest time metrics.
 type stats struct {
-	eventsTotal int64
+	eventsTotal float64
 }
 
 func (s *stats) merge(from stats) {
@@ -164,7 +164,7 @@ func (a *Aggregator) AggregateBatch(
 			totalBytesIn += int64(bytesIn)
 		}
 		cmStats := a.cachedStats[ivl][id]
-		cmStats.eventsTotal += int64(len(*b))
+		cmStats.eventsTotal += float64(len(*b))
 		a.cachedStats[ivl][id] = cmStats
 	}
 
@@ -367,13 +367,96 @@ func (a *Aggregator) aggregateAPMEvent(
 		span.RecordError(err)
 		return 0, fmt.Errorf("failed to convert event to combined metrics: %w", err)
 	}
-	bytesIn, err := a.aggregate(ctx, cmk, cm)
-	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
-	if err != nil {
-		span.RecordError(err)
-		return bytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)
+	var totalBytesIn int
+	for _, ckv := range a.partition(cmk, cm) {
+		bytesIn, err := a.aggregate(ctx, ckv.Key, ckv.Value)
+		totalBytesIn += bytesIn
+		if err != nil {
+			span.RecordError(err)
+			return totalBytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)
+		}
 	}
-	return bytesIn, nil
+	span.SetAttributes(attribute.Int("bytes_ingested", totalBytesIn))
+	return totalBytesIn, nil
+}
+
+// partition will partition a combined metrics into smaller partitions based
+// on the partitioning logic. It will ignore overflows as the partition will
+// be executed on a single APMEvent with no possibility of overflows.
+func (a *Aggregator) partition(
+	unpartitionedKey CombinedMetricsKey,
+	cm CombinedMetrics,
+) []CombinedKV {
+	var ckvs []CombinedKV
+	for svcKey, svc := range cm.Services {
+		hasher := Hasher{}.Chain(svcKey)
+		for svcInsKey, svcIns := range svc.ServiceInstanceGroups {
+			svcInsHasher := hasher.Chain(svcInsKey)
+			for svcTxnKey, svcTxn := range svcIns.ServiceTransactionGroups {
+				ck := unpartitionedKey
+				ck.PartitionID = a.cfg.Partitioner.Partition(svcInsHasher.Chain(svcTxnKey).Sum())
+				cv := CombinedMetrics{
+					Services: map[ServiceAggregationKey]ServiceMetrics{
+						svcKey: ServiceMetrics{
+							ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
+								svcInsKey: ServiceInstanceMetrics{
+									ServiceTransactionGroups: map[ServiceTransactionAggregationKey]ServiceTransactionMetrics{
+										svcTxnKey: svcTxn,
+									},
+								},
+							},
+						},
+					},
+				}
+				ckvs = append(ckvs, CombinedKV{Key: ck, Value: cv})
+			}
+			for txnKey, txn := range svcIns.TransactionGroups {
+				ck := unpartitionedKey
+				ck.PartitionID = a.cfg.Partitioner.Partition(svcInsHasher.Chain(txnKey).Sum())
+				cv := CombinedMetrics{
+					Services: map[ServiceAggregationKey]ServiceMetrics{
+						svcKey: ServiceMetrics{
+							ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
+								svcInsKey: ServiceInstanceMetrics{
+									TransactionGroups: map[TransactionAggregationKey]TransactionMetrics{
+										txnKey: txn,
+									},
+								},
+							},
+						},
+					},
+				}
+				ckvs = append(ckvs, CombinedKV{Key: ck, Value: cv})
+			}
+			for spanKey, span := range svcIns.SpanGroups {
+				ck := unpartitionedKey
+				ck.PartitionID = a.cfg.Partitioner.Partition(svcInsHasher.Chain(spanKey).Sum())
+				cv := CombinedMetrics{
+					Services: map[ServiceAggregationKey]ServiceMetrics{
+						svcKey: ServiceMetrics{
+							ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
+								svcInsKey: ServiceInstanceMetrics{
+									SpanGroups: map[SpanAggregationKey]SpanMetrics{
+										spanKey: span,
+									},
+								},
+							},
+						},
+					},
+				}
+				ckvs = append(ckvs, CombinedKV{Key: ck, Value: cv})
+			}
+		}
+	}
+	// Approximate events total by uniformly distributing the events total
+	// amongst the partitioned key values.
+	weightedEventsTotal := cm.eventsTotal / float64(len(ckvs))
+	for i := range ckvs {
+		cv := &ckvs[i].Value
+		cv.eventsTotal = weightedEventsTotal
+		cv.youngestEventTimestamp = cm.youngestEventTimestamp
+	}
+	return ckvs
 }
 
 // aggregate aggregates combined metrics for a given key and returns
@@ -578,7 +661,7 @@ func (a *Aggregator) harvestForInterval(
 }
 
 type harvestStats struct {
-	eventsTotal            int64
+	eventsTotal            float64
 	youngestEventTimestamp time.Time
 }
 

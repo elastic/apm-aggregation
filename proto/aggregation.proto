@@ -11,7 +11,7 @@ message CombinedMetrics {
   repeated KeyedServiceMetrics service_metrics = 1;
   Overflow overflow_services = 2;
   bytes overflow_service_instances_estimator = 3;
-  int64 events_total = 4;
+  double events_total = 4;
   google.protobuf.Timestamp youngest_event_timestamp = 5;
 }
 

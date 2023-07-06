@@ -107,6 +107,13 @@ type Limits struct {
 	MaxServiceTransactionGroupsPerService int
 }
 
+// CombinedKV represents a struct with combined metrics key and the corresponding
+// combined metrics.
+type CombinedKV struct {
+	Key   CombinedMetricsKey
+	Value CombinedMetrics
+}
+
 // CombinedMetricsKey models the key to store the data in LSM tree.
 // Each key-value pair represents a set of unique metric for a combined metrics ID.
 // The processing time used in the key should be rounded to the
@@ -114,6 +121,7 @@ type Limits struct {
 type CombinedMetricsKey struct {
 	Interval       time.Duration
 	ProcessingTime time.Time
+	PartitionID    uint16
 	ID             string
 }
 
@@ -136,8 +144,9 @@ type CombinedMetrics struct {
 
 	// eventsTotal is the total number of individual events, including
 	// all overflows, that were aggregated for this combined metrics. It
-	// is used for internal monitoring purposes.
-	eventsTotal int64
+	// is used for internal monitoring purposes and is approximated when
+	// partitioning is enabled.
+	eventsTotal float64
 
 	// youngestEventTimestamp is the yougest event that was aggregated
 	// in the combined metrics based on the received timestamp.

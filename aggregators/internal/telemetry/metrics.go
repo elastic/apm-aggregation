@@ -30,9 +30,9 @@ type Metrics struct {
 
 	RequestsTotal   metric.Int64Counter
 	RequestsFailed  metric.Int64Counter
-	EventsTotal     metric.Int64Counter
-	EventsProcessed metric.Int64Counter
 	BytesIngested   metric.Int64Counter
+	EventsTotal     metric.Float64Counter
+	EventsProcessed metric.Float64Counter
 	MinQueuedDelay  metric.Float64Histogram
 	ProcessingDelay metric.Float64Histogram
 
@@ -86,22 +86,6 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for requests failed: %w", err)
 	}
-	i.EventsTotal, err = meter.Int64Counter(
-		"aggregator.events.total",
-		metric.WithDescription("Total number of APM Events requested for aggregation per aggregation interval"),
-		metric.WithUnit(countUnit),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric for events total: %w", err)
-	}
-	i.EventsProcessed, err = meter.Int64Counter(
-		"aggregator.events.processed",
-		metric.WithDescription("APM Events successfully aggregated by the aggregator per aggregation interval"),
-		metric.WithUnit(countUnit),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric for events processed: %w", err)
-	}
 	i.BytesIngested, err = meter.Int64Counter(
 		"aggregator.bytes.ingested",
 		metric.WithDescription("Number of bytes ingested by the aggregators"),
@@ -109,6 +93,22 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for bytes processed: %w", err)
+	}
+	i.EventsTotal, err = meter.Float64Counter(
+		"aggregator.events.total",
+		metric.WithDescription("Total number of APM Events requested for aggregation per aggregation interval"),
+		metric.WithUnit(countUnit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric for events total: %w", err)
+	}
+	i.EventsProcessed, err = meter.Float64Counter(
+		"aggregator.events.processed",
+		metric.WithDescription("APM Events successfully aggregated by the aggregator per aggregation interval"),
+		metric.WithUnit(countUnit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric for events processed: %w", err)
 	}
 	i.MinQueuedDelay, err = meter.Float64Histogram(
 		"events.queued-delay",
