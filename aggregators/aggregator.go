@@ -152,20 +152,32 @@ func (a *Aggregator) AggregateBatch(
 	var errs []error
 	var totalBytesIn int64
 	cmk := CombinedMetricsKey{ID: id}
-	for _, ivl := range a.cfg.AggregationIntervals {
-		cmk.ProcessingTime = a.processingTime.Truncate(ivl)
-		cmk.Interval = ivl
-		for _, e := range *b {
-			bytesIn, err := a.aggregateAPMEvent(ctx, cmk, e)
+
+	for _, e := range *b {
+		cmcopy, err := EventToCombinedMetrics(e, time.Duration(0))
+		if err != nil {
+			span.RecordError(err)
+			errs = append(errs, err)
+		}
+		for _, ivl := range a.cfg.AggregationIntervals {
+			cmk.ProcessingTime = a.processingTime.Truncate(ivl)
+			cmk.Interval = ivl
+
+			cm := cmcopy
+			cm.Services = map[ServiceAggregationKey]ServiceMetrics{serviceKey(e, ivl): cmcopy.Services[serviceKey(e, time.Duration(0))]}
+
+			bytesIn, err := a.aggregate(ctx, cmk, cm)
 			if err != nil {
 				span.RecordError(err)
 				errs = append(errs, err)
 			}
+
 			totalBytesIn += int64(bytesIn)
+
+			cmStats := a.cachedStats[ivl][id]
+			cmStats.eventsTotal += 1
+			a.cachedStats[ivl][id] = cmStats
 		}
-		cmStats := a.cachedStats[ivl][id]
-		cmStats.eventsTotal += int64(len(*b))
-		a.cachedStats[ivl][id] = cmStats
 	}
 
 	span.SetAttributes(attribute.Int64("total_bytes_ingested", totalBytesIn))
