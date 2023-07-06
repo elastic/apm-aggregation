@@ -86,6 +86,7 @@ var histogramPool = sync.Pool{
 // New returns a new instance of HistogramRepresentation
 func New() *HistogramRepresentation {
 	histogram := histogramPool.Get().(*HistogramRepresentation)
+	histogram.CountsRep = HybridCountsRep{} // TODO(carsonip): Check if it is possible to optimize
 	return histogram
 }
 
