@@ -173,10 +173,10 @@ func TestNewInstruments(t *testing.T) {
 	}
 
 	rdr := metric.NewManualReader()
-	mp := metric.NewMeterProvider(metric.WithReader(rdr))
+	meter := metric.NewMeterProvider(metric.WithReader(rdr)).Meter("test")
 	instruments, err := NewMetrics(
 		func() *pebble.Metrics { return &pebble.Metrics{} },
-		WithMeterProvider(mp),
+		WithMeter(meter),
 	)
 
 	require.NoError(t, err)

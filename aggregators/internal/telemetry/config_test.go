@@ -13,7 +13,7 @@ import (
 )
 
 func TestConfig(t *testing.T) {
-	custom := metric.NewMeterProvider()
+	custom := metric.NewMeterProvider().Meter("test")
 	for _, tt := range []struct {
 		name     string
 		options  []Option
@@ -23,20 +23,17 @@ func TestConfig(t *testing.T) {
 			name:    "empty_config",
 			options: nil,
 			expected: func() *config {
-				mp := otel.GetMeterProvider()
 				return &config{
-					Meter:         mp.Meter(instrumentationName),
-					MeterProvider: mp,
+					Meter: otel.GetMeterProvider().Meter("aggregators"),
 				}
 			},
 		},
 		{
 			name:    "config_with_custom_meter_provider",
-			options: []Option{WithMeterProvider(custom)},
+			options: []Option{WithMeter(custom)},
 			expected: func() *config {
 				return &config{
-					Meter:         custom.Meter(instrumentationName),
-					MeterProvider: custom,
+					Meter: custom,
 				}
 			},
 		},

@@ -28,7 +28,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
-	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
@@ -38,87 +37,9 @@ import (
 )
 
 func TestNew(t *testing.T) {
-	for _, tc := range []struct {
-		name             string
-		cfg              AggregatorConfig
-		expectedErrorMsg string
-	}{
-		{
-			name:             "no_data_dir",
-			cfg:              AggregatorConfig{},
-			expectedErrorMsg: "data directory is required",
-		},
-		{
-			name: "no_processor",
-			cfg: AggregatorConfig{
-				DataDir: t.TempDir(),
-			},
-			expectedErrorMsg: "processor is required",
-		},
-		{
-			name: "no_aggregation_interval",
-			cfg: AggregatorConfig{
-				DataDir:   t.TempDir(),
-				Processor: noOpProcessor(),
-			},
-			expectedErrorMsg: "at least one aggregation interval is required",
-		},
-		{
-			name: "unsorted_aggregation_intervals",
-			cfg: AggregatorConfig{
-				DataDir:              t.TempDir(),
-				Processor:            noOpProcessor(),
-				AggregationIntervals: []time.Duration{time.Hour, time.Minute},
-			},
-			expectedErrorMsg: "aggregation intervals must be in ascending order",
-		},
-		{
-			name: "invalid_aggregation_intervals",
-			cfg: AggregatorConfig{
-				DataDir:              t.TempDir(),
-				Processor:            noOpProcessor(),
-				AggregationIntervals: []time.Duration{10 * time.Second, 15 * time.Second},
-			},
-			expectedErrorMsg: "aggregation intervals must be a factor of lowest interval",
-		},
-		{
-			name: "out_of_range_aggregation_interval_1",
-			cfg: AggregatorConfig{
-				DataDir:              t.TempDir(),
-				Processor:            noOpProcessor(),
-				AggregationIntervals: []time.Duration{time.Millisecond},
-			},
-			expectedErrorMsg: "aggregation interval less than one second is not supported",
-		},
-		{
-			name: "out_of_range_aggregation_interval_2",
-			cfg: AggregatorConfig{
-				DataDir:              t.TempDir(),
-				Processor:            noOpProcessor(),
-				AggregationIntervals: []time.Duration{20 * time.Hour},
-			},
-			expectedErrorMsg: "aggregation interval greater than 18 hours is not supported",
-		},
-		{
-			name: "no_error",
-			cfg: AggregatorConfig{
-				DataDir:              t.TempDir(),
-				Processor:            noOpProcessor(),
-				AggregationIntervals: []time.Duration{time.Minute, 10 * time.Minute, time.Hour},
-			},
-			expectedErrorMsg: "",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			agg, err := New(tc.cfg, nil)
-			if tc.expectedErrorMsg != "" {
-				assert.EqualError(t, err, tc.expectedErrorMsg)
-			} else {
-				assert.NoError(t, err)
-				assert.NotNil(t, agg)
-			}
-		})
-	}
+	agg, err := New()
+	assert.NoError(t, err)
+	assert.NotNil(t, agg)
 }
 
 func TestAggregateBatch(t *testing.T) {
@@ -126,6 +47,9 @@ func TestAggregateBatch(t *testing.T) {
 	tp := sdktrace.NewTracerProvider(
 		sdktrace.WithSyncer(exp),
 	)
+	gatherer, err := apmotel.NewGatherer()
+	require.NoError(t, err)
+	mp := metric.NewMeterProvider(metric.WithReader(gatherer))
 
 	cmID := "testid"
 	txnDuration := 100 * time.Millisecond
@@ -176,16 +100,12 @@ func TestAggregateBatch(t *testing.T) {
 			Service: &modelpb.Service{Name: fmt.Sprintf("svc%d", i%uniqueServices)},
 		})
 	}
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-	gatherer, err := apmotel.NewGatherer()
-	require.NoError(t, err)
 
 	out := make(chan CombinedMetrics, 1)
 	aggIvl := time.Minute
-	agg, err := New(AggregatorConfig{
-		DataDir: t.TempDir(),
-		Limits: Limits{
+	agg, err := New(
+		WithDataDir(t.TempDir()),
+		WithLimits(Limits{
 			MaxSpanGroups:                         1000,
 			MaxSpanGroupsPerService:               100,
 			MaxTransactionGroups:                  100,
@@ -194,18 +114,16 @@ func TestAggregateBatch(t *testing.T) {
 			MaxServiceTransactionGroupsPerService: 10,
 			MaxServices:                           10,
 			MaxServiceInstanceGroupsPerService:    10,
-		},
-		Processor:            combinedMetricsProcessor(out),
-		AggregationIntervals: []time.Duration{aggIvl},
-		HarvestDelay:         time.Hour, // disable auto harvest
-
-		Tracer:        tp.Tracer("test"),
-		MeterProvider: metric.NewMeterProvider(metric.WithReader(gatherer)),
-
-		CombinedMetricsIDToKVs: func(id string) []attribute.KeyValue {
+		}),
+		WithProcessor(combinedMetricsProcessor(out)),
+		WithAggregationIntervals([]time.Duration{aggIvl}),
+		WithHarvestDelay(time.Hour), // disable auto harvest
+		WithTracer(tp.Tracer("test")),
+		WithMeter(mp.Meter("test")),
+		WithCombinedMetricsIDToKVs(func(id string) []attribute.KeyValue {
 			return []attribute.KeyValue{attribute.String("id_key", id)}
-		},
-	}, logger)
+		}),
+	)
 	require.NoError(t, err)
 
 	require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
@@ -624,12 +542,9 @@ func TestAggregateSpanMetrics(t *testing.T) {
 	} {
 		t.Run(tt.name, func(t *testing.T) {
 			var actualEvents []*modelpb.APMEvent
-			logger, err := zap.NewDevelopment()
-			require.NoError(t, err)
 			aggregationIvls := []time.Duration{time.Minute, 10 * time.Minute, time.Hour}
-			agg, err := New(AggregatorConfig{
-				DataDir: t.TempDir(),
-				Limits: Limits{
+			agg, err := New(
+				WithLimits(Limits{
 					MaxSpanGroups:                         1000,
 					MaxSpanGroupsPerService:               100,
 					MaxTransactionGroups:                  100,
@@ -638,10 +553,11 @@ func TestAggregateSpanMetrics(t *testing.T) {
 					MaxServiceTransactionGroupsPerService: 10,
 					MaxServices:                           10,
 					MaxServiceInstanceGroupsPerService:    10,
-				},
-				Processor:            sliceProcessor(&actualEvents),
-				AggregationIntervals: aggregationIvls,
-			}, logger)
+				}),
+				WithAggregationIntervals(aggregationIvls),
+				WithProcessor(sliceProcessor(&actualEvents)),
+				WithDataDir(t.TempDir()),
+			)
 			require.NoError(t, err)
 
 			count := 100
@@ -741,8 +657,6 @@ func TestCombinedMetricsKeyOrdered(t *testing.T) {
 }
 
 func TestHarvest(t *testing.T) {
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
 	cmCount := 5
 	ivls := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
 	m := make(map[time.Duration]map[string]bool)
@@ -781,9 +695,9 @@ func TestHarvest(t *testing.T) {
 	gatherer, err := apmotel.NewGatherer()
 	require.NoError(t, err)
 
-	agg, err := New(AggregatorConfig{
-		DataDir: t.TempDir(),
-		Limits: Limits{
+	agg, err := New(
+		WithDataDir(t.TempDir()),
+		WithLimits(Limits{
 			MaxSpanGroups:                         1000,
 			MaxTransactionGroups:                  100,
 			MaxTransactionGroupsPerService:        10,
@@ -791,16 +705,14 @@ func TestHarvest(t *testing.T) {
 			MaxServiceTransactionGroupsPerService: 10,
 			MaxServices:                           10,
 			MaxServiceInstanceGroupsPerService:    10,
-		},
-		Processor:            processor,
-		AggregationIntervals: ivls,
-
-		MeterProvider: metric.NewMeterProvider(metric.WithReader(gatherer)),
-
-		CombinedMetricsIDToKVs: func(id string) []attribute.KeyValue {
+		}),
+		WithProcessor(processor),
+		WithAggregationIntervals(ivls),
+		WithMeter(metric.NewMeterProvider(metric.WithReader(gatherer)).Meter("test")),
+		WithCombinedMetricsIDToKVs(func(id string) []attribute.KeyValue {
 			return []attribute.KeyValue{attribute.String("id_key", id)}
-		},
-	}, logger)
+		}),
+	)
 	require.NoError(t, err)
 	go func() {
 		agg.Run(context.Background())
@@ -909,11 +821,9 @@ func TestAggregateAndHarvest(t *testing.T) {
 		},
 	}
 	var events []*modelpb.APMEvent
-	logger, err := zap.NewDevelopment()
-	require.NoError(t, err)
-	agg, err := New(AggregatorConfig{
-		DataDir: t.TempDir(),
-		Limits: Limits{
+	agg, err := New(
+		WithDataDir(t.TempDir()),
+		WithLimits(Limits{
 			MaxSpanGroups:                         1000,
 			MaxSpanGroupsPerService:               100,
 			MaxTransactionGroups:                  100,
@@ -922,10 +832,10 @@ func TestAggregateAndHarvest(t *testing.T) {
 			MaxServiceTransactionGroupsPerService: 10,
 			MaxServices:                           10,
 			MaxServiceInstanceGroupsPerService:    10,
-		},
-		Processor:            sliceProcessor(&events),
-		AggregationIntervals: []time.Duration{time.Second},
-	}, logger)
+		}),
+		WithProcessor(sliceProcessor(&events)),
+		WithAggregationIntervals([]time.Duration{time.Second}),
+	)
 	require.NoError(t, err)
 	require.NoError(t, agg.AggregateBatch(context.Background(), "test", &batch))
 	require.NoError(t, agg.Stop(context.Background()))
@@ -1045,20 +955,16 @@ func TestAggregateAndHarvest(t *testing.T) {
 func TestRunStopOrchestration(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		t.Fatal("failed to create test logger", err)
-	}
 	var firstHarvestDone atomic.Bool
 	newAggregator := func() *Aggregator {
-		agg, err := New(AggregatorConfig{
-			DataDir: t.TempDir(),
-			Processor: func(_ context.Context, _ CombinedMetricsKey, _ CombinedMetrics, _ time.Duration) error {
+		agg, err := New(
+			WithDataDir(t.TempDir()),
+			WithProcessor(func(_ context.Context, _ CombinedMetricsKey, _ CombinedMetrics, _ time.Duration) error {
 				firstHarvestDone.Swap(true)
 				return nil
-			},
-			AggregationIntervals: []time.Duration{time.Second},
-		}, logger)
+			}),
+			WithAggregationIntervals([]time.Duration{time.Second}),
+		)
 		if err != nil {
 			t.Fatal("failed to create test aggregator", err)
 		}
@@ -1122,19 +1028,15 @@ func TestRunStopOrchestration(t *testing.T) {
 }
 
 func BenchmarkAggregateCombinedMetrics(b *testing.B) {
-	logger, err := zap.NewDevelopment()
-	if err != nil {
-		b.Fatal(err)
-	}
 	gatherer, err := apmotel.NewGatherer()
 	if err != nil {
 		b.Fatal(err)
 	}
 	mp := metric.NewMeterProvider(metric.WithReader(gatherer))
 	aggIvl := time.Minute
-	agg, err := New(AggregatorConfig{
-		DataDir: b.TempDir(),
-		Limits: Limits{
+	agg, err := New(
+		WithDataDir(b.TempDir()),
+		WithLimits(Limits{
 			MaxSpanGroups:                         1000,
 			MaxSpanGroupsPerService:               100,
 			MaxTransactionGroups:                  1000,
@@ -1143,11 +1045,10 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 			MaxServiceTransactionGroupsPerService: 100,
 			MaxServices:                           100,
 			MaxServiceInstanceGroupsPerService:    100,
-		},
-		Processor:            noOpProcessor(),
-		AggregationIntervals: []time.Duration{aggIvl},
-		MeterProvider:        mp,
-	}, logger)
+		}),
+		WithProcessor(noOpProcessor()),
+		WithMeter(mp.Meter("test")),
+	)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -1189,9 +1090,9 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 
 func BenchmarkAggregateBatchSerial(b *testing.B) {
 	b.ReportAllocs()
-	agg, err := New(AggregatorConfig{
-		DataDir: b.TempDir(),
-		Limits: Limits{
+	agg, err := New(
+		WithDataDir(b.TempDir()),
+		WithLimits(Limits{
 			MaxSpanGroups:                         1000,
 			MaxSpanGroupsPerService:               100,
 			MaxTransactionGroups:                  1000,
@@ -1200,10 +1101,10 @@ func BenchmarkAggregateBatchSerial(b *testing.B) {
 			MaxServiceTransactionGroupsPerService: 100,
 			MaxServices:                           100,
 			MaxServiceInstanceGroupsPerService:    100,
-		},
-		Processor:            noOpProcessor(),
-		AggregationIntervals: []time.Duration{time.Second, time.Minute, time.Hour},
-	}, zap.NewNop())
+		}),
+		WithProcessor(noOpProcessor()),
+		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
+	)
 	if err != nil {
 		b.Fatal(err)
 	}
@@ -1241,9 +1142,9 @@ func BenchmarkAggregateBatchSerial(b *testing.B) {
 
 func BenchmarkAggregateBatchParallel(b *testing.B) {
 	b.ReportAllocs()
-	agg, err := New(AggregatorConfig{
-		DataDir: b.TempDir(),
-		Limits: Limits{
+	agg, err := New(
+		WithDataDir(b.TempDir()),
+		WithLimits(Limits{
 			MaxSpanGroups:                         1000,
 			MaxSpanGroupsPerService:               100,
 			MaxTransactionGroups:                  1000,
@@ -1252,10 +1153,10 @@ func BenchmarkAggregateBatchParallel(b *testing.B) {
 			MaxServiceTransactionGroupsPerService: 100,
 			MaxServices:                           100,
 			MaxServiceInstanceGroupsPerService:    100,
-		},
-		Processor:            noOpProcessor(),
-		AggregationIntervals: []time.Duration{time.Second, time.Minute, time.Hour},
-	}, zap.NewNop())
+		}),
+		WithProcessor(noOpProcessor()),
+		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
+	)
 	if err != nil {
 		b.Fatal(err)
 	}
