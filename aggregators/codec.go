@@ -27,7 +27,9 @@ import (
 // key in pebbledb. To ensure efficient sorting and time range based
 // query, the first 2 bytes of the encoded slice is the aggregation
 // interval, the next 8 bytes of the encoded slice is the processing time
-// the next 2 bytes is the partition ID and finally the combined metrics ID.
+// followed by combined metrics ID, the last 2 bytes is the partition ID.
+// The binary representation ensures that all entries are ordered by the
+// ID first and then ordered by the partition ID.
 func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	ivlSeconds := uint16(k.Interval.Seconds())
 	if len(data) < k.SizeBinary() {
