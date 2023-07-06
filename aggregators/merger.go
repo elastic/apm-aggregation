@@ -23,6 +23,7 @@ func (m *combinedMetricsMerger) MergeNewer(value []byte) error {
 		return err
 	}
 	merge(&m.metrics, &from, m.limits)
+	from.Free()
 	return nil
 }
 
@@ -32,11 +33,13 @@ func (m *combinedMetricsMerger) MergeOlder(value []byte) error {
 		return err
 	}
 	merge(&m.metrics, &from, m.limits)
+	from.Free()
 	return nil
 }
 
 func (m *combinedMetricsMerger) Finish(includesBase bool) ([]byte, io.Closer, error) {
 	data, err := m.metrics.MarshalBinary()
+	m.metrics.Free()
 	return data, nil, err
 }
 

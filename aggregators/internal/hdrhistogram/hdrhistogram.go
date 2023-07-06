@@ -32,6 +32,7 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
+	"sync"
 	"time"
 )
 
@@ -72,13 +73,27 @@ type HistogramRepresentation struct {
 	CountsRep             HybridCountsRep
 }
 
+var histogramPool = sync.Pool{
+	New: func() interface{} {
+		return &HistogramRepresentation{
+			LowestTrackableValue:  lowestTrackableValue,
+			HighestTrackableValue: highestTrackableValue,
+			SignificantFigures:    significantFigures,
+		}
+	},
+}
+
 // New returns a new instance of HistogramRepresentation
 func New() *HistogramRepresentation {
-	return &HistogramRepresentation{
-		LowestTrackableValue:  lowestTrackableValue,
-		HighestTrackableValue: highestTrackableValue,
-		SignificantFigures:    significantFigures,
+	histogram := histogramPool.Get().(*HistogramRepresentation)
+	return histogram
+}
+
+func Free(histogram *HistogramRepresentation) {
+	if histogram == nil {
+		return
 	}
+	histogramPool.Put(histogram)
 }
 
 // RecordDuration records duration in the histogram representation. It

@@ -144,6 +144,13 @@ type CombinedMetrics struct {
 	youngestEventTimestamp time.Time
 }
 
+func (m *CombinedMetrics) Free() {
+	for _, sm := range m.Services {
+		sm.Free()
+	}
+	m.OverflowServices.Free()
+}
+
 // ServiceAggregationKey models the key used to store service specific
 // aggregation metrics.
 type ServiceAggregationKey struct {
@@ -174,6 +181,12 @@ type ServiceMetrics struct {
 	OverflowGroups        Overflow
 }
 
+func (m *ServiceMetrics) Free() {
+	for _, sim := range m.ServiceInstanceGroups {
+		sim.Free()
+	}
+}
+
 // ServiceInstanceAggregationKey models the key used to store service instance specific
 // aggregation metrics.
 type ServiceInstanceAggregationKey struct {
@@ -192,6 +205,18 @@ type ServiceInstanceMetrics struct {
 	TransactionGroups        map[TransactionAggregationKey]TransactionMetrics
 	ServiceTransactionGroups map[ServiceTransactionAggregationKey]ServiceTransactionMetrics
 	SpanGroups               map[SpanAggregationKey]SpanMetrics
+}
+
+func (m *ServiceInstanceMetrics) Free() {
+	for _, tm := range m.TransactionGroups {
+		tm.Free()
+	}
+	for _, stm := range m.ServiceTransactionGroups {
+		stm.Free()
+	}
+	for _, spm := range m.SpanGroups {
+		spm.Free()
+	}
 }
 
 func insertHash(estimator **hyperloglog.Sketch, hash uint64) {
@@ -229,6 +254,10 @@ func (o *OverflowTransaction) Empty() bool {
 	return o.Estimator == nil
 }
 
+func (o *OverflowTransaction) Free() {
+	o.Metrics.Free()
+}
+
 type OverflowServiceTransaction struct {
 	Metrics   ServiceTransactionMetrics
 	Estimator *hyperloglog.Sketch
@@ -248,6 +277,10 @@ func (o *OverflowServiceTransaction) MergeOverflow(from *OverflowServiceTransact
 
 func (o *OverflowServiceTransaction) Empty() bool {
 	return o.Estimator == nil
+}
+
+func (o *OverflowServiceTransaction) Free() {
+	o.Metrics.Free()
 }
 
 type OverflowSpan struct {
@@ -271,12 +304,22 @@ func (o *OverflowSpan) Empty() bool {
 	return o.Estimator == nil
 }
 
+func (o *OverflowSpan) Free() {
+	o.Metrics.Free()
+}
+
 // Overflow contains transaction and spans overflow metrics and cardinality
 // estimators for the aggregation group for overflow buckets.
 type Overflow struct {
 	OverflowTransaction        OverflowTransaction
 	OverflowServiceTransaction OverflowServiceTransaction
 	OverflowSpan               OverflowSpan
+}
+
+func (o *Overflow) Free() {
+	o.OverflowTransaction.Free()
+	o.OverflowServiceTransaction.Free()
+	o.OverflowSpan.Free()
 }
 
 // TransactionAggregationKey models the key used to store transaction
@@ -381,6 +424,11 @@ func (m *TransactionMetrics) Merge(from *TransactionMetrics) {
 	mergeTransactionMetrics(m, from)
 }
 
+func (m *TransactionMetrics) Free() {
+	hdrhistogram.Free(m.Histogram)
+	m.Histogram = nil
+}
+
 // SpanAggregationKey models the key used to store span aggregation metrics.
 type SpanAggregationKey struct {
 	SpanName string
@@ -414,6 +462,9 @@ func (m *SpanMetrics) Merge(from *SpanMetrics) {
 	mergeSpanMetrics(m, from)
 }
 
+func (m *SpanMetrics) Free() {
+}
+
 // ServiceTransactionAggregationKey models the key used to store
 // service transaction aggregation metrics.
 type ServiceTransactionAggregationKey struct {
@@ -436,6 +487,11 @@ type ServiceTransactionMetrics struct {
 
 func (m *ServiceTransactionMetrics) Merge(from *ServiceTransactionMetrics) {
 	mergeServiceTransactionMetrics(m, from)
+}
+
+func (m *ServiceTransactionMetrics) Free() {
+	hdrhistogram.Free(m.Histogram)
+	m.Histogram = nil
 }
 
 // GlobalLabels is an intermediate struct used to marshal/unmarshal the provided

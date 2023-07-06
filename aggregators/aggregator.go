@@ -178,6 +178,8 @@ func (a *Aggregator) AggregateBatch(
 			cmStats.eventsTotal += 1
 			a.cachedStats[ivl][id] = cmStats
 		}
+
+		cmcopy.Free()
 	}
 
 	span.SetAttributes(attribute.Int64("total_bytes_ingested", totalBytesIn))
