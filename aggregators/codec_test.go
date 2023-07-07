@@ -69,6 +69,7 @@ func TestHistogramRepresentation(t *testing.T) {
 }
 
 func BenchmarkCombinedMetricsEncoding(b *testing.B) {
+	b.ReportAllocs()
 	ts := time.Now()
 	cardinality := 10
 	tcm := createTestCombinedMetrics()
@@ -89,6 +90,7 @@ func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 }
 
 func BenchmarkCombinedMetricsDecoding(b *testing.B) {
+	b.ReportAllocs()
 	ts := time.Now()
 	cardinality := 10
 	tcm := createTestCombinedMetrics()
