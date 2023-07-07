@@ -2,7 +2,30 @@
 // or more contributor license agreements. Licensed under the Elastic License 2.0;
 // you may not use this file except in compliance with the Elastic License 2.0.
 
+// The MIT License (MIT)
+//
+// Copyright (c) 2014 Coda Hale
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 // Package hdrhistogram provides an optimized histogram for sparse samples.
+// This is a stop gap measure until we have [packed histogram implementation](https://www.javadoc.io/static/org.hdrhistogram/HdrHistogram/2.1.12/org/HdrHistogram/PackedHistogram.html).
 package hdrhistogram
 
 import (
@@ -10,8 +33,6 @@ import (
 	"math"
 	"math/bits"
 	"time"
-
-	"github.com/HdrHistogram/hdrhistogram-go"
 )
 
 const (
@@ -31,6 +52,8 @@ const (
 
 var (
 	unitMagnitude               = getUnitMagnitude()
+	bucketCount                 = getBucketCount()
+	subBucketCount              = getSubBucketCount()
 	subBucketHalfCountMagnitude = getSubBucketHalfCountMagnitude()
 	subBucketHalfCount          = getSubBucketHalfCount()
 	subBucketMask               = getSubBucketMask()
@@ -94,37 +117,27 @@ func (h *HistogramRepresentation) Merge(from *HistogramRepresentation) {
 // Buckets converts the histogram into ordered slices of counts
 // and values per bar along with the total count.
 func (h *HistogramRepresentation) Buckets() (int64, []int64, []float64) {
-	// TODO: This can be done without importing to hdr snapshot
-	hist := hdrhistogram.Import(h.getHDRSnapshot())
-	distribution := hist.Distribution()
-	counts := make([]int64, 0, len(distribution))
-	values := make([]float64, 0, len(distribution))
+	counts := make([]int64, 0, len(h.CountsRep))
+	values := make([]float64, 0, len(h.CountsRep))
 
 	var totalCount int64
-	for _, b := range distribution {
-		if b.Count <= 0 {
+	var bucketsSeen int
+	iter := h.iterator()
+	for idx := 0; iter.next(); idx++ {
+		if bucketsSeen == len(h.CountsRep) {
+			break
+		}
+		scaledCount, ok := h.CountsRep[int32(idx)]
+		if !ok {
 			continue
 		}
-		count := int64(math.Round(float64(b.Count) / histogramCountScale))
+		bucketsSeen++
+		count := int64(math.Round(float64(scaledCount) / histogramCountScale))
 		counts = append(counts, count)
-		values = append(values, float64(b.To))
+		values = append(values, float64(iter.highestEquivalentValue))
 		totalCount += count
 	}
 	return totalCount, counts, values
-}
-
-// getHDRSnapshot returns the official hdrhistogram.Snapshot.
-func (h *HistogramRepresentation) getHDRSnapshot() *hdrhistogram.Snapshot {
-	counts := make([]int64, countsLen)
-	for b, n := range h.CountsRep {
-		counts[b] += n
-	}
-	return &hdrhistogram.Snapshot{
-		LowestTrackableValue:  h.LowestTrackableValue,
-		HighestTrackableValue: h.HighestTrackableValue,
-		SignificantFigures:    h.SignificantFigures,
-		Counts:                counts,
-	}
 }
 
 func (h *HistogramRepresentation) countsIndexFor(v int64) int32 {
@@ -146,6 +159,71 @@ func (h *HistogramRepresentation) getBucketIndex(v int64) int32 {
 
 func (h *HistogramRepresentation) getSubBucketIdx(v int64, idx int32) int32 {
 	return int32(v >> uint(int64(idx)+int64(unitMagnitude)))
+}
+
+func (h *HistogramRepresentation) valueFromIndex(bucketIdx, subBucketIdx int32) int64 {
+	return int64(subBucketIdx) << uint(bucketIdx+unitMagnitude)
+}
+
+func (h *HistogramRepresentation) highestEquivalentValue(v int64) int64 {
+	return h.nextNonEquivalentValue(v) - 1
+}
+
+func (h *HistogramRepresentation) nextNonEquivalentValue(v int64) int64 {
+	bucketIdx := h.getBucketIndex(v)
+	return h.lowestEquivalentValueGivenBucketIdx(v, bucketIdx) + h.sizeOfEquivalentValueRangeGivenBucketIdx(v, bucketIdx)
+}
+
+func (h *HistogramRepresentation) lowestEquivalentValueGivenBucketIdx(v int64, bucketIdx int32) int64 {
+	subBucketIdx := h.getSubBucketIdx(v, bucketIdx)
+	return h.valueFromIndex(bucketIdx, subBucketIdx)
+}
+
+func (h *HistogramRepresentation) sizeOfEquivalentValueRangeGivenBucketIdx(v int64, bucketIdx int32) int64 {
+	subBucketIdx := h.getSubBucketIdx(v, bucketIdx)
+	adjustedBucket := bucketIdx
+	if subBucketIdx >= subBucketCount {
+		adjustedBucket++
+	}
+	return int64(1) << uint(unitMagnitude+adjustedBucket)
+}
+
+func (h *HistogramRepresentation) iterator() *iterator {
+	return &iterator{
+		h:            h,
+		subBucketIdx: -1,
+	}
+}
+
+type iterator struct {
+	h                       *HistogramRepresentation
+	bucketIdx, subBucketIdx int32
+	valueFromIdx            int64
+	highestEquivalentValue  int64
+}
+
+func (i *iterator) next() bool {
+	if !i.nextCountAtIdx() {
+		return false
+	}
+	i.highestEquivalentValue = i.h.highestEquivalentValue(i.valueFromIdx)
+	return true
+}
+
+func (i *iterator) nextCountAtIdx() bool {
+	// increment bucket
+	i.subBucketIdx++
+	if i.subBucketIdx >= subBucketCount {
+		i.subBucketIdx = subBucketHalfCount
+		i.bucketIdx++
+	}
+
+	if i.bucketIdx >= bucketCount {
+		return false
+	}
+
+	i.valueFromIdx = i.h.valueFromIndex(i.bucketIdx, i.subBucketIdx)
+	return true
 }
 
 func getSubBucketHalfCountMagnitude() int32 {
@@ -182,6 +260,10 @@ func getSubBucketMask() int64 {
 }
 
 func getCountsLen() int64 {
+	return int64((getBucketCount() + 1) * (getSubBucketCount() / 2))
+}
+
+func getBucketCount() int32 {
 	smallestUntrackableValue := int64(getSubBucketCount()) << uint(getUnitMagnitude())
 	bucketsNeeded := int32(1)
 	for smallestUntrackableValue < highestTrackableValue {
@@ -189,10 +271,10 @@ func getCountsLen() int64 {
 			// next shift will overflow, meaning that bucket could
 			// represent values up to ones greater than math.MaxInt64,
 			// so it's the last bucket
-			return int64(bucketsNeeded + 1)
+			return bucketsNeeded + 1
 		}
 		smallestUntrackableValue <<= 1
 		bucketsNeeded++
 	}
-	return int64((bucketsNeeded + 1) * (getSubBucketCount() / 2))
+	return bucketsNeeded
 }

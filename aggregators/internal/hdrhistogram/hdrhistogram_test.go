@@ -5,6 +5,7 @@
 package hdrhistogram
 
 import (
+	"math"
 	"math/rand"
 	"testing"
 
@@ -28,9 +29,42 @@ func TestMerge(t *testing.T) {
 
 	require.Equal(t, int64(0), hist1.Merge(hist2))
 	histRep1.Merge(histRep2)
-	expectedSnap := hist1.Export()
+	assert.Empty(t, cmp.Diff(hist1.Export(), convertHistogramRepToSnapshot(histRep1)))
+}
 
-	assert.Empty(t, cmp.Diff(expectedSnap, histRep1.getHDRSnapshot()))
+func TestBuckets(t *testing.T) {
+	buckets := func(h *hdrhistogram.Histogram) (int64, []int64, []float64) {
+		distribution := h.Distribution()
+		counts := make([]int64, 0, len(distribution))
+		values := make([]float64, 0, len(distribution))
+
+		var totalCount int64
+		for _, b := range distribution {
+			if b.Count <= 0 {
+				continue
+			}
+			count := int64(math.Round(float64(b.Count) / histogramCountScale))
+			counts = append(counts, count)
+			values = append(values, float64(b.To))
+			totalCount += count
+		}
+		return totalCount, counts, values
+	}
+	hist := getTestHistogram()
+	histRep := New()
+
+	for i := 0; i < 1_000_000; i++ {
+		v := rand.Int63n(3_600_000_000)
+		c := rand.Int63n(1_000)
+		hist.RecordValues(v, c)
+		histRep.RecordValues(v, c)
+	}
+	actualTotalCount, actualCounts, actualValues := histRep.Buckets()
+	expectedTotalCount, expectedCounts, expectedValues := buckets(hist)
+
+	assert.Equal(t, expectedTotalCount, actualTotalCount)
+	assert.Equal(t, expectedCounts, actualCounts)
+	assert.Equal(t, expectedValues, actualValues)
 }
 
 func getTestHistogram() *hdrhistogram.Histogram {
@@ -39,4 +73,17 @@ func getTestHistogram() *hdrhistogram.Histogram {
 		highestTrackableValue,
 		int(significantFigures),
 	)
+}
+
+func convertHistogramRepToSnapshot(h *HistogramRepresentation) *hdrhistogram.Snapshot {
+	counts := make([]int64, countsLen)
+	for b, n := range h.CountsRep {
+		counts[b] += n
+	}
+	return &hdrhistogram.Snapshot{
+		LowestTrackableValue:  h.LowestTrackableValue,
+		HighestTrackableValue: h.HighestTrackableValue,
+		SignificantFigures:    h.SignificantFigures,
+		Counts:                counts,
+	}
 }
