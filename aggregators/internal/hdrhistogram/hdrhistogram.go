@@ -161,11 +161,6 @@ func (h *HistogramRepresentation) getSubBucketIdx(v int64, idx int32) int32 {
 	return int32(v >> uint(int64(idx)+int64(unitMagnitude)))
 }
 
-func (h *HistogramRepresentation) getCountAtIndex(bucketIdx, subBucketIdx int32) int64 {
-	idx := h.countsIndex(bucketIdx, subBucketIdx)
-	return h.CountsRep[idx]
-}
-
 func (h *HistogramRepresentation) valueFromIndex(bucketIdx, subBucketIdx int32) int64 {
 	return int64(subBucketIdx) << uint(bucketIdx+unitMagnitude)
 }
@@ -182,11 +177,6 @@ func (h *HistogramRepresentation) nextNonEquivalentValue(v int64) int64 {
 func (h *HistogramRepresentation) lowestEquivalentValueGivenBucketIdx(v int64, bucketIdx int32) int64 {
 	subBucketIdx := h.getSubBucketIdx(v, bucketIdx)
 	return h.valueFromIndex(bucketIdx, subBucketIdx)
-}
-
-func (h *HistogramRepresentation) sizeOfEquivalentValueRange(v int64) int64 {
-	bucketIdx := h.getBucketIndex(v)
-	return h.sizeOfEquivalentValueRangeGivenBucketIdx(v, bucketIdx)
 }
 
 func (h *HistogramRepresentation) sizeOfEquivalentValueRangeGivenBucketIdx(v int64, bucketIdx int32) int64 {
