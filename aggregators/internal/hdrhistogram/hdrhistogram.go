@@ -3,7 +3,6 @@
 // you may not use this file except in compliance with the Elastic License 2.0.
 
 // Package hdrhistogram provides an optimized histogram for sparse samples.
-// This is a stop gap measure until we have [packed histogram implementation](https://www.javadoc.io/static/org.hdrhistogram/HdrHistogram/2.1.12/org/HdrHistogram/PackedHistogram.html).
 package hdrhistogram
 
 import (
