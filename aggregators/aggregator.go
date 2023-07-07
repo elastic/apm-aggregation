@@ -135,8 +135,6 @@ func (a *Aggregator) AggregateBatch(
 	b *modelpb.Batch,
 ) error {
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(id)
-	ctx, span := a.cfg.Tracer.Start(ctx, "AggregateBatch", trace.WithAttributes(cmIDAttrs...))
-	defer span.End()
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -156,7 +154,6 @@ func (a *Aggregator) AggregateBatch(
 	for _, e := range *b {
 		cmcopy, err := EventToCombinedMetrics(e, time.Duration(0))
 		if err != nil {
-			span.RecordError(err)
 			errs = append(errs, err)
 		}
 		for _, ivl := range a.cfg.AggregationIntervals {
@@ -168,7 +165,6 @@ func (a *Aggregator) AggregateBatch(
 
 			bytesIn, err := a.aggregate(ctx, cmk, cm)
 			if err != nil {
-				span.RecordError(err)
 				errs = append(errs, err)
 			}
 
@@ -182,7 +178,6 @@ func (a *Aggregator) AggregateBatch(
 		cmcopy.Free()
 	}
 
-	span.SetAttributes(attribute.Int64("total_bytes_ingested", totalBytesIn))
 	cmIDAttrSet := attribute.NewSet(cmIDAttrs...)
 	a.metrics.RequestsTotal.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
 	a.metrics.BytesIngested.Add(ctx, totalBytesIn, metric.WithAttributeSet(cmIDAttrSet))
