@@ -10,9 +10,10 @@ package aggregators
 import (
 	"encoding/binary"
 	"errors"
-	"google.golang.org/protobuf/types/known/timestamppb"
 	"sort"
 	"time"
+
+	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/axiomhq/hyperloglog"
 
