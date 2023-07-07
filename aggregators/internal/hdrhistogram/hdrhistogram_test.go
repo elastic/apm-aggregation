@@ -84,9 +84,9 @@ func getTestHistogram() *hdrhistogram.Histogram {
 
 func convertHistogramRepToSnapshot(h *HistogramRepresentation) *hdrhistogram.Snapshot {
 	counts := make([]int64, countsLen)
-	for b, n := range h.CountsRep {
-		counts[b] += n
-	}
+	h.CountsRep.ForEach(func(bucket int32, value int64) {
+		counts[bucket] += value
+	})
 	return &hdrhistogram.Snapshot{
 		LowestTrackableValue:  h.LowestTrackableValue,
 		HighestTrackableValue: h.HighestTrackableValue,

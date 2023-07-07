@@ -368,12 +368,12 @@ func HistogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 	pb.LowestTrackableValue = h.LowestTrackableValue
 	pb.HighestTrackableValue = h.HighestTrackableValue
 	pb.SignificantFigures = h.SignificantFigures
-	pb.Buckets = make([]int32, 0, len(h.CountsRep))
-	pb.Counts = make([]int64, 0, len(h.CountsRep))
-	for bucket, counts := range h.CountsRep {
+	pb.Buckets = make([]int32, 0, h.CountsRep.Len())
+	pb.Counts = make([]int64, 0, h.CountsRep.Len())
+	h.CountsRep.ForEach(func(bucket int32, value int64) {
 		pb.Buckets = append(pb.Buckets, bucket)
-		pb.Counts = append(pb.Counts, counts)
-	}
+		pb.Counts = append(pb.Counts, value)
+	})
 	return pb
 }
 
@@ -385,14 +385,12 @@ func HistogramFromProto(h *hdrhistogram.HistogramRepresentation, pb *aggregation
 	h.LowestTrackableValue = pb.LowestTrackableValue
 	h.HighestTrackableValue = pb.HighestTrackableValue
 	h.SignificantFigures = pb.SignificantFigures
-	for k := range h.CountsRep {
-		delete(h.CountsRep, k)
-	}
+	h.CountsRep.Reset()
 
 	for i := 0; i < len(pb.Buckets); i++ {
 		bucket := pb.Buckets[i]
 		counts := pb.Counts[i]
-		h.CountsRep[bucket] += counts
+		h.CountsRep.Add(bucket, counts)
 	}
 }
 

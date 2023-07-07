@@ -12,6 +12,7 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 
+	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -471,7 +472,13 @@ func TestMerge(t *testing.T) {
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			merge(&tc.to, &tc.from, tc.limits)
-			assert.Empty(t, cmp.Diff(tc.expected, tc.to, cmp.Exporter(func(reflect.Type) bool { return true })))
+			assert.Empty(t, cmp.Diff(
+				tc.expected, tc.to,
+				cmp.Exporter(func(reflect.Type) bool { return true }),
+				cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+					return a.Equal(&b)
+				}),
+			))
 		})
 	}
 }

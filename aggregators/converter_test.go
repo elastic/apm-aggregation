@@ -56,6 +56,9 @@ func TestEventToCombinedMetrics(t *testing.T) {
 	assert.Empty(t, cmp.Diff(
 		expected, cm,
 		cmpopts.EquateEmpty(),
+		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+			return a.Equal(&b)
+		}),
 		cmp.AllowUnexported(CombinedMetrics{}),
 	))
 }

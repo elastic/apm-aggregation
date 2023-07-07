@@ -69,7 +69,7 @@ type HistogramRepresentation struct {
 	LowestTrackableValue  int64
 	HighestTrackableValue int64
 	SignificantFigures    int64
-	CountsRep             map[int32]int64
+	CountsRep             HybridCountsRep
 }
 
 // New returns a new instance of HistogramRepresentation
@@ -78,7 +78,6 @@ func New() *HistogramRepresentation {
 		LowestTrackableValue:  lowestTrackableValue,
 		HighestTrackableValue: highestTrackableValue,
 		SignificantFigures:    significantFigures,
-		CountsRep:             make(map[int32]int64),
 	}
 }
 
@@ -98,7 +97,7 @@ func (h *HistogramRepresentation) RecordValues(v, n int64) error {
 	if idx < 0 || int32(countsLen) <= idx {
 		return fmt.Errorf("value %d is too large to be recorded", v)
 	}
-	h.CountsRep[idx] += n
+	h.CountsRep.Add(idx, n)
 	return nil
 }
 
@@ -109,25 +108,25 @@ func (h *HistogramRepresentation) Merge(from *HistogramRepresentation) {
 	if from == nil {
 		return
 	}
-	for b, n := range from.CountsRep {
-		h.CountsRep[b] += n
-	}
+	from.CountsRep.ForEach(func(bucket int32, value int64) {
+		h.CountsRep.Add(bucket, value)
+	})
 }
 
 // Buckets converts the histogram into ordered slices of counts
 // and values per bar along with the total count.
 func (h *HistogramRepresentation) Buckets() (int64, []int64, []float64) {
-	counts := make([]int64, 0, len(h.CountsRep))
-	values := make([]float64, 0, len(h.CountsRep))
+	counts := make([]int64, 0, h.CountsRep.Len())
+	values := make([]float64, 0, h.CountsRep.Len())
 
 	var totalCount int64
 	var bucketsSeen int
 	iter := h.iterator()
 	for idx := 0; iter.next(); idx++ {
-		if bucketsSeen == len(h.CountsRep) {
+		if bucketsSeen == h.CountsRep.Len() {
 			break
 		}
-		scaledCount, ok := h.CountsRep[int32(idx)]
+		scaledCount, ok := h.CountsRep.Get(int32(idx))
 		if !ok || scaledCount <= 0 {
 			continue
 		}
@@ -277,4 +276,91 @@ func getBucketCount() int32 {
 		bucketsNeeded++
 	}
 	return bucketsNeeded
+}
+
+// HybridCountsRep represents a hybrid counts representation for
+// sparse histogram. It is optimized to record a single value as
+// integer type and more values as map.
+type HybridCountsRep struct {
+	bucket int32
+	value  int64
+	m      map[int32]int64
+}
+
+// Add adds a new value to a bucket of given index.
+func (c *HybridCountsRep) Add(bucket int32, value int64) {
+	if c.m == nil && c.bucket == 0 && c.value == 0 {
+		c.bucket = bucket
+		c.value = value
+		return
+	}
+	if c.m == nil {
+		c.m = make(map[int32]int64)
+		// automatic promotion to map
+		c.m[c.bucket] = c.value
+		c.bucket, c.value = 0, 0
+	}
+	c.m[bucket] += value
+}
+
+// ForEach iterates over each bucket and calls the given function.
+func (c *HybridCountsRep) ForEach(f func(int32, int64)) {
+	if c.m == nil {
+		f(c.bucket, c.value)
+		return
+	}
+	for k, v := range c.m {
+		f(k, v)
+	}
+}
+
+// Len returns the number of buckets currently recording.
+func (c *HybridCountsRep) Len() int {
+	if c.m != nil {
+		return len(c.m)
+	}
+	if c.bucket != 0 || c.value != 0 {
+		return 1
+	}
+	return 0
+}
+
+// Get returns the count of values in a given bucket along with a bool
+// which is false if the bucket is not found.
+func (c *HybridCountsRep) Get(bucket int32) (int64, bool) {
+	if c.m == nil {
+		if c.bucket == bucket {
+			return c.value, true
+		}
+		return 0, false
+	}
+	val, ok := c.m[bucket]
+	return val, ok
+}
+
+// Reset resets the values recorded.
+func (c *HybridCountsRep) Reset() {
+	c.bucket = 0
+	c.value = 0
+	for k := range c.m {
+		delete(c.m, k)
+	}
+}
+
+// Equal returns true if same bucket and count is recorded in both.
+func (c *HybridCountsRep) Equal(h *HybridCountsRep) bool {
+	if c.Len() != h.Len() {
+		return false
+	}
+	if c.Len() == 0 {
+		return true
+	}
+	equal := true
+	c.ForEach(func(bucket int32, value1 int64) {
+		value2, ok := h.Get(bucket)
+		if !ok || value1 != value2 {
+			equal = false
+		}
+	})
+	return equal
 }
