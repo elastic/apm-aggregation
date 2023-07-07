@@ -128,7 +128,7 @@ func (h *HistogramRepresentation) Buckets() (int64, []int64, []float64) {
 			break
 		}
 		scaledCount, ok := h.CountsRep[int32(idx)]
-		if !ok {
+		if !ok || scaledCount <= 0 {
 			continue
 		}
 		bucketsSeen++

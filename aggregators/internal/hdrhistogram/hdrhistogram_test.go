@@ -21,10 +21,11 @@ func TestMerge(t *testing.T) {
 
 	for i := 0; i < 1_000_000; i++ {
 		v1, v2 := rand.Int63n(3_600_000_000), rand.Int63n(3_600_000_000)
-		hist1.RecordValues(v1, 11)
-		histRep1.RecordValues(v1, 11)
-		hist2.RecordValues(v2, 111)
-		histRep2.RecordValues(v2, 111)
+		c1, c2 := rand.Int63n(1_000), rand.Int63n(1_000)
+		hist1.RecordValues(v1, c1)
+		histRep1.RecordValues(v1, c1)
+		hist2.RecordValues(v2, c2)
+		histRep2.RecordValues(v2, c2)
 	}
 
 	require.Equal(t, int64(0), hist1.Merge(hist2))
@@ -53,11 +54,17 @@ func TestBuckets(t *testing.T) {
 	hist := getTestHistogram()
 	histRep := New()
 
+	recordValuesForAll := func(v, n int64) {
+		hist.RecordValues(v, n)
+		histRep.RecordValues(v, n)
+	}
+
+	// Explicitly test for recording values with 0 count
+	recordValuesForAll(rand.Int63n(3_600_000_000), 0)
 	for i := 0; i < 1_000_000; i++ {
 		v := rand.Int63n(3_600_000_000)
 		c := rand.Int63n(1_000)
-		hist.RecordValues(v, c)
-		histRep.RecordValues(v, c)
+		recordValuesForAll(v, c)
 	}
 	actualTotalCount, actualCounts, actualValues := histRep.Buckets()
 	expectedTotalCount, expectedCounts, expectedValues := buckets(hist)
