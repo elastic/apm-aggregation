@@ -1392,10 +1392,12 @@ func (m *CombinedMetrics) ResetVT() {
 		mm.ReturnToVTPool()
 		m.ServiceMetrics[k] = nil
 	}
+	f1 := m.ServiceMetrics[:0]
 	m.OverflowServices.ReturnToVTPool()
 	f0 := m.OverflowServiceInstancesEstimator[:0]
 	m.Reset()
 	m.OverflowServiceInstancesEstimator = f0
+	m.ServiceMetrics = f1
 }
 func (m *CombinedMetrics) ReturnToVTPool() {
 	if m != nil {
@@ -1460,8 +1462,10 @@ func (m *ServiceMetrics) ResetVT() {
 		mm.ReturnToVTPool()
 		m.ServiceInstanceMetrics[k] = nil
 	}
+	f0 := m.ServiceInstanceMetrics[:0]
 	m.OverflowGroups.ReturnToVTPool()
 	m.Reset()
+	m.ServiceInstanceMetrics = f0
 }
 func (m *ServiceMetrics) ReturnToVTPool() {
 	if m != nil {
@@ -1501,16 +1505,6 @@ var vtprotoPool_ServiceInstanceMetrics = sync.Pool{
 }
 
 func (m *ServiceInstanceMetrics) ResetVT() {
-	//for _, mm := range m.TransactionMetrics {
-	//	mm.ResetVT()
-	//}
-	//for _, mm := range m.ServiceTransactionMetrics {
-	//	mm.ResetVT()
-	//}
-	//for _, mm := range m.SpanMetrics {
-	//	mm.ResetVT()
-	//}
-
 	for k, mm := range m.TransactionMetrics {
 		mm.ReturnToVTPool()
 		m.TransactionMetrics[k] = nil
@@ -1523,7 +1517,13 @@ func (m *ServiceInstanceMetrics) ResetVT() {
 		mm.ReturnToVTPool()
 		m.SpanMetrics[k] = nil
 	}
+	f0 := m.TransactionMetrics[:0]
+	f1 := m.ServiceTransactionMetrics[:0]
+	f2 := m.SpanMetrics[:0]
 	m.Reset()
+	m.TransactionMetrics = f0
+	m.ServiceTransactionMetrics = f1
+	m.SpanMetrics = f2
 }
 func (m *ServiceInstanceMetrics) ReturnToVTPool() {
 	if m != nil {

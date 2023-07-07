@@ -10,10 +10,9 @@ package aggregators
 import (
 	"encoding/binary"
 	"errors"
+	"google.golang.org/protobuf/types/known/timestamppb"
 	"sort"
 	"time"
-
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/axiomhq/hyperloglog"
 
@@ -64,7 +63,11 @@ func (k *CombinedMetricsKey) SizeBinary() int {
 // ToProto converts CombinedMetrics to its protobuf representation.
 func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 	pb := aggregationpb.CombinedMetricsFromVTPool()
-	pb.ServiceMetrics = make([]*aggregationpb.KeyedServiceMetrics, 0, len(m.Services))
+	if pb.ServiceMetrics == nil {
+		pb.ServiceMetrics = make([]*aggregationpb.KeyedServiceMetrics, 0, len(m.Services))
+	} else {
+		pb.ServiceMetrics = pb.ServiceMetrics[:0]
+	}
 	for k, m := range m.Services {
 		ksm := aggregationpb.KeyedServiceMetricsFromVTPool()
 		ksm.Key = k.ToProto()
@@ -137,7 +140,11 @@ func (k *ServiceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKe
 // ToProto converts ServiceMetrics to its protobuf representation.
 func (m *ServiceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 	pb := aggregationpb.ServiceMetricsFromVTPool()
-	pb.ServiceInstanceMetrics = make([]*aggregationpb.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
+	if pb.ServiceInstanceMetrics == nil {
+		pb.ServiceInstanceMetrics = make([]*aggregationpb.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
+	} else {
+		pb.ServiceInstanceMetrics = pb.ServiceInstanceMetrics[:0]
+	}
 	for k, m := range m.ServiceInstanceGroups {
 		ksim := aggregationpb.KeyedServiceInstanceMetricsFromVTPool()
 		ksim.Key = k.ToProto()
@@ -176,21 +183,33 @@ func (k *ServiceInstanceAggregationKey) FromProto(pb *aggregationpb.ServiceInsta
 // ToProto converts ServiceInstanceMetrics to its protobuf representation.
 func (m *ServiceInstanceMetrics) ToProto() *aggregationpb.ServiceInstanceMetrics {
 	pb := aggregationpb.ServiceInstanceMetricsFromVTPool()
-	pb.TransactionMetrics = make([]*aggregationpb.KeyedTransactionMetrics, 0, len(m.TransactionGroups))
+	if pb.TransactionMetrics == nil {
+		pb.TransactionMetrics = make([]*aggregationpb.KeyedTransactionMetrics, 0, len(m.TransactionGroups))
+	} else {
+		pb.TransactionMetrics = pb.TransactionMetrics[:0]
+	}
 	for k, m := range m.TransactionGroups {
 		ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
 		ktm.Key = k.ToProto()
 		ktm.Metrics = m.ToProto()
 		pb.TransactionMetrics = append(pb.TransactionMetrics, ktm)
 	}
-	pb.ServiceTransactionMetrics = make([]*aggregationpb.KeyedServiceTransactionMetrics, 0, len(m.ServiceTransactionGroups))
+	if pb.ServiceTransactionMetrics == nil {
+		pb.ServiceTransactionMetrics = make([]*aggregationpb.KeyedServiceTransactionMetrics, 0, len(m.ServiceTransactionGroups))
+	} else {
+		pb.ServiceTransactionMetrics = pb.ServiceTransactionMetrics[:0]
+	}
 	for k, m := range m.ServiceTransactionGroups {
 		kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
 		kstm.Key = k.ToProto()
 		kstm.Metrics = m.ToProto()
 		pb.ServiceTransactionMetrics = append(pb.ServiceTransactionMetrics, kstm)
 	}
-	pb.SpanMetrics = make([]*aggregationpb.KeyedSpanMetrics, 0, len(m.SpanGroups))
+	if pb.SpanMetrics == nil {
+		pb.SpanMetrics = make([]*aggregationpb.KeyedSpanMetrics, 0, len(m.SpanGroups))
+	} else {
+		pb.SpanMetrics = pb.SpanMetrics[:0]
+	}
 	for k, m := range m.SpanGroups {
 		ksm := aggregationpb.KeyedSpanMetricsFromVTPool()
 		ksm.Key = k.ToProto()
