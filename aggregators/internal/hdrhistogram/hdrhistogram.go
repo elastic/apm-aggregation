@@ -206,10 +206,10 @@ func (h *HistogramRepresentation) iterator() *iterator {
 }
 
 type iterator struct {
-	h                                    *HistogramRepresentation
-	bucketIdx, subBucketIdx              int32
-	countAtIdx, countToIdx, valueFromIdx int64
-	highestEquivalentValue               int64
+	h                       *HistogramRepresentation
+	bucketIdx, subBucketIdx int32
+	valueFromIdx            int64
+	highestEquivalentValue  int64
 }
 
 func (i *iterator) next() bool {

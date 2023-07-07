@@ -29,9 +29,7 @@ func TestMerge(t *testing.T) {
 
 	require.Equal(t, int64(0), hist1.Merge(hist2))
 	histRep1.Merge(histRep2)
-	expectedSnap := hist1.Export()
-
-	assert.Empty(t, cmp.Diff(expectedSnap, histRep1.getHDRSnapshot()))
+	assert.Empty(t, cmp.Diff(hist1.Export(), convertHistogramRepToSnapshot(histRep1)))
 }
 
 func TestBuckets(t *testing.T) {
@@ -75,4 +73,17 @@ func getTestHistogram() *hdrhistogram.Histogram {
 		highestTrackableValue,
 		int(significantFigures),
 	)
+}
+
+func convertHistogramRepToSnapshot(h *HistogramRepresentation) *hdrhistogram.Snapshot {
+	counts := make([]int64, countsLen)
+	for b, n := range h.CountsRep {
+		counts[b] += n
+	}
+	return &hdrhistogram.Snapshot{
+		LowestTrackableValue:  h.LowestTrackableValue,
+		HighestTrackableValue: h.HighestTrackableValue,
+		SignificantFigures:    h.SignificantFigures,
+		Counts:                counts,
+	}
 }
