@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/cockroachdb/pebble"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -1028,6 +1030,7 @@ func TestRunStopOrchestration(t *testing.T) {
 }
 
 func BenchmarkAggregateCombinedMetrics(b *testing.B) {
+	b.ReportAllocs()
 	gatherer, err := apmotel.NewGatherer()
 	if err != nil {
 		b.Fatal(err)
@@ -1048,6 +1051,7 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 		}),
 		WithProcessor(noOpProcessor()),
 		WithMeter(mp.Meter("test")),
+		WithLogger(zap.NewNop()),
 	)
 	if err != nil {
 		b.Fatal(err)
@@ -1104,6 +1108,7 @@ func BenchmarkAggregateBatchSerial(b *testing.B) {
 		}),
 		WithProcessor(noOpProcessor()),
 		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
+		WithLogger(zap.NewNop()),
 	)
 	if err != nil {
 		b.Fatal(err)
@@ -1156,6 +1161,7 @@ func BenchmarkAggregateBatchParallel(b *testing.B) {
 		}),
 		WithProcessor(noOpProcessor()),
 		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
+		WithLogger(zap.NewNop()),
 	)
 	if err != nil {
 		b.Fatal(err)
