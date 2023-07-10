@@ -13,12 +13,11 @@ import (
 	"sort"
 	"time"
 
-	"google.golang.org/protobuf/types/known/timestamppb"
-
 	"github.com/axiomhq/hyperloglog"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
+	"github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -74,7 +73,7 @@ func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 	pb.OverflowServices = m.OverflowServices.ToProto()
 	pb.OverflowServiceInstancesEstimator = hllBytes(m.OverflowServiceInstancesEstimator)
 	pb.EventsTotal = m.eventsTotal
-	pb.YoungestEventTimestamp = timestamppb.New(m.youngestEventTimestamp)
+	pb.YoungestEventTimestamp = timestamppb.TimeToPBTimestamp(m.youngestEventTimestamp)
 	return pb
 }
 
@@ -93,7 +92,7 @@ func (m *CombinedMetrics) FromProto(pb *aggregationpb.CombinedMetrics) {
 	}
 	m.OverflowServiceInstancesEstimator = hllSketch(pb.OverflowServiceInstancesEstimator)
 	m.eventsTotal = pb.EventsTotal
-	m.youngestEventTimestamp = pb.GetYoungestEventTimestamp().AsTime()
+	m.youngestEventTimestamp = timestamppb.PBTimestampToTime(pb.YoungestEventTimestamp)
 }
 
 // MarshalBinary marshals CombinedMetrics to binary using protobuf.
@@ -117,7 +116,7 @@ func (m *CombinedMetrics) UnmarshalBinary(data []byte) error {
 // ToProto converts ServiceAggregationKey to its protobuf representation.
 func (k *ServiceAggregationKey) ToProto() *aggregationpb.ServiceAggregationKey {
 	pb := aggregationpb.ServiceAggregationKeyFromVTPool()
-	pb.Timestamp = timestamppb.New(k.Timestamp)
+	pb.Timestamp = timestamppb.TimeToPBTimestamp(k.Timestamp)
 	pb.ServiceName = k.ServiceName
 	pb.ServiceEnvironment = k.ServiceEnvironment
 	pb.ServiceLanguageName = k.ServiceLanguageName
@@ -127,7 +126,7 @@ func (k *ServiceAggregationKey) ToProto() *aggregationpb.ServiceAggregationKey {
 
 // FromProto converts protobuf representation to ServiceAggregationKey.
 func (k *ServiceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKey) {
-	k.Timestamp = pb.Timestamp.AsTime()
+	k.Timestamp = timestamppb.PBTimestampToTime(pb.Timestamp)
 	k.ServiceName = pb.ServiceName
 	k.ServiceEnvironment = pb.ServiceEnvironment
 	k.ServiceLanguageName = pb.ServiceLanguageName
