@@ -1094,35 +1094,8 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 
 func BenchmarkAggregateBatchSerial(b *testing.B) {
 	b.ReportAllocs()
-	agg, err := New(
-		WithDataDir(b.TempDir()),
-		WithLimits(Limits{
-			MaxSpanGroups:                         1000,
-			MaxSpanGroupsPerService:               100,
-			MaxTransactionGroups:                  1000,
-			MaxTransactionGroupsPerService:        100,
-			MaxServiceTransactionGroups:           1000,
-			MaxServiceTransactionGroupsPerService: 100,
-			MaxServices:                           100,
-			MaxServiceInstanceGroupsPerService:    100,
-		}),
-		WithProcessor(noOpProcessor()),
-		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
-		WithLogger(zap.NewNop()),
-	)
-	if err != nil {
-		b.Fatal(err)
-	}
-	batch := &modelpb.Batch{
-		&modelpb.APMEvent{
-			Processor: modelpb.TransactionProcessor(),
-			Event:     &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
-			Transaction: &modelpb.Transaction{
-				Name:                "T-1000",
-				RepresentativeCount: 1,
-			},
-		},
-	}
+	agg := newTestAggregator(b)
+	batch := newTestBatchForBenchmark()
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
@@ -1130,52 +1103,13 @@ func BenchmarkAggregateBatchSerial(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-
-	if agg.batch != nil {
-		if err := agg.batch.Commit(pebble.Sync); err != nil {
-			b.Fatal(err)
-		}
-		if err := agg.batch.Close(); err != nil {
-			b.Fatal(err)
-		}
-		agg.batch = nil
-	}
-	if err := agg.db.Close(); err != nil {
-		b.Fatal(err)
-	}
+	flushTestAggregator(b, agg)
 }
 
 func BenchmarkAggregateBatchParallel(b *testing.B) {
 	b.ReportAllocs()
-	agg, err := New(
-		WithDataDir(b.TempDir()),
-		WithLimits(Limits{
-			MaxSpanGroups:                         1000,
-			MaxSpanGroupsPerService:               100,
-			MaxTransactionGroups:                  1000,
-			MaxTransactionGroupsPerService:        100,
-			MaxServiceTransactionGroups:           1000,
-			MaxServiceTransactionGroupsPerService: 100,
-			MaxServices:                           100,
-			MaxServiceInstanceGroupsPerService:    100,
-		}),
-		WithProcessor(noOpProcessor()),
-		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
-		WithLogger(zap.NewNop()),
-	)
-	if err != nil {
-		b.Fatal(err)
-	}
-	batch := &modelpb.Batch{
-		&modelpb.APMEvent{
-			Processor: modelpb.TransactionProcessor(),
-			Event:     &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
-			Transaction: &modelpb.Transaction{
-				Name:                "T-1000",
-				RepresentativeCount: 1,
-			},
-		},
-	}
+	agg := newTestAggregator(b)
+	batch := newTestBatchForBenchmark()
 	b.ResetTimer()
 
 	b.RunParallel(func(pb *testing.PB) {
@@ -1185,18 +1119,57 @@ func BenchmarkAggregateBatchParallel(b *testing.B) {
 			}
 		}
 	})
+	flushTestAggregator(b, agg)
+}
 
+func newTestAggregator(tb testing.TB) *Aggregator {
+	agg, err := New(
+		WithDataDir(tb.TempDir()),
+		WithLimits(Limits{
+			MaxSpanGroups:                         1000,
+			MaxSpanGroupsPerService:               100,
+			MaxTransactionGroups:                  1000,
+			MaxTransactionGroupsPerService:        100,
+			MaxServiceTransactionGroups:           1000,
+			MaxServiceTransactionGroupsPerService: 100,
+			MaxServices:                           100,
+			MaxServiceInstanceGroupsPerService:    100,
+		}),
+		WithProcessor(noOpProcessor()),
+		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
+		WithLogger(zap.NewNop()),
+	)
+	if err != nil {
+		tb.Fatal(err)
+	}
+	return agg
+}
+
+func flushTestAggregator(tb testing.TB, agg *Aggregator) {
 	if agg.batch != nil {
 		if err := agg.batch.Commit(pebble.Sync); err != nil {
-			b.Fatal(err)
+			tb.Fatal(err)
 		}
 		if err := agg.batch.Close(); err != nil {
-			b.Fatal(err)
+			tb.Fatal(err)
 		}
 		agg.batch = nil
 	}
 	if err := agg.db.Close(); err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
+	}
+}
+
+func newTestBatchForBenchmark() *modelpb.Batch {
+	return &modelpb.Batch{
+		&modelpb.APMEvent{
+			Processor: modelpb.TransactionProcessor(),
+			Event:     &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
+			Transaction: &modelpb.Transaction{
+				Name:                "T-1000",
+				RepresentativeCount: 1,
+			},
+		},
 	}
 }
 
