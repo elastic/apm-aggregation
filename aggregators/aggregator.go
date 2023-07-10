@@ -604,6 +604,7 @@ func (a *Aggregator) processHarvest(
 	if err := cm.UnmarshalBinary(cmb); err != nil {
 		return hs, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
+	defer cm.Free()
 	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
 		return hs, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
