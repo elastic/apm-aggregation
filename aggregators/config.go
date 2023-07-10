@@ -170,7 +170,7 @@ func defaultCfg() Config {
 	return Config{
 		DataDir:                "/tmp",
 		Processor:              stdoutProcessor,
-		Partitioner:            NewNoPartitioner(),
+		Partitioner:            NewHashPartitioner(1),
 		AggregationIntervals:   []time.Duration{time.Minute},
 		Meter:                  otel.Meter(instrumentationName),
 		Tracer:                 otel.Tracer(instrumentationName),

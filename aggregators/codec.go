@@ -65,11 +65,11 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 // SizeBinary returns the size of the byte array required to encode
 // combined metrics key.
 func (k *CombinedMetricsKey) SizeBinary() int {
-	// 2 bytes for partition ID
 	// 2 bytes for interval encoding
 	// 8 bytes for timestamp encoding
-	// rest for encoding combined metrics ID
-	return 2 + 2 + 8 + len(k.ID)
+	// len of metrics ID bytes for encoding combined metrics ID
+	// 2 bytes for partition ID
+	return 2 + 8 + len(k.ID) + 2
 }
 
 // ToProto converts CombinedMetrics to its protobuf representation.

@@ -22,16 +22,3 @@ func NewHashPartitioner(maxPartitions uint16) *HashPartitioner {
 func (p *HashPartitioner) Partition(h uint64) uint16 {
 	return uint16(h % uint64(p.maxPartitions))
 }
-
-// NoPartitioner disables partitions by producing constant partition IDs.
-type NoPartitioner struct{}
-
-// NewNoPartitioner returns a partitioner which disables partitioning.
-func NewNoPartitioner() *NoPartitioner {
-	return new(NoPartitioner)
-}
-
-// Partition generates a constant partition ID to disable partitioning.
-func (p *NoPartitioner) Partition(h uint64) uint16 {
-	return 0
-}
