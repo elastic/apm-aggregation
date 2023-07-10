@@ -29,9 +29,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 	event := &modelpb.APMEvent{
 		Processor: modelpb.TransactionProcessor(),
 		Timestamp: timestamppb.New(ts),
-		Parent: &modelpb.Parent{
-			Id: "nonroot",
-		},
+		ParentId:  "nonroot",
 		Service: &modelpb.Service{
 			Name: "test",
 		},
@@ -217,9 +215,7 @@ func BenchmarkEventToCombinedMetrics(b *testing.B) {
 	event := &modelpb.APMEvent{
 		Processor: modelpb.TransactionProcessor(),
 		Timestamp: timestamppb.Now(),
-		Parent: &modelpb.Parent{
-			Id: "nonroot",
-		},
+		ParentId:  "nonroot",
 		Service: &modelpb.Service{
 			Name: "test",
 		},
