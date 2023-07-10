@@ -15,6 +15,8 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/cockroachdb/pebble"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -1031,6 +1033,7 @@ func TestRunStopOrchestration(t *testing.T) {
 }
 
 func BenchmarkAggregateCombinedMetrics(b *testing.B) {
+	b.ReportAllocs()
 	gatherer, err := apmotel.NewGatherer()
 	if err != nil {
 		b.Fatal(err)
@@ -1051,6 +1054,7 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 		}),
 		WithProcessor(noOpProcessor()),
 		WithMeter(mp.Meter("test")),
+		WithLogger(zap.NewNop()),
 	)
 	if err != nil {
 		b.Fatal(err)
@@ -1091,9 +1095,39 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	}
 }
 
-func BenchmarkAggregateBatch(b *testing.B) {
+func BenchmarkAggregateBatchSerial(b *testing.B) {
+	b.ReportAllocs()
+	agg := newTestAggregator(b)
+	batch := newTestBatchForBenchmark()
+	b.ResetTimer()
+
+	for i := 0; i < b.N; i++ {
+		if err := agg.AggregateBatch(context.Background(), "test", batch); err != nil {
+			b.Fatal(err)
+		}
+	}
+	flushTestAggregator(b, agg)
+}
+
+func BenchmarkAggregateBatchParallel(b *testing.B) {
+	b.ReportAllocs()
+	agg := newTestAggregator(b)
+	batch := newTestBatchForBenchmark()
+	b.ResetTimer()
+
+	b.RunParallel(func(pb *testing.PB) {
+		for pb.Next() {
+			if err := agg.AggregateBatch(context.Background(), "test", batch); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+	flushTestAggregator(b, agg)
+}
+
+func newTestAggregator(tb testing.TB) *Aggregator {
 	agg, err := New(
-		WithDataDir(b.TempDir()),
+		WithDataDir(tb.TempDir()),
 		WithLimits(Limits{
 			MaxSpanGroups:                         1000,
 			MaxSpanGroupsPerService:               100,
@@ -1105,18 +1139,32 @@ func BenchmarkAggregateBatch(b *testing.B) {
 			MaxServiceInstanceGroupsPerService:    100,
 		}),
 		WithProcessor(noOpProcessor()),
-		WithAggregationIntervals([]time.Duration{time.Minute}),
+		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
+		WithLogger(zap.NewNop()),
 	)
 	if err != nil {
-		b.Fatal(err)
+		tb.Fatal(err)
 	}
-	go func() {
-		agg.Run(context.Background())
-	}()
-	b.Cleanup(func() {
-		agg.Stop(context.Background())
-	})
-	batch := &modelpb.Batch{
+	return agg
+}
+
+func flushTestAggregator(tb testing.TB, agg *Aggregator) {
+	if agg.batch != nil {
+		if err := agg.batch.Commit(pebble.Sync); err != nil {
+			tb.Fatal(err)
+		}
+		if err := agg.batch.Close(); err != nil {
+			tb.Fatal(err)
+		}
+		agg.batch = nil
+	}
+	if err := agg.db.Close(); err != nil {
+		tb.Fatal(err)
+	}
+}
+
+func newTestBatchForBenchmark() *modelpb.Batch {
+	return &modelpb.Batch{
 		&modelpb.APMEvent{
 			Processor: modelpb.TransactionProcessor(),
 			Event:     &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
@@ -1125,11 +1173,6 @@ func BenchmarkAggregateBatch(b *testing.B) {
 				RepresentativeCount: 1,
 			},
 		},
-	}
-	for i := 0; i < b.N; i++ {
-		if err := agg.AggregateBatch(context.Background(), "test", batch); err != nil {
-			b.Fatal(err)
-		}
 	}
 }
 
