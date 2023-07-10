@@ -33,6 +33,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -211,7 +212,6 @@ func TestAggregateBatch(t *testing.T) {
 		stm.Histogram.RecordDuration(txnDuration, 1)
 		stm.SuccessCount++
 		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].ServiceTransactionGroups[stxKey] = stm
-
 		sm := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[spanKey]
 		sm.Count++
 		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[spanKey] = sm
@@ -229,6 +229,9 @@ func TestAggregateBatch(t *testing.T) {
 	assert.Empty(t, cmp.Diff(
 		expectedCombinedMetrics, cm,
 		cmpopts.EquateEmpty(),
+		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+			return a.Equal(&b)
+		}),
 		cmp.AllowUnexported(CombinedMetrics{}),
 	))
 	assert.Empty(t, cmp.Diff(
