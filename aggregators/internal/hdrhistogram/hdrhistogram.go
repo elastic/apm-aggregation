@@ -305,7 +305,7 @@ func (c *HybridCountsRep) Add(bucket int32, value int64) {
 
 // ForEach iterates over each bucket and calls the given function.
 func (c *HybridCountsRep) ForEach(f func(int32, int64)) {
-	if c.m == nil {
+	if c.m == nil && c.bucket != 0 && c.value != 0 {
 		f(c.bucket, c.value)
 		return
 	}
