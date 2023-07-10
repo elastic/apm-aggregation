@@ -648,7 +648,7 @@ func transactionKey(e *modelpb.APMEvent) TransactionAggregationKey {
 		faasColdstart.ParseBoolPtr(faas.ColdStart)
 	}
 	return TransactionAggregationKey{
-		TraceRoot: e.GetParent().GetId() == "",
+		TraceRoot: e.GetParentId() == "",
 
 		ContainerID:       e.GetContainer().GetId(),
 		KubernetesPodName: e.GetKubernetes().GetPodName(),
