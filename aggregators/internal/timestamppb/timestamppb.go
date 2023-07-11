@@ -2,6 +2,8 @@
 // or more contributor license agreements. Licensed under the Elastic License 2.0;
 // you may not use this file except in compliance with the Elastic License 2.0.
 
+// Package timestamppb provides helper functions to encode and decode time.Time
+// for protobuf.
 package timestamppb
 
 import "time"
