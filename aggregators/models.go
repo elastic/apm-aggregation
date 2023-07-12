@@ -139,7 +139,7 @@ type CombinedMetrics struct {
 	// is used for internal monitoring purposes.
 	eventsTotal int64
 
-	// youngestEventTimestamp is the yougest event that was aggregated
+	// youngestEventTimestamp is the youngest event that was aggregated
 	// in the combined metrics based on the received timestamp.
 	youngestEventTimestamp time.Time
 }

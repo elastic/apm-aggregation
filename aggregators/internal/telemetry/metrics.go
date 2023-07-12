@@ -22,11 +22,10 @@ const (
 // Metrics are a collection of metric used to record all the
 // measurements for the aggregators. Sync metrics are exposed
 // and used by the calling code to record measurements whereas
-// async insturments (mainly pebble database metrics) are
+// async instruments (mainly pebble database metrics) are
 // collected by the observer pattern by passing a metrics provider.
 type Metrics struct {
-	// Synchronous metrics used to record aggregation service
-	// measurements.
+	// Synchronous metrics used to record aggregation measurements.
 
 	RequestsTotal   metric.Int64Counter
 	RequestsFailed  metric.Int64Counter
@@ -120,7 +119,7 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	}
 	i.ProcessingDelay, err = meter.Float64Histogram(
 		"events.processing-delay",
-		metric.WithDescription("Records the processing delays, removes expected delays due to aggreagtion intervals"),
+		metric.WithDescription("Records the processing delays, removes expected delays due to aggregation intervals"),
 		metric.WithUnit(durationUnit),
 	)
 	if err != nil {
