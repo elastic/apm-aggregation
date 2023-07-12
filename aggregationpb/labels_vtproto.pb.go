@@ -201,13 +201,19 @@ var vtprotoPool_GlobalLabels = sync.Pool{
 }
 
 func (m *GlobalLabels) ResetVT() {
-	for _, mm := range m.Labels {
-		mm.ResetVT()
+	for k, mm := range m.Labels {
+		mm.ReturnToVTPool()
+		m.Labels[k] = nil
 	}
-	for _, mm := range m.NumericLabels {
-		mm.ResetVT()
+	f0 := m.Labels[:0]
+	for k, mm := range m.NumericLabels {
+		mm.ReturnToVTPool()
+		m.NumericLabels[k] = nil
 	}
+	f1 := m.NumericLabels[:0]
 	m.Reset()
+	m.Labels = f0
+	m.NumericLabels = f1
 }
 func (m *GlobalLabels) ReturnToVTPool() {
 	if m != nil {
