@@ -548,7 +548,7 @@ func (a *Aggregator) harvestForInterval(
 
 		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmk.ID), ivlAttr)
 		attrSet := metric.WithAttributeSet(attribute.NewSet(attrs...))
-		// processingDelay is normalized by substracting aggregation interval and
+		// processingDelay is normalized by subtracting aggregation interval and
 		// harvest delay, both of which are expected delays. Normalization helps
 		// us to use the lower (higher resolution) range of the histogram for the
 		// important values. The normalized processingDelay can be negative as a
