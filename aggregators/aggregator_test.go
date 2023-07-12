@@ -1136,13 +1136,12 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	if err != nil {
 		b.Fatal(err)
 	}
+	ctx, cancel := context.WithCancel(context.Background())
+	b.Cleanup(func() { cancel() })
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		for _, kv := range kvs {
-			if err := agg.AggregateCombinedMetrics(
-				context.Background(),
-				kv.Key, kv.Value,
-			); err != nil {
+			if err := agg.AggregateCombinedMetrics(ctx, kv.Key, kv.Value); err != nil {
 				b.Fatal(err)
 			}
 		}
