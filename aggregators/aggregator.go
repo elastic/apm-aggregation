@@ -362,14 +362,14 @@ func (a *Aggregator) aggregateAPMEvent(
 	ctx, span := a.cfg.Tracer.Start(ctx, "aggregateAPMEvent", trace.WithAttributes(traceAttrs...))
 	defer span.End()
 
-	cm, err := EventToCombinedMetrics(e, cmk.Interval)
+	kvs, err := EventToCombinedMetrics(e, cmk, a.cfg.Partitioner)
 	if err != nil {
 		span.RecordError(err)
 		return 0, fmt.Errorf("failed to convert event to combined metrics: %w", err)
 	}
 	var totalBytesIn int
-	for _, ckv := range a.partition(cmk, cm) {
-		bytesIn, err := a.aggregate(ctx, ckv.Key, ckv.Value)
+	for _, kv := range kvs {
+		bytesIn, err := a.aggregate(ctx, kv.Key, kv.Value)
 		totalBytesIn += bytesIn
 		if err != nil {
 			span.RecordError(err)
@@ -378,85 +378,6 @@ func (a *Aggregator) aggregateAPMEvent(
 	}
 	span.SetAttributes(attribute.Int("bytes_ingested", totalBytesIn))
 	return totalBytesIn, nil
-}
-
-// partition will partition a combined metrics into smaller partitions based
-// on the partitioning logic. It will ignore overflows as the partition will
-// be executed on a single APMEvent with no possibility of overflows.
-func (a *Aggregator) partition(
-	unpartitionedKey CombinedMetricsKey,
-	cm CombinedMetrics,
-) []CombinedKV {
-	var ckvs []CombinedKV
-	for svcKey, svc := range cm.Services {
-		hasher := Hasher{}.Chain(svcKey)
-		for svcInsKey, svcIns := range svc.ServiceInstanceGroups {
-			svcInsHasher := hasher.Chain(svcInsKey)
-			for svcTxnKey, svcTxn := range svcIns.ServiceTransactionGroups {
-				ck := unpartitionedKey
-				ck.PartitionID = a.cfg.Partitioner.Partition(svcInsHasher.Chain(svcTxnKey).Sum())
-				cv := CombinedMetrics{
-					Services: map[ServiceAggregationKey]ServiceMetrics{
-						svcKey: ServiceMetrics{
-							ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
-								svcInsKey: ServiceInstanceMetrics{
-									ServiceTransactionGroups: map[ServiceTransactionAggregationKey]ServiceTransactionMetrics{
-										svcTxnKey: svcTxn,
-									},
-								},
-							},
-						},
-					},
-				}
-				ckvs = append(ckvs, CombinedKV{Key: ck, Value: cv})
-			}
-			for txnKey, txn := range svcIns.TransactionGroups {
-				ck := unpartitionedKey
-				ck.PartitionID = a.cfg.Partitioner.Partition(svcInsHasher.Chain(txnKey).Sum())
-				cv := CombinedMetrics{
-					Services: map[ServiceAggregationKey]ServiceMetrics{
-						svcKey: ServiceMetrics{
-							ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
-								svcInsKey: ServiceInstanceMetrics{
-									TransactionGroups: map[TransactionAggregationKey]TransactionMetrics{
-										txnKey: txn,
-									},
-								},
-							},
-						},
-					},
-				}
-				ckvs = append(ckvs, CombinedKV{Key: ck, Value: cv})
-			}
-			for spanKey, span := range svcIns.SpanGroups {
-				ck := unpartitionedKey
-				ck.PartitionID = a.cfg.Partitioner.Partition(svcInsHasher.Chain(spanKey).Sum())
-				cv := CombinedMetrics{
-					Services: map[ServiceAggregationKey]ServiceMetrics{
-						svcKey: ServiceMetrics{
-							ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
-								svcInsKey: ServiceInstanceMetrics{
-									SpanGroups: map[SpanAggregationKey]SpanMetrics{
-										spanKey: span,
-									},
-								},
-							},
-						},
-					},
-				}
-				ckvs = append(ckvs, CombinedKV{Key: ck, Value: cv})
-			}
-		}
-	}
-	// Approximate events total by uniformly distributing the events total
-	// amongst the partitioned key values.
-	weightedEventsTotal := cm.eventsTotal / float64(len(ckvs))
-	for i := range ckvs {
-		cv := &ckvs[i].Value
-		cv.eventsTotal = weightedEventsTotal
-		cv.youngestEventTimestamp = cm.youngestEventTimestamp
-	}
-	return ckvs
 }
 
 // aggregate aggregates combined metrics for a given key and returns

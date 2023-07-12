@@ -1117,7 +1117,12 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	b.Cleanup(func() {
 		agg.Stop(context.Background())
 	})
-	cm, err := EventToCombinedMetrics(
+	cmk := CombinedMetricsKey{
+		Interval:       aggIvl,
+		ProcessingTime: time.Now().Truncate(aggIvl),
+		ID:             "testid",
+	}
+	kvs, err := EventToCombinedMetrics(
 		&modelpb.APMEvent{
 			Processor: modelpb.TransactionProcessor(),
 			Event:     &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
@@ -1126,23 +1131,20 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 				RepresentativeCount: 1,
 			},
 		},
-		aggIvl,
+		cmk, NewHashPartitioner(1),
 	)
 	if err != nil {
 		b.Fatal(err)
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		if err := agg.AggregateCombinedMetrics(
-			context.Background(),
-			CombinedMetricsKey{
-				Interval:       aggIvl,
-				ProcessingTime: time.Now().Truncate(aggIvl),
-				ID:             "testid",
-			},
-			cm,
-		); err != nil {
-			b.Fatal(err)
+		for _, kv := range kvs {
+			if err := agg.AggregateCombinedMetrics(
+				context.Background(),
+				kv.Key, kv.Value,
+			); err != nil {
+				b.Fatal(err)
+			}
 		}
 	}
 }

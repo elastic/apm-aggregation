@@ -44,15 +44,58 @@ func TestEventToCombinedMetrics(t *testing.T) {
 			Type:                "testtyp",
 		},
 	}
-	cm, err := EventToCombinedMetrics(event, time.Minute)
+	cmk := CombinedMetricsKey{
+		Interval:       time.Minute,
+		ProcessingTime: time.Now().Truncate(time.Minute),
+		ID:             "test-id",
+	}
+	kvs, err := EventToCombinedMetrics(event, cmk, NewHashPartitioner(1))
 	require.NoError(t, err)
-	expected := CombinedMetrics(
-		*createTestCombinedMetrics(withEventsTotal(1), withYoungestEventTimestamp(receivedTS)).
-			addTransaction(ts.Truncate(time.Minute), event.Service.Name, "", testTransaction{txnName: event.Transaction.Name, txnType: event.Transaction.Type, eventOutcome: event.Event.Outcome, count: 1}).
-			addServiceTransaction(ts.Truncate(time.Minute), event.Service.Name, "", testServiceTransaction{txnType: event.Transaction.Type, count: 1}),
+	var expected []CombinedKV
+	createTestCombinedMetrics(
+		withEventsTotal(0.5), // one for txn and one for svc txn
+		withYoungestEventTimestamp(receivedTS),
+	)
+	expected = append(expected,
+		CombinedKV{
+			Key: cmk,
+			Value: CombinedMetrics(
+				*createTestCombinedMetrics(
+					withEventsTotal(0.5), // one for txn and one for svc txn
+					withYoungestEventTimestamp(receivedTS),
+				).addTransaction(
+					ts.Truncate(time.Minute),
+					event.Service.Name,
+					"",
+					testTransaction{
+						txnName:      event.Transaction.Name,
+						txnType:      event.Transaction.Type,
+						eventOutcome: event.Event.Outcome,
+						count:        1,
+					},
+				),
+			),
+		},
+		CombinedKV{
+			Key: cmk,
+			Value: CombinedMetrics(
+				*createTestCombinedMetrics(
+					withEventsTotal(0.5), // one for txn and one for svc txn
+					withYoungestEventTimestamp(receivedTS),
+				).addServiceTransaction(
+					ts.Truncate(time.Minute),
+					event.Service.Name,
+					"",
+					testServiceTransaction{
+						txnType: event.Transaction.Type,
+						count:   1,
+					},
+				),
+			),
+		},
 	)
 	assert.Empty(t, cmp.Diff(
-		expected, cm,
+		expected, kvs,
 		cmpopts.EquateEmpty(),
 		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
 			return a.Equal(&b)
@@ -229,9 +272,15 @@ func BenchmarkEventToCombinedMetrics(b *testing.B) {
 			Type:                "testtyp",
 		},
 	}
+	cmk := CombinedMetricsKey{
+		Interval:       time.Minute,
+		ProcessingTime: time.Now().Truncate(time.Minute),
+		ID:             "testid",
+	}
+	partitioner := NewHashPartitioner(1)
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := EventToCombinedMetrics(event, time.Minute)
+		_, err := EventToCombinedMetrics(event, cmk, partitioner)
 		if err != nil {
 			b.Fatal(err)
 		}
