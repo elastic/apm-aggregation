@@ -170,11 +170,11 @@ func EventToCombinedMetrics(
 	// Approximate events total by uniformly distributing the events total
 	// amongst the partitioned key values.
 	weightedEventsTotal := 1 / float64(len(kvs))
-	eventTs := e.GetEvent().GetReceived().AsTime()
+	eventTS := e.GetEvent().GetReceived().AsTime()
 	for i := range kvs {
 		cv := &kvs[i].Value
 		cv.eventsTotal = weightedEventsTotal
-		cv.youngestEventTimestamp = eventTs
+		cv.youngestEventTimestamp = eventTS
 	}
 	return kvs, nil
 }
