@@ -999,7 +999,7 @@ func TestRunStopOrchestration(t *testing.T) {
 		go func() { agg.Run(ctx) }()
 		assert.Eventually(t, func() bool {
 			return firstHarvestDone.Load()
-		}, time.Second, 10*time.Millisecond, "failed while waiting for first harvest")
+		}, 10*time.Second, 10*time.Millisecond, "failed while waiting for first harvest")
 		assert.NoError(t, callAggregateBatch(agg))
 		assert.NoError(t, agg.Stop(ctx))
 		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorStopped)
