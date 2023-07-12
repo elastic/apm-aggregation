@@ -65,10 +65,16 @@ func TestHistogramRepresentation(t *testing.T) {
 
 	actual := hdrhistogram.New()
 	HistogramFromProto(actual, HistogramToProto(expected))
-	assert.Empty(t, cmp.Diff(expected, actual))
+	assert.Empty(t, cmp.Diff(
+		expected, actual,
+		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+			return a.Equal(&b)
+		}),
+	))
 }
 
 func BenchmarkCombinedMetricsEncoding(b *testing.B) {
+	b.ReportAllocs()
 	ts := time.Now()
 	cardinality := 10
 	tcm := createTestCombinedMetrics()
@@ -89,6 +95,7 @@ func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 }
 
 func BenchmarkCombinedMetricsDecoding(b *testing.B) {
+	b.ReportAllocs()
 	ts := time.Now()
 	cardinality := 10
 	tcm := createTestCombinedMetrics()

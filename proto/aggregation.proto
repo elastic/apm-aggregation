@@ -5,14 +5,12 @@ package elastic.apm;
 option go_package = "./aggregationpb";
 option optimize_for = SPEED;
 
-import "google/protobuf/timestamp.proto";
-
 message CombinedMetrics {
   repeated KeyedServiceMetrics service_metrics = 1;
   Overflow overflow_services = 2;
   bytes overflow_service_instances_estimator = 3;
   double events_total = 4;
-  google.protobuf.Timestamp youngest_event_timestamp = 5;
+  uint64 youngest_event_timestamp = 5;
 }
 
 message KeyedServiceMetrics {
@@ -21,7 +19,7 @@ message KeyedServiceMetrics {
 }
 
 message ServiceAggregationKey {
-  google.protobuf.Timestamp timestamp = 1;
+  uint64 timestamp = 1;
   string service_name = 2;
   string service_environment = 3;
   string service_language_name = 4;

@@ -16,9 +16,7 @@ import (
 	bits "math/bits"
 	sync "sync"
 
-	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
-	timestamppb "google.golang.org/protobuf/types/known/timestamppb"
 )
 
 const (
@@ -58,27 +56,10 @@ func (m *CombinedMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.YoungestEventTimestamp != nil {
-		if vtmsg, ok := interface{}(m.YoungestEventTimestamp).(interface {
-			MarshalToSizedBufferVT([]byte) (int, error)
-		}); ok {
-			size, err := vtmsg.MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarint(dAtA, i, uint64(size))
-		} else {
-			encoded, err := proto.Marshal(m.YoungestEventTimestamp)
-			if err != nil {
-				return 0, err
-			}
-			i -= len(encoded)
-			copy(dAtA[i:], encoded)
-			i = encodeVarint(dAtA, i, uint64(len(encoded)))
-		}
+	if m.YoungestEventTimestamp != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.YoungestEventTimestamp))
 		i--
-		dAtA[i] = 0x2a
+		dAtA[i] = 0x28
 	}
 	if m.EventsTotal != 0 {
 		i -= 8
@@ -236,27 +217,10 @@ func (m *ServiceAggregationKey) MarshalToSizedBufferVT(dAtA []byte) (int, error)
 		i--
 		dAtA[i] = 0x12
 	}
-	if m.Timestamp != nil {
-		if vtmsg, ok := interface{}(m.Timestamp).(interface {
-			MarshalToSizedBufferVT([]byte) (int, error)
-		}); ok {
-			size, err := vtmsg.MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarint(dAtA, i, uint64(size))
-		} else {
-			encoded, err := proto.Marshal(m.Timestamp)
-			if err != nil {
-				return 0, err
-			}
-			i -= len(encoded)
-			copy(dAtA[i:], encoded)
-			i = encodeVarint(dAtA, i, uint64(len(encoded)))
-		}
+	if m.Timestamp != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Timestamp))
 		i--
-		dAtA[i] = 0xa
+		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
 }
@@ -1813,15 +1777,8 @@ func (m *CombinedMetrics) SizeVT() (n int) {
 	if m.EventsTotal != 0 {
 		n += 9
 	}
-	if m.YoungestEventTimestamp != nil {
-		if size, ok := interface{}(m.YoungestEventTimestamp).(interface {
-			SizeVT() int
-		}); ok {
-			l = size.SizeVT()
-		} else {
-			l = proto.Size(m.YoungestEventTimestamp)
-		}
-		n += 1 + l + sov(uint64(l))
+	if m.YoungestEventTimestamp != 0 {
+		n += 1 + sov(uint64(m.YoungestEventTimestamp))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -1851,15 +1808,8 @@ func (m *ServiceAggregationKey) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if m.Timestamp != nil {
-		if size, ok := interface{}(m.Timestamp).(interface {
-			SizeVT() int
-		}); ok {
-			l = size.SizeVT()
-		} else {
-			l = proto.Size(m.Timestamp)
-		}
-		n += 1 + l + sov(uint64(l))
+	if m.Timestamp != 0 {
+		n += 1 + sov(uint64(m.Timestamp))
 	}
 	l = len(m.ServiceName)
 	if l > 0 {
@@ -2478,10 +2428,10 @@ func (m *CombinedMetrics) UnmarshalVT(dAtA []byte) error {
 			iNdEx += 8
 			m.EventsTotal = float64(math.Float64frombits(v))
 		case 5:
-			if wireType != 2 {
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field YoungestEventTimestamp", wireType)
 			}
-			var msglen int
+			m.YoungestEventTimestamp = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -2491,36 +2441,11 @@ func (m *CombinedMetrics) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				m.YoungestEventTimestamp |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.YoungestEventTimestamp == nil {
-				m.YoungestEventTimestamp = &timestamppb.Timestamp{}
-			}
-			if unmarshal, ok := interface{}(m.YoungestEventTimestamp).(interface {
-				UnmarshalVT([]byte) error
-			}); ok {
-				if err := unmarshal.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-					return err
-				}
-			} else {
-				if err := proto.Unmarshal(dAtA[iNdEx:postIndex], m.YoungestEventTimestamp); err != nil {
-					return err
-				}
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -2696,10 +2621,10 @@ func (m *ServiceAggregationKey) UnmarshalVT(dAtA []byte) error {
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 2 {
+			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Timestamp", wireType)
 			}
-			var msglen int
+			m.Timestamp = 0
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -2709,36 +2634,11 @@ func (m *ServiceAggregationKey) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= int(b&0x7F) << shift
+				m.Timestamp |= uint64(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Timestamp == nil {
-				m.Timestamp = &timestamppb.Timestamp{}
-			}
-			if unmarshal, ok := interface{}(m.Timestamp).(interface {
-				UnmarshalVT([]byte) error
-			}); ok {
-				if err := unmarshal.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-					return err
-				}
-			} else {
-				if err := proto.Unmarshal(dAtA[iNdEx:postIndex], m.Timestamp); err != nil {
-					return err
-				}
-			}
-			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ServiceName", wireType)
