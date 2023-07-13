@@ -36,9 +36,11 @@ type Config struct {
 	AggregationIntervals   []time.Duration
 	HarvestDelay           time.Duration
 	CombinedMetricsIDToKVs func(string) []attribute.KeyValue
-	Meter                  metric.Meter
-	Tracer                 trace.Tracer
-	Logger                 *zap.Logger
+	InMemoryFS             bool
+
+	Meter  metric.Meter
+	Tracer trace.Tracer
+	Logger *zap.Logger
 }
 
 // Option allows configuring aggregator based on functional options.
@@ -144,6 +146,14 @@ func WithCombinedMetricsIDToKVs(f func(string) []attribute.KeyValue) Option {
 func WithLogger(logger *zap.Logger) Option {
 	return func(c Config) Config {
 		c.Logger = logger
+		return c
+	}
+}
+
+// WithInMemoryFS defines whether aggregator uses in-memory file system.
+func WithInMemoryFS(enabled bool) Option {
+	return func(c Config) Config {
+		c.InMemoryFS = enabled
 		return c
 	}
 }

@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/cockroachdb/pebble"
+	"github.com/cockroachdb/pebble/vfs"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
@@ -81,7 +82,7 @@ func New(opts ...Option) (*Aggregator, error) {
 		return nil, fmt.Errorf("failed to create aggregation config: %w", err)
 	}
 
-	pb, err := pebble.Open(cfg.DataDir, &pebble.Options{
+	pebbleOpts := &pebble.Options{
 		Merger: &pebble.Merger{
 			Name: "combined_metrics_merger",
 			Merge: func(_, value []byte) (pebble.ValueMerger, error) {
@@ -94,7 +95,11 @@ func New(opts ...Option) (*Aggregator, error) {
 				return &merger, nil
 			},
 		},
-	})
+	}
+	if cfg.InMemoryFS {
+		pebbleOpts.FS = vfs.NewStrictMem()
+	}
+	pb, err := pebble.Open(cfg.DataDir, pebbleOpts)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create pebble db: %w", err)
 	}
