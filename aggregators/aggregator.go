@@ -135,8 +135,6 @@ func (a *Aggregator) AggregateBatch(
 	b *modelpb.Batch,
 ) error {
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(id)
-	ctx, span := a.cfg.Tracer.Start(ctx, "AggregateBatch", trace.WithAttributes(cmIDAttrs...))
-	defer span.End()
 
 	a.mu.Lock()
 	defer a.mu.Unlock()
@@ -158,7 +156,6 @@ func (a *Aggregator) AggregateBatch(
 		for _, e := range *b {
 			bytesIn, err := a.aggregateAPMEvent(ctx, cmk, e)
 			if err != nil {
-				span.RecordError(err)
 				errs = append(errs, err)
 			}
 			totalBytesIn += int64(bytesIn)
@@ -168,7 +165,6 @@ func (a *Aggregator) AggregateBatch(
 		a.cachedStats[ivl][id] = cmStats
 	}
 
-	span.SetAttributes(attribute.Int64("total_bytes_ingested", totalBytesIn))
 	cmIDAttrSet := attribute.NewSet(cmIDAttrs...)
 	a.metrics.RequestsTotal.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
 	a.metrics.BytesIngested.Add(ctx, totalBytesIn, metric.WithAttributeSet(cmIDAttrSet))
@@ -354,23 +350,12 @@ func (a *Aggregator) aggregateAPMEvent(
 	cmk CombinedMetricsKey,
 	e *modelpb.APMEvent,
 ) (int, error) {
-	traceAttrs := append(
-		a.cfg.CombinedMetricsIDToKVs(cmk.ID),
-		attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
-		attribute.String("processing_time", cmk.ProcessingTime.String()),
-	)
-	ctx, span := a.cfg.Tracer.Start(ctx, "aggregateAPMEvent", trace.WithAttributes(traceAttrs...))
-	defer span.End()
-
 	cm, err := EventToCombinedMetrics(e, cmk.Interval)
 	if err != nil {
-		span.RecordError(err)
 		return 0, fmt.Errorf("failed to convert event to combined metrics: %w", err)
 	}
 	bytesIn, err := a.aggregate(ctx, cmk, cm)
-	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
 	if err != nil {
-		span.RecordError(err)
 		return bytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)
 	}
 	return bytesIn, nil
