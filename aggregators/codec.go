@@ -474,7 +474,9 @@ func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
 
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
 	// i.e. Protobuf formats are equal if and only if the structs are equal
-	pb.Labels = make([]*aggregationpb.Label, 0, len(gl.Labels))
+	if len(gl.Labels) > cap(pb.Labels) {
+		pb.Labels = make([]*aggregationpb.Label, 0, len(gl.Labels))
+	}
 	for k, v := range gl.Labels {
 		l := aggregationpb.LabelFromVTPool()
 		l.Key = k
@@ -487,7 +489,9 @@ func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
 		return pb.Labels[i].Key < pb.Labels[j].Key
 	})
 
-	pb.NumericLabels = make([]*aggregationpb.NumericLabel, 0, len(gl.NumericLabels))
+	if len(gl.NumericLabels) > cap(pb.NumericLabels) {
+		pb.NumericLabels = make([]*aggregationpb.NumericLabel, 0, len(gl.NumericLabels))
+	}
 	for k, v := range gl.NumericLabels {
 		l := aggregationpb.NumericLabelFromVTPool()
 		l.Key = k
