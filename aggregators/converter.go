@@ -35,10 +35,10 @@ func setMetricCountBasedOnOutcome(stm *ServiceTransactionMetrics, from *modelpb.
 	}
 }
 
-// EventToCombinedMetrics converts APMEvent to CombinedMetrics. Metrics are
-// partitioned into smaller partitions based on the partitioning logic. It
-// will ignore overflows as the partition will be executed on a single
-// APMEvent with no possibility of overflows.
+// EventToCombinedMetrics converts APMEvent to one or more CombinedMetrics.
+// If an event results in multiple metrics, they may be spread across different partitions.
+//
+// EventToCombinedMetrics will never produce overflow metrics, as it applies to a single APMEvent.
 func EventToCombinedMetrics(
 	e *modelpb.APMEvent,
 	unpartitionedKey CombinedMetricsKey,
