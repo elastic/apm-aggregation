@@ -11,7 +11,7 @@ lint: tools/go.mod
 
 .PHONY: clean
 clean:
-	rm -fr bin
+	rm -fr bin build
 
 .PHONY: test
 test: go.mod

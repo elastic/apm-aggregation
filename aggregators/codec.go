@@ -74,7 +74,9 @@ func (k *CombinedMetricsKey) SizeBinary() int {
 // ToProto converts CombinedMetrics to its protobuf representation.
 func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 	pb := aggregationpb.CombinedMetricsFromVTPool()
-	pb.ServiceMetrics = make([]*aggregationpb.KeyedServiceMetrics, 0, len(m.Services))
+	if len(m.Services) > cap(pb.ServiceMetrics) {
+		pb.ServiceMetrics = make([]*aggregationpb.KeyedServiceMetrics, 0, len(m.Services))
+	}
 	for k, m := range m.Services {
 		ksm := aggregationpb.KeyedServiceMetricsFromVTPool()
 		ksm.Key = k.ToProto()
@@ -147,7 +149,9 @@ func (k *ServiceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKe
 // ToProto converts ServiceMetrics to its protobuf representation.
 func (m *ServiceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 	pb := aggregationpb.ServiceMetricsFromVTPool()
-	pb.ServiceInstanceMetrics = make([]*aggregationpb.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
+	if len(m.ServiceInstanceGroups) > cap(pb.ServiceInstanceMetrics) {
+		pb.ServiceInstanceMetrics = make([]*aggregationpb.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
+	}
 	for k, m := range m.ServiceInstanceGroups {
 		ksim := aggregationpb.KeyedServiceInstanceMetricsFromVTPool()
 		ksim.Key = k.ToProto()
@@ -186,21 +190,27 @@ func (k *ServiceInstanceAggregationKey) FromProto(pb *aggregationpb.ServiceInsta
 // ToProto converts ServiceInstanceMetrics to its protobuf representation.
 func (m *ServiceInstanceMetrics) ToProto() *aggregationpb.ServiceInstanceMetrics {
 	pb := aggregationpb.ServiceInstanceMetricsFromVTPool()
-	pb.TransactionMetrics = make([]*aggregationpb.KeyedTransactionMetrics, 0, len(m.TransactionGroups))
+	if len(m.TransactionGroups) > cap(pb.TransactionMetrics) {
+		pb.TransactionMetrics = make([]*aggregationpb.KeyedTransactionMetrics, 0, len(m.TransactionGroups))
+	}
 	for k, m := range m.TransactionGroups {
 		ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
 		ktm.Key = k.ToProto()
 		ktm.Metrics = m.ToProto()
 		pb.TransactionMetrics = append(pb.TransactionMetrics, ktm)
 	}
-	pb.ServiceTransactionMetrics = make([]*aggregationpb.KeyedServiceTransactionMetrics, 0, len(m.ServiceTransactionGroups))
+	if len(m.ServiceTransactionGroups) > cap(pb.ServiceTransactionMetrics) {
+		pb.ServiceTransactionMetrics = make([]*aggregationpb.KeyedServiceTransactionMetrics, 0, len(m.ServiceTransactionGroups))
+	}
 	for k, m := range m.ServiceTransactionGroups {
 		kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
 		kstm.Key = k.ToProto()
 		kstm.Metrics = m.ToProto()
 		pb.ServiceTransactionMetrics = append(pb.ServiceTransactionMetrics, kstm)
 	}
-	pb.SpanMetrics = make([]*aggregationpb.KeyedSpanMetrics, 0, len(m.SpanGroups))
+	if len(m.SpanGroups) > cap(pb.SpanMetrics) {
+		pb.SpanMetrics = make([]*aggregationpb.KeyedSpanMetrics, 0, len(m.SpanGroups))
+	}
 	for k, m := range m.SpanGroups {
 		ksm := aggregationpb.KeyedSpanMetricsFromVTPool()
 		ksm.Key = k.ToProto()
@@ -378,8 +388,13 @@ func HistogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 	pb.LowestTrackableValue = h.LowestTrackableValue
 	pb.HighestTrackableValue = h.HighestTrackableValue
 	pb.SignificantFigures = h.SignificantFigures
-	pb.Buckets = make([]int32, 0, h.CountsRep.Len())
-	pb.Counts = make([]int64, 0, h.CountsRep.Len())
+	countsLen := h.CountsRep.Len()
+	if countsLen > cap(pb.Buckets) {
+		pb.Buckets = make([]int32, 0, countsLen)
+	}
+	if countsLen > cap(pb.Counts) {
+		pb.Counts = make([]int64, 0, countsLen)
+	}
 	h.CountsRep.ForEach(func(bucket int32, value int64) {
 		pb.Buckets = append(pb.Buckets, bucket)
 		pb.Counts = append(pb.Counts, value)
@@ -470,7 +485,9 @@ func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
 
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
 	// i.e. Protobuf formats are equal if and only if the structs are equal
-	pb.Labels = make([]*aggregationpb.Label, 0, len(gl.Labels))
+	if len(gl.Labels) > cap(pb.Labels) {
+		pb.Labels = make([]*aggregationpb.Label, 0, len(gl.Labels))
+	}
 	for k, v := range gl.Labels {
 		l := aggregationpb.LabelFromVTPool()
 		l.Key = k
@@ -483,7 +500,9 @@ func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
 		return pb.Labels[i].Key < pb.Labels[j].Key
 	})
 
-	pb.NumericLabels = make([]*aggregationpb.NumericLabel, 0, len(gl.NumericLabels))
+	if len(gl.NumericLabels) > cap(pb.NumericLabels) {
+		pb.NumericLabels = make([]*aggregationpb.NumericLabel, 0, len(gl.NumericLabels))
+	}
 	for k, v := range gl.NumericLabels {
 		l := aggregationpb.NumericLabelFromVTPool()
 		l.Key = k
