@@ -51,49 +51,29 @@ func TestEventToCombinedMetrics(t *testing.T) {
 	}
 	kvs, err := EventToCombinedMetrics(event, cmk, NewHashPartitioner(1))
 	require.NoError(t, err)
-	var expected []CombinedKV
-	createTestCombinedMetrics(
-		withEventsTotal(0.5), // one for txn and one for svc txn
+	expected := make(map[CombinedMetricsKey]*CombinedMetrics)
+	expected[cmk] = (*CombinedMetrics)(createTestCombinedMetrics(
+		withEventsTotal(1),
 		withYoungestEventTimestamp(receivedTS),
-	)
-	expected = append(expected,
-		CombinedKV{
-			Key: cmk,
-			Value: CombinedMetrics(
-				*createTestCombinedMetrics(
-					withEventsTotal(0.5), // one for txn and one for svc txn
-					withYoungestEventTimestamp(receivedTS),
-				).addTransaction(
-					ts.Truncate(time.Minute),
-					event.Service.Name,
-					"",
-					testTransaction{
-						txnName:      event.Transaction.Name,
-						txnType:      event.Transaction.Type,
-						eventOutcome: event.Event.Outcome,
-						count:        1,
-					},
-				),
-			),
+	).addTransaction(
+		ts.Truncate(time.Minute),
+		event.Service.Name,
+		"",
+		testTransaction{
+			txnName:      event.Transaction.Name,
+			txnType:      event.Transaction.Type,
+			eventOutcome: event.Event.Outcome,
+			count:        1,
 		},
-		CombinedKV{
-			Key: cmk,
-			Value: CombinedMetrics(
-				*createTestCombinedMetrics(
-					withEventsTotal(0.5), // one for txn and one for svc txn
-					withYoungestEventTimestamp(receivedTS),
-				).addServiceTransaction(
-					ts.Truncate(time.Minute),
-					event.Service.Name,
-					"",
-					testServiceTransaction{
-						txnType: event.Transaction.Type,
-						count:   1,
-					},
-				),
-			),
+	).addServiceTransaction(
+		ts.Truncate(time.Minute),
+		event.Service.Name,
+		"",
+		testServiceTransaction{
+			txnType: event.Transaction.Type,
+			count:   1,
 		},
-	)
+	))
 	assert.Empty(t, cmp.Diff(
 		expected, kvs,
 		cmpopts.EquateEmpty(),

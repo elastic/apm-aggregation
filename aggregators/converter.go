@@ -43,20 +43,52 @@ func EventToCombinedMetrics(
 	e *modelpb.APMEvent,
 	unpartitionedKey CombinedMetricsKey,
 	partitioner Partitioner,
-) ([]CombinedKV, error) {
-	var (
-		kvs []CombinedKV
-		gl  GlobalLabels
-	)
+) (map[CombinedMetricsKey]*CombinedMetrics, error) {
+	var gl GlobalLabels
 	gl.fromLabelsAndNumericLabels(e.Labels, e.NumericLabels)
 	gls, err := gl.MarshalString()
 	if err != nil {
 		return nil, err
 	}
 
+	kvs := make(map[CombinedMetricsKey]*CombinedMetrics)
 	svcKey := serviceKey(e, unpartitionedKey.Interval)
 	svcInstanceKey := ServiceInstanceAggregationKey{GlobalLabelsStr: gls}
 	hasher := Hasher{}.Chain(svcKey).Chain(svcInstanceKey)
+
+	setCombinedMetrics := func(k CombinedMetricsKey, sim ServiceInstanceMetrics) {
+		cm, ok := kvs[k]
+		if !ok {
+			cm = &CombinedMetrics{
+				Services: map[ServiceAggregationKey]ServiceMetrics{
+					svcKey: ServiceMetrics{
+						ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{},
+					},
+				},
+			}
+			kvs[k] = cm
+		}
+		svcInstanceM := cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey]
+		for k, v := range sim.TransactionGroups {
+			if svcInstanceM.TransactionGroups == nil {
+				svcInstanceM.TransactionGroups = make(map[TransactionAggregationKey]TransactionMetrics)
+			}
+			svcInstanceM.TransactionGroups[k] = v
+		}
+		for k, v := range sim.ServiceTransactionGroups {
+			if svcInstanceM.ServiceTransactionGroups == nil {
+				svcInstanceM.ServiceTransactionGroups = make(map[ServiceTransactionAggregationKey]ServiceTransactionMetrics)
+			}
+			svcInstanceM.ServiceTransactionGroups[k] = v
+		}
+		for k, v := range sim.SpanGroups {
+			if svcInstanceM.SpanGroups == nil {
+				svcInstanceM.SpanGroups = make(map[SpanAggregationKey]SpanMetrics)
+			}
+			svcInstanceM.SpanGroups[k] = v
+		}
+		cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey] = svcInstanceM
+	}
 
 	processor := e.GetProcessor()
 	switch {
@@ -70,19 +102,8 @@ func EventToCombinedMetrics(
 		txnKey := transactionKey(e)
 		cmk := unpartitionedKey
 		cmk.PartitionID = partitioner.Partition(hasher.Chain(txnKey).Sum())
-		kvs = append(kvs, CombinedKV{
-			Key: cmk,
-			Value: CombinedMetrics{
-				Services: map[ServiceAggregationKey]ServiceMetrics{
-					svcKey: ServiceMetrics{
-						ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
-							svcInstanceKey: ServiceInstanceMetrics{
-								TransactionGroups: map[TransactionAggregationKey]TransactionMetrics{txnKey: tm},
-							},
-						},
-					},
-				},
-			},
+		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+			TransactionGroups: map[TransactionAggregationKey]TransactionMetrics{txnKey: tm},
 		})
 
 		stm := newServiceTransactionMetrics()
@@ -90,41 +111,19 @@ func EventToCombinedMetrics(
 		setMetricCountBasedOnOutcome(&stm, e)
 		svcTxnKey := serviceTransactionKey(e)
 		cmk.PartitionID = partitioner.Partition(hasher.Chain(svcTxnKey).Sum())
-		kvs = append(kvs, CombinedKV{
-			Key: cmk,
-			Value: CombinedMetrics{
-				Services: map[ServiceAggregationKey]ServiceMetrics{
-					svcKey: ServiceMetrics{
-						ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
-							svcInstanceKey: ServiceInstanceMetrics{
-								ServiceTransactionGroups: map[ServiceTransactionAggregationKey]ServiceTransactionMetrics{svcTxnKey: stm},
-							},
-						},
-					},
-				},
-			},
+		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+			ServiceTransactionGroups: map[ServiceTransactionAggregationKey]ServiceTransactionMetrics{svcTxnKey: stm},
 		})
 
 		// Handle dropped span stats
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
 			dssKey := droppedSpanStatsKey(dss)
 			cmk.PartitionID = partitioner.Partition(hasher.Chain(dssKey).Sum())
-			kvs = append(kvs, CombinedKV{
-				Key: cmk,
-				Value: CombinedMetrics{
-					Services: map[ServiceAggregationKey]ServiceMetrics{
-						svcKey: ServiceMetrics{
-							ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
-								svcInstanceKey: ServiceInstanceMetrics{
-									SpanGroups: map[SpanAggregationKey]SpanMetrics{
-										dssKey: SpanMetrics{
-											Count: float64(dss.GetDuration().GetCount()) * repCount,
-											Sum:   float64(dss.GetDuration().GetSum().AsDuration()) * repCount,
-										},
-									},
-								},
-							},
-						},
+			setCombinedMetrics(cmk, ServiceInstanceMetrics{
+				SpanGroups: map[SpanAggregationKey]SpanMetrics{
+					dssKey: SpanMetrics{
+						Count: float64(dss.GetDuration().GetCount()) * repCount,
+						Sum:   float64(dss.GetDuration().GetSum().AsDuration()) * repCount,
 					},
 				},
 			})
@@ -146,22 +145,11 @@ func EventToCombinedMetrics(
 		spanKey := spanKey(e)
 		cmk := unpartitionedKey
 		cmk.PartitionID = partitioner.Partition(hasher.Chain(spanKey).Sum())
-		kvs = append(kvs, CombinedKV{
-			Key: cmk,
-			Value: CombinedMetrics{
-				Services: map[ServiceAggregationKey]ServiceMetrics{
-					svcKey: ServiceMetrics{
-						ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{
-							svcInstanceKey: ServiceInstanceMetrics{
-								SpanGroups: map[SpanAggregationKey]SpanMetrics{
-									spanKey: SpanMetrics{
-										Count: float64(count) * repCount,
-										Sum:   float64(duration) * repCount,
-									},
-								},
-							},
-						},
-					},
+		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+			SpanGroups: map[SpanAggregationKey]SpanMetrics{
+				spanKey: SpanMetrics{
+					Count: float64(count) * repCount,
+					Sum:   float64(duration) * repCount,
 				},
 			},
 		})
@@ -171,10 +159,9 @@ func EventToCombinedMetrics(
 	// amongst the partitioned key values.
 	weightedEventsTotal := 1 / float64(len(kvs))
 	eventTS := e.GetEvent().GetReceived().AsTime()
-	for i := range kvs {
-		cv := &kvs[i].Value
-		cv.eventsTotal = weightedEventsTotal
-		cv.youngestEventTimestamp = eventTS
+	for _, cm := range kvs {
+		cm.eventsTotal = weightedEventsTotal
+		cm.youngestEventTimestamp = eventTS
 	}
 	return kvs, nil
 }

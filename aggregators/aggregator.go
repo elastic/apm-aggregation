@@ -355,8 +355,8 @@ func (a *Aggregator) aggregateAPMEvent(
 		return 0, fmt.Errorf("failed to convert event to combined metrics: %w", err)
 	}
 	var totalBytesIn int
-	for _, kv := range kvs {
-		bytesIn, err := a.aggregate(ctx, kv.Key, kv.Value)
+	for cmk, cm := range kvs {
+		bytesIn, err := a.aggregate(ctx, cmk, *cm)
 		totalBytesIn += bytesIn
 		if err != nil {
 			return totalBytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)

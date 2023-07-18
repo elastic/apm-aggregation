@@ -107,13 +107,6 @@ type Limits struct {
 	MaxServiceTransactionGroupsPerService int
 }
 
-// CombinedKV represents a struct with combined metrics key and the corresponding
-// combined metrics.
-type CombinedKV struct {
-	Key   CombinedMetricsKey
-	Value CombinedMetrics
-}
-
 // CombinedMetricsKey models the key to store the data in LSM tree.
 // Each key-value pair represents a set of unique metric for a combined metrics ID.
 // The processing time used in the key should be rounded to the

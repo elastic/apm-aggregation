@@ -156,7 +156,7 @@ func TestAggregateBatch(t *testing.T) {
 		{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 200750},
+				"aggregator.bytes.ingested": {Value: 149750},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: cmID},
@@ -793,7 +793,7 @@ func TestHarvest(t *testing.T) {
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 393},
+				"aggregator.bytes.ingested": {Value: 282},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: cmID},
@@ -1140,8 +1140,8 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	b.Cleanup(func() { cancel() })
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for _, kv := range kvs {
-			if err := agg.AggregateCombinedMetrics(ctx, kv.Key, kv.Value); err != nil {
+		for cmk, cm := range kvs {
+			if err := agg.AggregateCombinedMetrics(ctx, cmk, *cm); err != nil {
 				b.Fatal(err)
 			}
 		}
