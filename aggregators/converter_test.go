@@ -27,7 +27,6 @@ func TestEventToCombinedMetrics(t *testing.T) {
 	ts := time.Now().UTC()
 	receivedTS := ts.Add(time.Second)
 	event := &modelpb.APMEvent{
-		Processor: modelpb.TransactionProcessor(),
 		Timestamp: timestamppb.New(ts),
 		ParentId:  "nonroot",
 		Service: &modelpb.Service{
@@ -236,7 +235,6 @@ func BenchmarkCombinedMetricsToBatch(b *testing.B) {
 
 func BenchmarkEventToCombinedMetrics(b *testing.B) {
 	event := &modelpb.APMEvent{
-		Processor: modelpb.TransactionProcessor(),
 		Timestamp: timestamppb.Now(),
 		ParentId:  "nonroot",
 		Service: &modelpb.Service{
@@ -289,8 +287,7 @@ func createTestServiceSummaryMetric(
 			Samples:  metricsetSamples,
 			Interval: formatDuration(ivl),
 		},
-		Processor: modelpb.MetricsetProcessor(),
-		Service:   &modelpb.Service{Name: svcName},
+		Service: &modelpb.Service{Name: svcName},
 	}
 }
 
@@ -339,8 +336,7 @@ func createTestTransactionMetric(
 			Samples:  metricsetSamples,
 			DocCount: total,
 		},
-		Processor: modelpb.MetricsetProcessor(),
-		Service:   &modelpb.Service{Name: svcName},
+		Service: &modelpb.Service{Name: svcName},
 		Transaction: &modelpb.Transaction{
 			Name: txn.txnName,
 			Type: txn.txnType,
@@ -391,8 +387,7 @@ func createTestServiceTransactionMetric(
 			Samples:  metricsetSamples,
 			DocCount: total,
 		},
-		Processor: modelpb.MetricsetProcessor(),
-		Service:   &modelpb.Service{Name: svcName},
+		Service: &modelpb.Service{Name: svcName},
 		Transaction: &modelpb.Transaction{
 			Type: svcTxn.txnType,
 			DurationHistogram: &modelpb.Histogram{
@@ -441,7 +436,6 @@ func createTestSpanMetric(
 			Samples:  metricsetSamples,
 			DocCount: int64(span.count),
 		},
-		Processor: modelpb.MetricsetProcessor(),
 		Service: &modelpb.Service{
 			Name:   svcName,
 			Target: target,

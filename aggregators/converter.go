@@ -90,9 +90,8 @@ func EventToCombinedMetrics(
 		cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey] = svcInstanceM
 	}
 
-	processor := e.GetProcessor()
-	switch {
-	case processor.IsTransaction():
+	switch e.Type() {
+	case modelpb.TransactionEventType:
 		repCount := e.GetTransaction().GetRepresentativeCount()
 		if repCount <= 0 {
 			return nil, nil
@@ -128,7 +127,7 @@ func EventToCombinedMetrics(
 				},
 			})
 		}
-	case processor.IsSpan():
+	case modelpb.SpanEventType:
 		target := e.GetService().GetTarget()
 		repCount := e.GetSpan().GetRepresentativeCount()
 		destSvc := e.GetSpan().GetDestinationService().GetResource()
@@ -278,7 +277,7 @@ func CombinedMetricsToBatch(
 	if cm.OverflowServiceInstancesEstimator != nil {
 		getOverflowBaseEvent := func() *modelpb.APMEvent {
 			return &modelpb.APMEvent{
-				Processor: modelpb.MetricsetProcessor(),
+				Metricset: &modelpb.Metricset{},
 				Service: &modelpb.Service{
 					Name: overflowBucketName,
 				},
@@ -329,7 +328,7 @@ func CombinedMetricsToBatch(
 func getBaseEvent(key ServiceAggregationKey) *modelpb.APMEvent {
 	event := &modelpb.APMEvent{
 		Timestamp: timestamppb.New(key.Timestamp),
-		Processor: modelpb.MetricsetProcessor(),
+		Metricset: &modelpb.Metricset{},
 		Service: &modelpb.Service{
 			Name:        key.ServiceName,
 			Environment: key.ServiceEnvironment,
