@@ -7,6 +7,7 @@ package aggregators
 import (
 	"fmt"
 	"math"
+	"strconv"
 	"time"
 
 	"github.com/axiomhq/hyperloglog"
@@ -44,50 +45,48 @@ func EventToCombinedMetrics(
 	unpartitionedKey CombinedMetricsKey,
 	partitioner Partitioner,
 ) (map[CombinedMetricsKey]*CombinedMetrics, error) {
-	var gl GlobalLabels
-	gl.fromLabelsAndNumericLabels(e.Labels, e.NumericLabels)
-	gls, err := gl.MarshalString()
-	if err != nil {
-		return nil, err
-	}
-
 	kvs := make(map[CombinedMetricsKey]*CombinedMetrics)
 	svcKey := serviceKey(e, unpartitionedKey.Interval)
-	svcInstanceKey := ServiceInstanceAggregationKey{GlobalLabelsStr: gls}
-	hasher := Hasher{}.Chain(svcKey).Chain(svcInstanceKey)
 
-	setCombinedMetrics := func(k CombinedMetricsKey, sim ServiceInstanceMetrics) {
+	var gl GlobalLabels
+	gl.fromLabelsAndNumericLabels(e.Labels, e.NumericLabels)
+	// Set service.id from a hash of the global labels.
+	//
+	// TODO(axw) add service.id to apm-data, and require the caller to do this hashing.
+	// That way apm-server can conditionally hash global labels, depending on whether
+	// the data came from RUM.
+	svcKey.ServiceID = strconv.FormatUint(Hasher{}.Chain(&gl).Sum(), 10)
+
+	hasher := Hasher{}.Chain(svcKey)
+	setCombinedMetrics := func(k CombinedMetricsKey, partial ServiceMetrics) {
+		var sm ServiceMetrics
 		cm, ok := kvs[k]
-		if !ok {
-			cm = &CombinedMetrics{
-				Services: map[ServiceAggregationKey]ServiceMetrics{
-					svcKey: ServiceMetrics{
-						ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{},
-					},
-				},
-			}
+		if ok {
+			sm = cm.Services[svcKey]
+		} else {
+			sm = ServiceMetrics{Labels: gl}
+			cm = &CombinedMetrics{Services: make(map[ServiceAggregationKey]ServiceMetrics, 1)}
 			kvs[k] = cm
 		}
-		svcInstanceM := cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey]
-		for k, v := range sim.TransactionGroups {
-			if svcInstanceM.TransactionGroups == nil {
-				svcInstanceM.TransactionGroups = make(map[TransactionAggregationKey]TransactionMetrics)
+		for k, v := range partial.TransactionGroups {
+			if sm.TransactionGroups == nil {
+				sm.TransactionGroups = make(map[TransactionAggregationKey]TransactionMetrics)
 			}
-			svcInstanceM.TransactionGroups[k] = v
+			sm.TransactionGroups[k] = v
 		}
-		for k, v := range sim.ServiceTransactionGroups {
-			if svcInstanceM.ServiceTransactionGroups == nil {
-				svcInstanceM.ServiceTransactionGroups = make(map[ServiceTransactionAggregationKey]ServiceTransactionMetrics)
+		for k, v := range partial.ServiceTransactionGroups {
+			if sm.ServiceTransactionGroups == nil {
+				sm.ServiceTransactionGroups = make(map[ServiceTransactionAggregationKey]ServiceTransactionMetrics)
 			}
-			svcInstanceM.ServiceTransactionGroups[k] = v
+			sm.ServiceTransactionGroups[k] = v
 		}
-		for k, v := range sim.SpanGroups {
-			if svcInstanceM.SpanGroups == nil {
-				svcInstanceM.SpanGroups = make(map[SpanAggregationKey]SpanMetrics)
+		for k, v := range sm.SpanGroups {
+			if sm.SpanGroups == nil {
+				sm.SpanGroups = make(map[SpanAggregationKey]SpanMetrics)
 			}
-			svcInstanceM.SpanGroups[k] = v
+			sm.SpanGroups[k] = v
 		}
-		cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey] = svcInstanceM
+		cm.Services[svcKey] = sm
 	}
 
 	processor := e.GetProcessor()
@@ -102,7 +101,7 @@ func EventToCombinedMetrics(
 		txnKey := transactionKey(e)
 		cmk := unpartitionedKey
 		cmk.PartitionID = partitioner.Partition(hasher.Chain(txnKey).Sum())
-		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+		setCombinedMetrics(cmk, ServiceMetrics{
 			TransactionGroups: map[TransactionAggregationKey]TransactionMetrics{txnKey: tm},
 		})
 
@@ -111,7 +110,7 @@ func EventToCombinedMetrics(
 		setMetricCountBasedOnOutcome(&stm, e)
 		svcTxnKey := serviceTransactionKey(e)
 		cmk.PartitionID = partitioner.Partition(hasher.Chain(svcTxnKey).Sum())
-		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+		setCombinedMetrics(cmk, ServiceMetrics{
 			ServiceTransactionGroups: map[ServiceTransactionAggregationKey]ServiceTransactionMetrics{svcTxnKey: stm},
 		})
 
@@ -119,7 +118,7 @@ func EventToCombinedMetrics(
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
 			dssKey := droppedSpanStatsKey(dss)
 			cmk.PartitionID = partitioner.Partition(hasher.Chain(dssKey).Sum())
-			setCombinedMetrics(cmk, ServiceInstanceMetrics{
+			setCombinedMetrics(cmk, ServiceMetrics{
 				SpanGroups: map[SpanAggregationKey]SpanMetrics{
 					dssKey: SpanMetrics{
 						Count: float64(dss.GetDuration().GetCount()) * repCount,
@@ -145,7 +144,7 @@ func EventToCombinedMetrics(
 		spanKey := spanKey(e)
 		cmk := unpartitionedKey
 		cmk.PartitionID = partitioner.Partition(hasher.Chain(spanKey).Sum())
-		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+		setCombinedMetrics(cmk, ServiceMetrics{
 			SpanGroups: map[SpanAggregationKey]SpanMetrics{
 				spanKey: SpanMetrics{
 					Count: float64(count) * repCount,
@@ -176,22 +175,12 @@ func CombinedMetricsToBatch(
 		return nil, nil
 	}
 
-	batchSize := 0
-	// service_summary overflow metric
-	if cm.OverflowServiceInstancesEstimator != nil {
-		batchSize++
-	}
-
+	// Each service will create a service summary metric
+	batchSize := len(cm.Services)
 	for _, sm := range cm.Services {
-		for _, sim := range sm.ServiceInstanceGroups {
-			batchSize += len(sim.TransactionGroups)
-			batchSize += len(sim.ServiceTransactionGroups)
-			batchSize += len(sim.SpanGroups)
-
-			// Each service instance will create a service summary metric
-			batchSize++
-		}
-
+		batchSize += len(sm.TransactionGroups)
+		batchSize += len(sm.ServiceTransactionGroups)
+		batchSize += len(sm.SpanGroups)
 		if !sm.OverflowGroups.OverflowTransaction.Empty() {
 			batchSize++
 		}
@@ -202,50 +191,39 @@ func CombinedMetricsToBatch(
 			batchSize++
 		}
 	}
+	if cm.OverflowServicesEstimator != nil {
+		batchSize++
+	}
 
 	b := make(modelpb.Batch, 0, batchSize)
 	aggIntervalStr := formatDuration(aggInterval)
 	for sk, sm := range cm.Services {
-		for sik, sim := range sm.ServiceInstanceGroups {
-			var gl GlobalLabels
-			err := gl.UnmarshalString(sik.GlobalLabelsStr)
-			if err != nil {
-				return nil, err
-			}
-			getBaseEventWithLabels := func() *modelpb.APMEvent {
-				event := getBaseEvent(sk)
-				event.Labels = gl.Labels
-				event.NumericLabels = gl.NumericLabels
-				return event
-			}
+		// service summary metrics
+		event := getBaseEvent(sk, sm.Labels)
+		serviceMetricsToAPMEvent(event, aggIntervalStr)
+		b = append(b, event)
 
-			// transaction metrics
-			for tk, tv := range sim.TransactionGroups {
-				event := getBaseEventWithLabels()
-				txnMetricsToAPMEvent(tk, tv, event, aggIntervalStr)
-				b = append(b, event)
-			}
-			// service transaction metrics
-			for stk, stv := range sim.ServiceTransactionGroups {
-				event := getBaseEventWithLabels()
-				svcTxnMetricsToAPMEvent(stk, stv, event, aggIntervalStr)
-				b = append(b, event)
-			}
-			// service destination metrics
-			for spk, spv := range sim.SpanGroups {
-				event := getBaseEventWithLabels()
-				spanMetricsToAPMEvent(spk, spv, event, aggIntervalStr)
-				b = append(b, event)
-			}
-
-			// service summary metrics
-			event := getBaseEventWithLabels()
-			serviceMetricsToAPMEvent(event, aggIntervalStr)
+		// transaction metrics
+		for tk, tv := range sm.TransactionGroups {
+			event := getBaseEvent(sk, sm.Labels)
+			txnMetricsToAPMEvent(tk, tv, event, aggIntervalStr)
+			b = append(b, event)
+		}
+		// service transaction metrics
+		for stk, stv := range sm.ServiceTransactionGroups {
+			event := getBaseEvent(sk, sm.Labels)
+			svcTxnMetricsToAPMEvent(stk, stv, event, aggIntervalStr)
+			b = append(b, event)
+		}
+		// service destination metrics
+		for spk, spv := range sm.SpanGroups {
+			event := getBaseEvent(sk, sm.Labels)
+			spanMetricsToAPMEvent(spk, spv, event, aggIntervalStr)
 			b = append(b, event)
 		}
 
 		if !sm.OverflowGroups.OverflowTransaction.Empty() {
-			event := getBaseEvent(sk)
+			event := getBaseEvent(sk, sm.Labels)
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowTransaction,
@@ -255,7 +233,7 @@ func CombinedMetricsToBatch(
 			b = append(b, event)
 		}
 		if !sm.OverflowGroups.OverflowServiceTransaction.Empty() {
-			event := getBaseEvent(sk)
+			event := getBaseEvent(sk, sm.Labels)
 			overflowSvcTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowServiceTransaction,
@@ -265,7 +243,7 @@ func CombinedMetricsToBatch(
 			b = append(b, event)
 		}
 		if !sm.OverflowGroups.OverflowSpan.Empty() {
-			event := getBaseEvent(sk)
+			event := getBaseEvent(sk, sm.Labels)
 			overflowSpanMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowSpan,
@@ -275,79 +253,80 @@ func CombinedMetricsToBatch(
 			b = append(b, event)
 		}
 	}
-	if cm.OverflowServiceInstancesEstimator != nil {
-		getOverflowBaseEvent := func() *modelpb.APMEvent {
-			return &modelpb.APMEvent{
-				Processor: modelpb.MetricsetProcessor(),
-				Service: &modelpb.Service{
-					Name: overflowBucketName,
-				},
-			}
+
+	getOverflowBaseEvent := func() *modelpb.APMEvent {
+		return &modelpb.APMEvent{
+			Processor: modelpb.MetricsetProcessor(),
+			Service: &modelpb.Service{
+				Name: overflowBucketName,
+			},
 		}
+	}
+	if cm.OverflowServicesEstimator != nil {
 		event := getOverflowBaseEvent()
 		overflowServiceMetricsToAPMEvent(
 			processingTime,
-			cm.OverflowServiceInstancesEstimator,
+			cm.OverflowServicesEstimator,
 			event,
 			aggIntervalStr,
 		)
 		b = append(b, event)
-		if !cm.OverflowServices.OverflowTransaction.Empty() {
-			event := getOverflowBaseEvent()
-			overflowTxnMetricsToAPMEvent(
-				processingTime,
-				cm.OverflowServices.OverflowTransaction,
-				event,
-				aggIntervalStr,
-			)
-			b = append(b, event)
-		}
-		if !cm.OverflowServices.OverflowServiceTransaction.Empty() {
-			event := getOverflowBaseEvent()
-			overflowSvcTxnMetricsToAPMEvent(
-				processingTime,
-				cm.OverflowServices.OverflowServiceTransaction,
-				event,
-				aggIntervalStr,
-			)
-			b = append(b, event)
-		}
-		if !cm.OverflowServices.OverflowSpan.Empty() {
-			event := getOverflowBaseEvent()
-			overflowSpanMetricsToAPMEvent(
-				processingTime,
-				cm.OverflowServices.OverflowSpan,
-				event,
-				aggIntervalStr,
-			)
-			b = append(b, event)
-		}
+	}
+	if !cm.OverflowServices.OverflowTransaction.Empty() {
+		event := getOverflowBaseEvent()
+		overflowTxnMetricsToAPMEvent(
+			processingTime,
+			cm.OverflowServices.OverflowTransaction,
+			event,
+			aggIntervalStr,
+		)
+		b = append(b, event)
+	}
+	if !cm.OverflowServices.OverflowServiceTransaction.Empty() {
+		event := getOverflowBaseEvent()
+		overflowSvcTxnMetricsToAPMEvent(
+			processingTime,
+			cm.OverflowServices.OverflowServiceTransaction,
+			event,
+			aggIntervalStr,
+		)
+		b = append(b, event)
+	}
+	if !cm.OverflowServices.OverflowSpan.Empty() {
+		event := getOverflowBaseEvent()
+		overflowSpanMetricsToAPMEvent(
+			processingTime,
+			cm.OverflowServices.OverflowSpan,
+			event,
+			aggIntervalStr,
+		)
+		b = append(b, event)
 	}
 	return &b, nil
 }
 
-func getBaseEvent(key ServiceAggregationKey) *modelpb.APMEvent {
+func getBaseEvent(key ServiceAggregationKey, labels GlobalLabels) *modelpb.APMEvent {
 	event := &modelpb.APMEvent{
 		Timestamp: timestamppb.New(key.Timestamp),
 		Processor: modelpb.MetricsetProcessor(),
 		Service: &modelpb.Service{
 			Name:        key.ServiceName,
 			Environment: key.ServiceEnvironment,
+			// TODO(axw) service.id
 		},
+		Labels:        labels.Labels,
+		NumericLabels: labels.NumericLabels,
 	}
-
 	if key.ServiceLanguageName != "" {
 		event.Service.Language = &modelpb.Language{
 			Name: key.ServiceLanguageName,
 		}
 	}
-
 	if key.AgentName != "" {
 		event.Agent = &modelpb.Agent{
 			Name: key.AgentName,
 		}
 	}
-
 	return event
 }
 

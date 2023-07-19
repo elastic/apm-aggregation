@@ -2,13 +2,15 @@ syntax = "proto3";
 
 package elastic.apm;
 
+import "labels.proto";
+
 option go_package = "./aggregationpb";
 option optimize_for = SPEED;
 
 message CombinedMetrics {
   repeated KeyedServiceMetrics service_metrics = 1;
   Overflow overflow_services = 2;
-  bytes overflow_service_instances_estimator = 3;
+  bytes overflow_services_estimator = 3;
   double events_total = 4;
   uint64 youngest_event_timestamp = 5;
 }
@@ -24,27 +26,24 @@ message ServiceAggregationKey {
   string service_environment = 3;
   string service_language_name = 4;
   string agent_name = 5;
-  bytes global_labels_str = 6;
+
+  // service_id is an identifier shared by all nodes of one service cluster.
+  //
+  // This forces the creation of separate time series for each cluster of
+  // a service.
+  string service_id = 6;
 }
 
 message ServiceMetrics {
-  repeated KeyedServiceInstanceMetrics service_instance_metrics = 1;
+  // labels are arbitrary key-value pairs that are accumulated for aggregated
+  // service metrics, up to a limit. Once the limit is reached, additional
+  // labels are silently dropped.
+  GlobalLabels labels = 1;
+
   Overflow overflow_groups = 2;
-}
-
-message ServiceInstanceAggregationKey {
-  bytes global_labels_str = 1;
-}
-
-message ServiceInstanceMetrics {
-  repeated KeyedTransactionMetrics transaction_metrics = 1;
-  repeated KeyedServiceTransactionMetrics service_transaction_metrics = 2;
-  repeated KeyedSpanMetrics span_metrics = 3;
-}
-
-message KeyedServiceInstanceMetrics {
-  ServiceInstanceAggregationKey key = 1;
-  ServiceInstanceMetrics metrics = 2;
+  repeated KeyedTransactionMetrics transaction_metrics = 3;
+  repeated KeyedServiceTransactionMetrics service_transaction_metrics = 4;
+  repeated KeyedSpanMetrics span_metrics = 5;
 }
 
 message KeyedTransactionMetrics {

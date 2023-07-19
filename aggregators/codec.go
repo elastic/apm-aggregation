@@ -84,7 +84,6 @@ func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 		pb.ServiceMetrics = append(pb.ServiceMetrics, ksm)
 	}
 	pb.OverflowServices = m.OverflowServices.ToProto()
-	pb.OverflowServiceInstancesEstimator = hllBytes(m.OverflowServiceInstancesEstimator)
 	pb.EventsTotal = m.eventsTotal
 	pb.YoungestEventTimestamp = timestamppb.TimeToPBTimestamp(m.youngestEventTimestamp)
 	return pb
@@ -103,7 +102,6 @@ func (m *CombinedMetrics) FromProto(pb *aggregationpb.CombinedMetrics) {
 	if pb.OverflowServices != nil {
 		m.OverflowServices.FromProto(pb.OverflowServices)
 	}
-	m.OverflowServiceInstancesEstimator = hllSketch(pb.OverflowServiceInstancesEstimator)
 	m.eventsTotal = pb.EventsTotal
 	m.youngestEventTimestamp = timestamppb.PBTimestampToTime(pb.YoungestEventTimestamp)
 }
@@ -134,6 +132,7 @@ func (k *ServiceAggregationKey) ToProto() *aggregationpb.ServiceAggregationKey {
 	pb.ServiceEnvironment = k.ServiceEnvironment
 	pb.ServiceLanguageName = k.ServiceLanguageName
 	pb.AgentName = k.AgentName
+	pb.ServiceId = k.ServiceID
 	return pb
 }
 
@@ -144,52 +143,14 @@ func (k *ServiceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKe
 	k.ServiceEnvironment = pb.ServiceEnvironment
 	k.ServiceLanguageName = pb.ServiceLanguageName
 	k.AgentName = pb.AgentName
+	k.ServiceID = pb.ServiceId
 }
 
 // ToProto converts ServiceMetrics to its protobuf representation.
 func (m *ServiceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 	pb := aggregationpb.ServiceMetricsFromVTPool()
-	if len(m.ServiceInstanceGroups) > cap(pb.ServiceInstanceMetrics) {
-		pb.ServiceInstanceMetrics = make([]*aggregationpb.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
-	}
-	for k, m := range m.ServiceInstanceGroups {
-		ksim := aggregationpb.KeyedServiceInstanceMetricsFromVTPool()
-		ksim.Key = k.ToProto()
-		ksim.Metrics = m.ToProto()
-		pb.ServiceInstanceMetrics = append(pb.ServiceInstanceMetrics, ksim)
-	}
+	pb.Labels = m.Labels.ToProto()
 	pb.OverflowGroups = m.OverflowGroups.ToProto()
-	return pb
-}
-
-// FromProto converts protobuf representation to ServiceMetrics.
-func (m *ServiceMetrics) FromProto(pb *aggregationpb.ServiceMetrics) {
-	m.ServiceInstanceGroups = make(map[ServiceInstanceAggregationKey]ServiceInstanceMetrics, len(pb.ServiceInstanceMetrics))
-	for _, ksim := range pb.ServiceInstanceMetrics {
-		var k ServiceInstanceAggregationKey
-		var v ServiceInstanceMetrics
-		k.FromProto(ksim.Key)
-		v.FromProto(ksim.Metrics)
-		m.ServiceInstanceGroups[k] = v
-	}
-	m.OverflowGroups.FromProto(pb.OverflowGroups)
-}
-
-// ToProto converts ServiceInstanceAggregationKey to its protobuf representation.
-func (k *ServiceInstanceAggregationKey) ToProto() *aggregationpb.ServiceInstanceAggregationKey {
-	pb := aggregationpb.ServiceInstanceAggregationKeyFromVTPool()
-	pb.GlobalLabelsStr = []byte(k.GlobalLabelsStr)
-	return pb
-}
-
-// FromProto converts protobuf representation to ServiceInstanceAggregationKey.
-func (k *ServiceInstanceAggregationKey) FromProto(pb *aggregationpb.ServiceInstanceAggregationKey) {
-	k.GlobalLabelsStr = string(pb.GlobalLabelsStr)
-}
-
-// ToProto converts ServiceInstanceMetrics to its protobuf representation.
-func (m *ServiceInstanceMetrics) ToProto() *aggregationpb.ServiceInstanceMetrics {
-	pb := aggregationpb.ServiceInstanceMetricsFromVTPool()
 	if len(m.TransactionGroups) > cap(pb.TransactionMetrics) {
 		pb.TransactionMetrics = make([]*aggregationpb.KeyedTransactionMetrics, 0, len(m.TransactionGroups))
 	}
@@ -220,8 +181,10 @@ func (m *ServiceInstanceMetrics) ToProto() *aggregationpb.ServiceInstanceMetrics
 	return pb
 }
 
-// FromProto converts protobuf representation to ServiceInstanceMetrics.
-func (m *ServiceInstanceMetrics) FromProto(pb *aggregationpb.ServiceInstanceMetrics) {
+// FromProto converts protobuf representation to ServiceMetrics.
+func (m *ServiceMetrics) FromProto(pb *aggregationpb.ServiceMetrics) {
+	m.Labels.FromProto(pb.Labels)
+	m.OverflowGroups.FromProto(pb.OverflowGroups)
 	m.TransactionGroups = make(map[TransactionAggregationKey]TransactionMetrics, len(pb.TransactionMetrics))
 	for _, ktm := range pb.TransactionMetrics {
 		var k TransactionAggregationKey

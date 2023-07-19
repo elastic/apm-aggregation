@@ -7,8 +7,6 @@ package aggregators
 import (
 	"io"
 
-	"github.com/axiomhq/hyperloglog"
-
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 )
 
@@ -81,9 +79,6 @@ func merge(to, from *CombinedMetrics, limits Limits) {
 	// If there is overflow due to max services in either of the buckets being
 	// merged then we can merge the overflow buckets without considering any other scenarios.
 	mergeOverflow(&to.OverflowServices, &from.OverflowServices)
-	if from.OverflowServiceInstancesEstimator != nil {
-		mergeEstimator(&to.OverflowServiceInstancesEstimator, from.OverflowServiceInstancesEstimator)
-	}
 
 	// Calculate the current capacity of the transaction, service transaction,
 	// and span groups in the _to_ combined metrics.
@@ -91,11 +86,9 @@ func merge(to, from *CombinedMetrics, limits Limits) {
 	totalServiceTransactionGroupsConstraint := newConstraint(0, limits.MaxServiceTransactionGroups)
 	totalSpanGroupsConstraint := newConstraint(0, limits.MaxSpanGroups)
 	for _, svc := range to.Services {
-		for _, si := range svc.ServiceInstanceGroups {
-			totalTransactionGroupsConstraint.add(len(si.TransactionGroups))
-			totalServiceTransactionGroupsConstraint.add(len(si.ServiceTransactionGroups))
-			totalSpanGroupsConstraint.add(len(si.SpanGroups))
-		}
+		totalTransactionGroupsConstraint.add(len(svc.TransactionGroups))
+		totalServiceTransactionGroupsConstraint.add(len(svc.ServiceTransactionGroups))
+		totalSpanGroupsConstraint.add(len(svc.SpanGroups))
 	}
 
 	// Iterate over the services in the _from_ combined metrics and merge them
@@ -112,75 +105,119 @@ func merge(to, from *CombinedMetrics, limits Limits) {
 		toSvc, svcOverflow := getServiceMetrics(to, svcKey, limits.MaxServices)
 		if svcOverflow {
 			mergeOverflow(&to.OverflowServices, &fromSvc.OverflowGroups)
-
-			for sik, sim := range fromSvc.ServiceInstanceGroups {
-				sikHash := hash.Chain(sik)
-				mergeToOverflowFromSIM(&to.OverflowServices, &sim, sikHash)
-				insertHash(&to.OverflowServiceInstancesEstimator, sikHash.Sum())
+			for tk, tm := range fromSvc.TransactionGroups {
+				to.OverflowServices.OverflowTransaction.Merge(&tm, hash.Chain(tk).Sum())
+			}
+			for stk, stm := range fromSvc.ServiceTransactionGroups {
+				to.OverflowServices.OverflowServiceTransaction.Merge(&stm, hash.Chain(stk).Sum())
+			}
+			for sk, sm := range fromSvc.SpanGroups {
+				to.OverflowServices.OverflowSpan.Merge(&sm, hash.Chain(sk).Sum())
 			}
 			continue
 		}
 		mergeOverflow(&toSvc.OverflowGroups, &fromSvc.OverflowGroups)
-		mergeServiceInstanceGroups(&toSvc, &fromSvc,
+		mergeServiceMetrics(&toSvc, &fromSvc,
 			totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint,
-			limits, hash, &to.OverflowServiceInstancesEstimator)
+			limits, hash)
 		to.Services[svcKey] = toSvc
 	}
 }
 
-func mergeToOverflowFromSIM(to *Overflow, from *ServiceInstanceMetrics, hash Hasher) {
-	for tk, tm := range from.TransactionGroups {
-		to.OverflowTransaction.Merge(&tm, hash.Chain(tk).Sum())
+func mergeServiceMetrics(
+	to, from *ServiceMetrics,
+	totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *Constraint,
+	limits Limits,
+	hash Hasher,
+) {
+	mergeLabels(&to.Labels, &to.Labels, limits)
+	mergeTransactionGroups(
+		to, from,
+		newConstraint(len(to.TransactionGroups), limits.MaxTransactionGroupsPerService),
+		totalTransactionGroupsConstraint,
+		hash,
+		&to.OverflowGroups.OverflowTransaction,
+	)
+	mergeServiceTransactionGroups(
+		to, from,
+		newConstraint(len(to.ServiceTransactionGroups), limits.MaxServiceTransactionGroupsPerService),
+		totalServiceTransactionGroupsConstraint,
+		hash,
+		&to.OverflowGroups.OverflowServiceTransaction,
+	)
+	mergeSpanGroups(
+		to, from,
+		newConstraint(len(to.SpanGroups), limits.MaxSpanGroupsPerService),
+		totalSpanGroupsConstraint,
+		hash,
+		&to.OverflowGroups.OverflowSpan,
+	)
+}
+
+func mergeLabels(to, from *GlobalLabels, limits Limits) {
+	toCount := len(to.Labels) + len(to.NumericLabels)
+	for k, fromv := range from.Labels {
+		tov, ok := to.Labels[k]
+		if !ok {
+			if toCount < limits.MaxLabelKeys {
+				toCount++
+				to.Labels[k] = fromv
+			}
+			continue
+		}
+		if len(tov.Values) != 0 {
+			if len(fromv.Values) != 0 {
+				tov.Values = mergeLabelValues(tov.Values, limits, fromv.Values...)
+			} else {
+				tov.Values = mergeLabelValues(tov.Values, limits, fromv.Value)
+			}
+		}
 	}
-	for stk, stm := range from.ServiceTransactionGroups {
-		to.OverflowServiceTransaction.Merge(&stm, hash.Chain(stk).Sum())
-	}
-	for sk, sm := range from.SpanGroups {
-		to.OverflowSpan.Merge(&sm, hash.Chain(sk).Sum())
+	for k, fromv := range from.NumericLabels {
+		tov, ok := to.NumericLabels[k]
+		if !ok {
+			if toCount < limits.MaxLabelKeys {
+				toCount++
+				to.NumericLabels[k] = fromv
+			}
+			continue
+		}
+		if len(tov.Values) != 0 {
+			if len(fromv.Values) != 0 {
+				tov.Values = mergeLabelValues(tov.Values, limits, fromv.Values...)
+			} else {
+				tov.Values = mergeLabelValues(tov.Values, limits, fromv.Value)
+			}
+		}
 	}
 }
 
-func mergeServiceInstanceGroups(to, from *ServiceMetrics, totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *Constraint, limits Limits, hash Hasher, overflowServiceInstancesEstimator **hyperloglog.Sketch) {
-	for siKey, fromSIM := range from.ServiceInstanceGroups {
-		toSIM, overflowed := getServiceInstanceMetrics(to, siKey, limits.MaxServiceInstanceGroupsPerService)
-		siKeyHash := hash.Chain(siKey)
-		if overflowed {
-			mergeToOverflowFromSIM(&to.OverflowGroups, &fromSIM, siKeyHash)
-			insertHash(overflowServiceInstancesEstimator, siKeyHash.Sum())
-			continue
-		}
-
-		mergeTransactionGroups(
-			&toSIM,
-			&fromSIM,
-			newConstraint(len(toSIM.TransactionGroups), limits.MaxTransactionGroupsPerService),
-			totalTransactionGroupsConstraint,
-			hash,
-			&to.OverflowGroups.OverflowTransaction,
-		)
-		mergeServiceTransactionGroups(
-			&toSIM,
-			&fromSIM,
-			newConstraint(len(toSIM.ServiceTransactionGroups), limits.MaxServiceTransactionGroupsPerService),
-			totalServiceTransactionGroupsConstraint,
-			hash,
-			&to.OverflowGroups.OverflowServiceTransaction,
-		)
-		mergeSpanGroups(
-			&toSIM,
-			&fromSIM,
-			newConstraint(len(toSIM.SpanGroups), limits.MaxSpanGroupsPerService),
-			totalSpanGroupsConstraint,
-			hash,
-			&to.OverflowGroups.OverflowSpan,
-		)
-		to.ServiceInstanceGroups[siKey] = toSIM
+func mergeLabelValues[T comparable](to []T, limits Limits, from ...T) []T {
+	if len(to) == limits.MaxLabelKeyValues {
+		return to
 	}
+	// TODO ensure label values are sorted before writing to pebble,
+	// so we can efficiently merge them by iterating through them.
+	toMap := make(map[T]struct{}, len(to))
+	for _, v := range to {
+		toMap[v] = struct{}{}
+	}
+	for _, v := range from {
+		toMap[v] = struct{}{}
+		if len(to) == limits.MaxLabelKeyValues {
+			break
+		}
+	}
+	to = to[:0]
+	for v := range toMap {
+		to = append(to, v)
+	}
+	return to
 }
 
 // mergeTransactionGroups merges transaction aggregation groups for two combined metrics
 // considering max transaction groups and max transaction groups per service limits.
-func mergeTransactionGroups(to, from *ServiceInstanceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowTransaction) {
+func mergeTransactionGroups(to, from *ServiceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowTransaction) {
 	for txnKey, fromTxn := range from.TransactionGroups {
 		toTxn, ok := to.TransactionGroups[txnKey]
 		if !ok {
@@ -200,7 +237,7 @@ func mergeTransactionGroups(to, from *ServiceInstanceMetrics, perSvcConstraint, 
 
 // mergeServiceTransactionGroups merges service transaction aggregation groups for two combined metrics
 // considering max service transaction groups and max service transaction groups per service limits.
-func mergeServiceTransactionGroups(to, from *ServiceInstanceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowServiceTransaction) {
+func mergeServiceTransactionGroups(to, from *ServiceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowServiceTransaction) {
 	for svcTxnKey, fromSvcTxn := range from.ServiceTransactionGroups {
 		toSvcTxn, ok := to.ServiceTransactionGroups[svcTxnKey]
 		if !ok {
@@ -220,7 +257,7 @@ func mergeServiceTransactionGroups(to, from *ServiceInstanceMetrics, perSvcConst
 
 // mergeSpanGroups merges span aggregation groups for two combined metrics considering
 // max span groups and max span groups per service limits.
-func mergeSpanGroups(to, from *ServiceInstanceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowSpan) {
+func mergeSpanGroups(to, from *ServiceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowSpan) {
 	for spanKey, fromSpan := range from.SpanGroups {
 		toSpan, ok := to.SpanGroups[spanKey]
 		if !ok {
@@ -292,21 +329,6 @@ func getServiceMetrics(cm *CombinedMetrics, svcKey ServiceAggregationKey, maxSvc
 	return srcSvc, false
 }
 
-// getServiceInstanceMetrics returns the service instance metric from a service metrics
-// based on the service instance key argument, creating one if needed. A second bool
-// return value indicates if a service instance is returned or no service instance can
-// be created due to service instance per service limit breach.
-func getServiceInstanceMetrics(sm *ServiceMetrics, siKey ServiceInstanceAggregationKey, maxSvcInstancePerSvc int) (ServiceInstanceMetrics, bool) {
-	sim, ok := sm.ServiceInstanceGroups[siKey]
-	if !ok {
-		if len(sm.ServiceInstanceGroups) < maxSvcInstancePerSvc {
-			return newServiceInstanceMetrics(), false
-		}
-		return ServiceInstanceMetrics{}, true
-	}
-	return sim, false
-}
-
 func newTransactionMetrics() TransactionMetrics {
 	return TransactionMetrics{
 		Histogram: hdrhistogram.New(),
@@ -319,16 +341,10 @@ func newServiceTransactionMetrics() ServiceTransactionMetrics {
 	}
 }
 
-func newServiceInstanceMetrics() ServiceInstanceMetrics {
-	return ServiceInstanceMetrics{
+func newServiceMetrics() ServiceMetrics {
+	return ServiceMetrics{
 		TransactionGroups:        make(map[TransactionAggregationKey]TransactionMetrics),
 		ServiceTransactionGroups: make(map[ServiceTransactionAggregationKey]ServiceTransactionMetrics),
 		SpanGroups:               make(map[SpanAggregationKey]SpanMetrics),
-	}
-}
-
-func newServiceMetrics() ServiceMetrics {
-	return ServiceMetrics{
-		ServiceInstanceGroups: make(map[ServiceInstanceAggregationKey]ServiceInstanceMetrics),
 	}
 }

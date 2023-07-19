@@ -6,6 +6,7 @@ package aggregators
 
 import (
 	"encoding/binary"
+	"math"
 	"time"
 
 	"github.com/axiomhq/hyperloglog"
@@ -64,16 +65,20 @@ type Limits struct {
 	// This limit is shared across all aggregation metrics.
 	MaxServices int
 
-	// MaxServiceInstanceGroupsPerService is the limit on the total number
-	// of unique service instance groups within a service.
-	// A unique service instance group within a service is identified by a
-	// unique ServiceInstanceAggregationKey.
-	MaxServiceInstanceGroupsPerService int
+	// MaxLabelKeys is the limit on the total number of unique label keys
+	// per service. When this would be exceeded, new label keys will be
+	// silently ignored.
+	MaxLabelKeys int
+
+	// MaxLabelKeyValues is the limit on the total number of unique values
+	// for each label key. When this would be exceeded, new label valeus
+	// will be silently ignored.
+	MaxLabelKeyValues int
 
 	// MaxSpanGroups is the limit on total number of unique span groups
 	// across all services.
 	// A unique span group is identified by a unique
-	// ServiceAggregationKey + ServiceInstanceAggregationKey + SpanAggregationKey.
+	// ServiceAggregationKey + SpanAggregationKey.
 	MaxSpanGroups int
 
 	// MaxSpanGroupsPerService is the limit on the total number of unique
@@ -85,7 +90,7 @@ type Limits struct {
 	// MaxTransactionGroups is the limit on total number of unique
 	// transaction groups across all services.
 	// A unique transaction group is identified by a unique
-	// ServiceAggregationKey + ServiceInstanceAggregationKey + TransactionAggregationKey.
+	// ServiceAggregationKey + TransactionAggregationKey.
 	MaxTransactionGroups int
 
 	// MaxTransactionGroupsPerService is the limit on the number of unique
@@ -97,7 +102,7 @@ type Limits struct {
 	// MaxServiceTransactionGroups is the limit on total number of unique
 	// service transaction groups across all services.
 	// A unique service transaction group is identified by a unique
-	// ServiceAggregationKey + ServiceInstanceAggregationKey + ServiceTransactionAggregationKey.
+	// ServiceAggregationKey + ServiceTransactionAggregationKey.
 	MaxServiceTransactionGroups int
 
 	// MaxServiceTransactionGroupsPerService is the limit on the number
@@ -130,10 +135,10 @@ type CombinedMetrics struct {
 	// that overflowed due to max services limit being reached.
 	OverflowServices Overflow
 
-	// OverflowServiceInstancesEstimator estimates the number of unique service
-	// instance aggregation keys that overflowed due to max services limit or
-	// max service instances per service limit.
-	OverflowServiceInstancesEstimator *hyperloglog.Sketch
+	// OverflowServicesEstimator estimates the number of unique
+	// service aggregation keys that overflowed due to max services
+	// limit being reached.
+	OverflowServicesEstimator *hyperloglog.Sketch
 
 	// eventsTotal is the total number of individual events, including
 	// all overflows, that were aggregated for this combined metrics. It
@@ -154,6 +159,7 @@ type ServiceAggregationKey struct {
 	ServiceEnvironment  string
 	ServiceLanguageName string
 	AgentName           string
+	ServiceID           string
 }
 
 // Hash returns a xxhash.Digest after hashing the aggregation key on top of h.
@@ -166,31 +172,15 @@ func (k ServiceAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
 	h.WriteString(k.ServiceEnvironment)
 	h.WriteString(k.ServiceLanguageName)
 	h.WriteString(k.AgentName)
+	h.WriteString(k.ServiceID)
 	return h
 }
 
 // ServiceMetrics models the value to store all the aggregated metrics
 // for a specific service aggregation key.
 type ServiceMetrics struct {
-	ServiceInstanceGroups map[ServiceInstanceAggregationKey]ServiceInstanceMetrics
-	OverflowGroups        Overflow
-}
-
-// ServiceInstanceAggregationKey models the key used to store service instance specific
-// aggregation metrics.
-type ServiceInstanceAggregationKey struct {
-	GlobalLabelsStr string
-}
-
-// Hash returns a xxhash.Digest after hashing the aggregation key on top of h.
-func (k ServiceInstanceAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
-	h.WriteString(k.GlobalLabelsStr)
-	return h
-}
-
-// ServiceInstanceMetrics models the value to store all the aggregated metrics
-// for a specific service instance aggregation key.
-type ServiceInstanceMetrics struct {
+	Labels                   GlobalLabels
+	OverflowGroups           Overflow
 	TransactionGroups        map[TransactionAggregationKey]TransactionMetrics
 	ServiceTransactionGroups map[ServiceTransactionAggregationKey]ServiceTransactionMetrics
 	SpanGroups               map[SpanAggregationKey]SpanMetrics
@@ -446,6 +436,27 @@ func (m *ServiceTransactionMetrics) Merge(from *ServiceTransactionMetrics) {
 type GlobalLabels struct {
 	Labels        modelpb.Labels
 	NumericLabels modelpb.NumericLabels
+}
+
+func (gl *GlobalLabels) Hash(h xxhash.Digest) xxhash.Digest {
+	for k, v := range gl.Labels {
+		h.WriteString(k)
+		h.WriteString(v.Value)
+		for _, v := range v.Values {
+			h.WriteString(v)
+		}
+	}
+	var buf [8]byte
+	for k, v := range gl.NumericLabels {
+		h.WriteString(k)
+		binary.LittleEndian.PutUint64(buf[:], math.Float64bits(v.Value))
+		h.Write(buf[:])
+		for _, v := range v.Values {
+			binary.LittleEndian.PutUint64(buf[:], math.Float64bits(v))
+			h.Write(buf[:])
+		}
+	}
+	return h
 }
 
 func (gl *GlobalLabels) fromLabelsAndNumericLabels(labels modelpb.Labels, numericLabels modelpb.NumericLabels) {
