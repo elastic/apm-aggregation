@@ -57,7 +57,7 @@ func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	binary.BigEndian.PutUint64(data[offset:], uint64(k.ProcessingTime.Unix()))
 	offset += 8
 
-	// Pad if projectID is of smaller length
+	// Pad ID to maxSizeForCombinedMetricsKeyID
 	padding := maxSizeForCombinedMetricsKeyID - len(decodedID)
 	for i := 0; i < padding; i++ {
 		data[offset+i] = '\x00'
