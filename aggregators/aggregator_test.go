@@ -65,7 +65,6 @@ func TestAggregateBatch(t *testing.T) {
 	// unique services uniformly.
 	for i := 0; i < uniqueEventCount*repCount; i++ {
 		batch = append(batch, &modelpb.APMEvent{
-			Processor: modelpb.TransactionProcessor(),
 			Event: &modelpb.Event{
 				Outcome:  "success",
 				Duration: durationpb.New(txnDuration),
@@ -89,12 +88,12 @@ func TestAggregateBatch(t *testing.T) {
 			Service: &modelpb.Service{Name: fmt.Sprintf("svc%d", i%uniqueServices)},
 		})
 		batch = append(batch, &modelpb.APMEvent{
-			Processor: modelpb.SpanProcessor(),
 			Event: &modelpb.Event{
 				Received: timestamppb.New(ts),
 			},
 			Span: &modelpb.Span{
 				Name:                fmt.Sprintf("bar%d", i%uniqueEventCount),
+				Type:                "type",
 				RepresentativeCount: 1,
 				DestinationService: &modelpb.DestinationService{
 					Resource: "test_dest",
@@ -299,7 +298,6 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
-						Processor: modelpb.MetricsetProcessor(),
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
 							Interval: formatDuration(ivl),
@@ -312,7 +310,6 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-B",
 						},
-						Processor: modelpb.MetricsetProcessor(),
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
 							Interval: formatDuration(ivl),
@@ -329,8 +326,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameX,
 							},
 						},
-						Event:     &modelpb.Event{Outcome: "success"},
-						Processor: modelpb.MetricsetProcessor(),
+						Event: &modelpb.Event{Outcome: "success"},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -358,8 +354,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameZ,
 							},
 						},
-						Event:     &modelpb.Event{Outcome: "failure"},
-						Processor: modelpb.MetricsetProcessor(),
+						Event: &modelpb.Event{Outcome: "failure"},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -387,8 +382,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameZ,
 							},
 						},
-						Event:     &modelpb.Event{Outcome: "success"},
-						Processor: modelpb.MetricsetProcessor(),
+						Event: &modelpb.Event{Outcome: "success"},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -416,8 +410,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameZ,
 							},
 						},
-						Event:     &modelpb.Event{Outcome: "success"},
-						Processor: modelpb.MetricsetProcessor(),
+						Event: &modelpb.Event{Outcome: "success"},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -459,7 +452,6 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
-						Processor: modelpb.MetricsetProcessor(),
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
 							Interval: formatDuration(ivl),
@@ -476,8 +468,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameZ,
 							},
 						},
-						Event:     &modelpb.Event{Outcome: "success"},
-						Processor: modelpb.MetricsetProcessor(),
+						Event: &modelpb.Event{Outcome: "success"},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -510,7 +501,6 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
-						Processor: modelpb.MetricsetProcessor(),
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
 							Interval: formatDuration(ivl),
@@ -523,8 +513,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
-						Event:     &modelpb.Event{Outcome: "success"},
-						Processor: modelpb.MetricsetProcessor(),
+						Event: &modelpb.Event{Outcome: "success"},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -786,9 +775,9 @@ func TestHarvest(t *testing.T) {
 
 	var batch modelpb.Batch
 	batch = append(batch, &modelpb.APMEvent{
-		Processor: modelpb.TransactionProcessor(),
 		Transaction: &modelpb.Transaction{
 			Name:                "txn",
+			Type:                "type",
 			RepresentativeCount: 1,
 		},
 	})
@@ -799,7 +788,7 @@ func TestHarvest(t *testing.T) {
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 282},
+				"aggregator.bytes.ingested": {Value: 318},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -859,7 +848,6 @@ func TestAggregateAndHarvest(t *testing.T) {
 	txnDuration := 100 * time.Millisecond
 	batch := modelpb.Batch{
 		{
-			Processor: modelpb.TransactionProcessor(),
 			Event: &modelpb.Event{
 				Outcome:  "success",
 				Duration: durationpb.New(txnDuration),
@@ -910,7 +898,6 @@ func TestAggregateAndHarvest(t *testing.T) {
 	expected := []*modelpb.APMEvent{
 		{
 			Timestamp: timestamppb.New(time.Unix(0, 0).UTC()),
-			Processor: modelpb.MetricsetProcessor(),
 			Event: &modelpb.Event{
 				SuccessCount: &modelpb.SummaryMetric{
 					Count: 1,
@@ -951,7 +938,6 @@ func TestAggregateAndHarvest(t *testing.T) {
 		},
 		{
 			Timestamp: timestamppb.New(time.Unix(0, 0).UTC()),
-			Processor: modelpb.MetricsetProcessor(),
 			Service: &modelpb.Service{
 				Name: "svc",
 			},
@@ -971,7 +957,6 @@ func TestAggregateAndHarvest(t *testing.T) {
 		},
 		{
 			Timestamp: timestamppb.New(time.Unix(0, 0).UTC()),
-			Processor: modelpb.MetricsetProcessor(),
 			Event: &modelpb.Event{
 				SuccessCount: &modelpb.SummaryMetric{
 					Count: 1,
@@ -1043,10 +1028,10 @@ func TestRunStopOrchestration(t *testing.T) {
 			EncodeToCombinedMetricsKeyID(t, "ab01"),
 			&modelpb.Batch{
 				&modelpb.APMEvent{
-					Processor: modelpb.TransactionProcessor(),
-					Event:     &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
+					Event: &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
 					Transaction: &modelpb.Transaction{
 						Name:                "T-1000",
+						Type:                "type",
 						RepresentativeCount: 1,
 					},
 				},
@@ -1134,10 +1119,10 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	}
 	kvs, err := EventToCombinedMetrics(
 		&modelpb.APMEvent{
-			Processor: modelpb.TransactionProcessor(),
-			Event:     &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
+			Event: &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
 			Transaction: &modelpb.Transaction{
 				Name:                "T-1000",
+				Type:                "type",
 				RepresentativeCount: 1,
 			},
 		},
@@ -1231,10 +1216,10 @@ func flushTestAggregator(tb testing.TB, agg *Aggregator) {
 func newTestBatchForBenchmark() *modelpb.Batch {
 	return &modelpb.Batch{
 		&modelpb.APMEvent{
-			Processor: modelpb.TransactionProcessor(),
-			Event:     &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
+			Event: &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
 			Transaction: &modelpb.Transaction{
 				Name:                "T-1000",
+				Type:                "type",
 				RepresentativeCount: 1,
 			},
 		},
@@ -1362,9 +1347,9 @@ func makeSpan(
 			Outcome:  outcome,
 			Duration: durationpb.New(duration),
 		},
-		Processor: modelpb.SpanProcessor(),
 		Span: &modelpb.Span{
 			Name:                serviceName + ":" + destinationServiceResource,
+			Type:                "type",
 			RepresentativeCount: representativeCount,
 		},
 		Labels:        labels,
