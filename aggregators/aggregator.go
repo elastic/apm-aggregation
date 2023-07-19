@@ -53,7 +53,7 @@ type Aggregator struct {
 	mu             sync.Mutex
 	processingTime time.Time
 	batch          *pebble.Batch
-	cachedStats    map[time.Duration]map[string]stats
+	cachedStats    map[time.Duration]map[[16]byte]stats
 
 	stopping   chan struct{}
 	runStarted atomic.Bool
@@ -68,7 +68,7 @@ type Aggregator struct {
 // Mostly useful for metrics which needs to be correlated with
 // harvest time metrics.
 type stats struct {
-	eventsTotal int64
+	eventsTotal float64
 }
 
 func (s *stats) merge(from stats) {
@@ -123,10 +123,10 @@ func New(opts ...Option) (*Aggregator, error) {
 	}, nil
 }
 
-func newCachedStats(ivls []time.Duration) map[time.Duration]map[string]stats {
-	m := make(map[time.Duration]map[string]stats, len(ivls))
+func newCachedStats(ivls []time.Duration) map[time.Duration]map[[16]byte]stats {
+	m := make(map[time.Duration]map[[16]byte]stats, len(ivls))
 	for _, ivl := range ivls {
-		m[ivl] = make(map[string]stats)
+		m[ivl] = make(map[[16]byte]stats)
 	}
 	return m
 }
@@ -136,7 +136,7 @@ func newCachedStats(ivls []time.Duration) map[time.Duration]map[string]stats {
 // However, it doesn't require aggregator to be running to perform aggregation.
 func (a *Aggregator) AggregateBatch(
 	ctx context.Context,
-	id string,
+	id [16]byte,
 	b *modelpb.Batch,
 ) error {
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(id)
@@ -166,7 +166,7 @@ func (a *Aggregator) AggregateBatch(
 			totalBytesIn += int64(bytesIn)
 		}
 		cmStats := a.cachedStats[ivl][id]
-		cmStats.eventsTotal += int64(len(*b))
+		cmStats.eventsTotal += float64(len(*b))
 		a.cachedStats[ivl][id] = cmStats
 	}
 
@@ -212,7 +212,7 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	if _, ok := a.cachedStats[cmk.Interval]; !ok {
 		// Protection for stats collected from a different instance
 		// of aggregator as aggregators can be chained.
-		a.cachedStats[cmk.Interval] = make(map[string]stats)
+		a.cachedStats[cmk.Interval] = make(map[[16]byte]stats)
 	}
 	cmStats := a.cachedStats[cmk.Interval][cmk.ID]
 	cmStats.eventsTotal += cm.eventsTotal
@@ -259,7 +259,7 @@ func (a *Aggregator) Run(ctx context.Context) error {
 			if _, ok := harvestStats[ivl]; !ok {
 				// Protection for stats collected from a different instance
 				// of aggregator as aggregators can be chained.
-				harvestStats[ivl] = make(map[string]stats)
+				harvestStats[ivl] = make(map[[16]byte]stats)
 			}
 			for cmID, cmStats := range statsm {
 				hstats := harvestStats[ivl][cmID]
@@ -355,15 +355,19 @@ func (a *Aggregator) aggregateAPMEvent(
 	cmk CombinedMetricsKey,
 	e *modelpb.APMEvent,
 ) (int, error) {
-	cm, err := EventToCombinedMetrics(e, cmk.Interval)
+	kvs, err := EventToCombinedMetrics(e, cmk, a.cfg.Partitioner)
 	if err != nil {
 		return 0, fmt.Errorf("failed to convert event to combined metrics: %w", err)
 	}
-	bytesIn, err := a.aggregate(ctx, cmk, cm)
-	if err != nil {
-		return bytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)
+	var totalBytesIn int
+	for cmk, cm := range kvs {
+		bytesIn, err := a.aggregate(ctx, cmk, *cm)
+		totalBytesIn += bytesIn
+		if err != nil {
+			return totalBytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)
+		}
 	}
-	return bytesIn, nil
+	return totalBytesIn, nil
 }
 
 // aggregate aggregates combined metrics for a given key and returns
@@ -410,7 +414,7 @@ func (a *Aggregator) commitAndHarvest(
 	ctx context.Context,
 	batch *pebble.Batch,
 	to time.Time,
-	harvestStats map[time.Duration]map[string]stats,
+	harvestStats map[time.Duration]map[[16]byte]stats,
 ) error {
 	ctx, span := a.cfg.Tracer.Start(ctx, "commitAndHarvest")
 	defer span.End()
@@ -442,7 +446,7 @@ func (a *Aggregator) commitAndHarvest(
 func (a *Aggregator) harvest(
 	ctx context.Context,
 	end time.Time,
-	harvestStats map[time.Duration]map[string]stats,
+	harvestStats map[time.Duration]map[[16]byte]stats,
 ) error {
 	snap := a.db.NewSnapshot()
 	defer snap.Close()
@@ -482,7 +486,7 @@ func (a *Aggregator) harvestForInterval(
 	snap *pebble.Snapshot,
 	start, end time.Time,
 	ivl time.Duration,
-	cmStats map[string]stats,
+	cmStats map[[16]byte]stats,
 ) (int, error) {
 	from := CombinedMetricsKey{
 		Interval:       ivl,
@@ -568,7 +572,7 @@ func (a *Aggregator) harvestForInterval(
 }
 
 type harvestStats struct {
-	eventsTotal            int64
+	eventsTotal            float64
 	youngestEventTimestamp time.Time
 }
 

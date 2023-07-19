@@ -484,13 +484,13 @@ func TestMerge(t *testing.T) {
 }
 
 type testCombinedMetricsCfg struct {
-	eventsTotal            int64
+	eventsTotal            float64
 	youngestEventTimestamp time.Time
 }
 
 type testCombinedMetricsOpt func(cfg testCombinedMetricsCfg) testCombinedMetricsCfg
 
-func withEventsTotal(total int64) testCombinedMetricsOpt {
+func withEventsTotal(total float64) testCombinedMetricsOpt {
 	return func(cfg testCombinedMetricsCfg) testCombinedMetricsCfg {
 		cfg.eventsTotal = total
 		return cfg

@@ -28,14 +28,21 @@ type Processor func(
 	aggregationIvl time.Duration,
 ) error
 
+// Partitioner partitions the aggregation key based on the configured
+// partition logic.
+type Partitioner interface {
+	Partition(uint64) uint16
+}
+
 // Config contains the required config for running the aggregator.
 type Config struct {
 	DataDir                string
 	Limits                 Limits
 	Processor              Processor
+	Partitioner            Partitioner
 	AggregationIntervals   []time.Duration
 	HarvestDelay           time.Duration
-	CombinedMetricsIDToKVs func(string) []attribute.KeyValue
+	CombinedMetricsIDToKVs func([16]byte) []attribute.KeyValue
 	InMemoryFS             bool
 
 	Meter  metric.Meter
@@ -77,6 +84,17 @@ func WithLimits(limits Limits) Option {
 func WithProcessor(processor Processor) Option {
 	return func(c Config) Config {
 		c.Processor = processor
+		return c
+	}
+}
+
+// WithPartitioner configures a partitioner for partitioning the combined
+// metrics in pebble. Partition IDs are encoded in a way that all the
+// partitions of a specific combined metric are listed before any other if
+// compared using the bytes comparer.
+func WithPartitioner(partitioner Partitioner) Option {
+	return func(c Config) Config {
+		c.Partitioner = partitioner
 		return c
 	}
 }
@@ -135,7 +153,7 @@ func WithTracer(tracer trace.Tracer) Option {
 
 // WithCombinedMetricsIDToKVs defines a function that converts a combined
 // metrics ID to zero or more attribute.KeyValue for telemetry.
-func WithCombinedMetricsIDToKVs(f func(string) []attribute.KeyValue) Option {
+func WithCombinedMetricsIDToKVs(f func([16]byte) []attribute.KeyValue) Option {
 	return func(c Config) Config {
 		c.CombinedMetricsIDToKVs = f
 		return c
@@ -162,10 +180,11 @@ func defaultCfg() Config {
 	return Config{
 		DataDir:                "/tmp",
 		Processor:              stdoutProcessor,
+		Partitioner:            NewHashPartitioner(1),
 		AggregationIntervals:   []time.Duration{time.Minute},
 		Meter:                  otel.Meter(instrumentationName),
 		Tracer:                 otel.Tracer(instrumentationName),
-		CombinedMetricsIDToKVs: func(_ string) []attribute.KeyValue { return nil },
+		CombinedMetricsIDToKVs: func(_ [16]byte) []attribute.KeyValue { return nil },
 		Logger:                 zap.Must(zap.NewDevelopment()),
 	}
 }
@@ -176,6 +195,9 @@ func validateCfg(cfg Config) error {
 	}
 	if cfg.Processor == nil {
 		return errors.New("processor is required")
+	}
+	if cfg.Partitioner == nil {
+		return errors.New("partitioner is required")
 	}
 	if len(cfg.AggregationIntervals) == 0 {
 		return errors.New("at least one aggregation interval is required")
