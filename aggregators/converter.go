@@ -5,14 +5,19 @@
 package aggregators
 
 import (
+	"errors"
 	"fmt"
 	"math"
 	"time"
 
 	"github.com/axiomhq/hyperloglog"
+	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/elastic/apm-aggregation/aggregationpb"
+	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
+	tspb "github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -25,114 +30,123 @@ const (
 	overflowBucketName = "_other"
 )
 
-func setMetricCountBasedOnOutcome(stm *ServiceTransactionMetrics, from *modelpb.APMEvent) {
-	txn := from.GetTransaction()
-	switch from.GetEvent().GetOutcome() {
-	case "failure":
-		stm.FailureCount = txn.GetRepresentativeCount()
-	case "success":
-		stm.SuccessCount = txn.GetRepresentativeCount()
-	}
-}
-
-// EventToCombinedMetrics converts APMEvent to one or more CombinedMetrics.
-// If an event results in multiple metrics, they may be spread across different partitions.
+// EventToCombinedMetrics converts APMEvent to one or more CombinedMetrics and
+// calls the provided callback for each pair of CombinedMetricsKey and
+// CombinedMetrics. The callback MUST NOT hold the reference of the passed
+// CombinedMetrics. If required, the callback can call CloneVT to clone the
+// CombinedMetrics. If an event results in multiple metrics, they may be spread
+// across different partitions.
 //
-// EventToCombinedMetrics will never produce overflow metrics, as it applies to a single APMEvent.
+// EventToCombinedMetrics will never produce overflow metrics, as it applies to a
+// single APMEvent.
 func EventToCombinedMetrics(
 	e *modelpb.APMEvent,
 	unpartitionedKey CombinedMetricsKey,
 	partitioner Partitioner,
-) (map[CombinedMetricsKey]*CombinedMetrics, error) {
-	var gl GlobalLabels
-	gl.fromLabelsAndNumericLabels(e.Labels, e.NumericLabels)
-	gls, err := gl.MarshalString()
-	if err != nil {
-		return nil, err
-	}
-
-	kvs := make(map[CombinedMetricsKey]*CombinedMetrics)
+	callback func(CombinedMetricsKey, *aggregationpb.CombinedMetrics) error,
+) error {
 	svcKey := serviceKey(e, unpartitionedKey.Interval)
-	svcInstanceKey := ServiceInstanceAggregationKey{GlobalLabelsStr: gls}
-	hasher := Hasher{}.Chain(svcKey).Chain(svcInstanceKey)
+	svcInstanceKey, err := serviceInstanceKey(e)
+	if err != nil {
+		return err
+	}
+	hasher := Hasher{}.
+		Chain(serviceKeyHasher(svcKey)).
+		Chain(serviceInstanceKeyHasher(svcInstanceKey))
 
-	setCombinedMetrics := func(k CombinedMetricsKey, sim ServiceInstanceMetrics) {
-		cm, ok := kvs[k]
+	// m collects service instance metrics for each partition
+	m := make(map[uint16]*aggregationpb.ServiceInstanceMetrics)
+	addToM := func(partitionID uint16, from *aggregationpb.ServiceInstanceMetrics) {
+		to, ok := m[partitionID]
 		if !ok {
-			cm = &CombinedMetrics{
-				Services: map[ServiceAggregationKey]ServiceMetrics{
-					svcKey: ServiceMetrics{
-						ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{},
-					},
-				},
-			}
-			kvs[k] = cm
+			m[partitionID] = from
+			return
 		}
-		svcInstanceM := cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey]
-		for k, v := range sim.TransactionGroups {
-			if svcInstanceM.TransactionGroups == nil {
-				svcInstanceM.TransactionGroups = make(map[TransactionAggregationKey]TransactionMetrics)
-			}
-			svcInstanceM.TransactionGroups[k] = v
-		}
-		for k, v := range sim.ServiceTransactionGroups {
-			if svcInstanceM.ServiceTransactionGroups == nil {
-				svcInstanceM.ServiceTransactionGroups = make(map[ServiceTransactionAggregationKey]ServiceTransactionMetrics)
-			}
-			svcInstanceM.ServiceTransactionGroups[k] = v
-		}
-		for k, v := range sim.SpanGroups {
-			if svcInstanceM.SpanGroups == nil {
-				svcInstanceM.SpanGroups = make(map[SpanAggregationKey]SpanMetrics)
-			}
-			svcInstanceM.SpanGroups[k] = v
-		}
-		cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey] = svcInstanceM
+		to.ServiceTransactionMetrics = mergeSlices[aggregationpb.KeyedServiceTransactionMetrics](
+			to.ServiceTransactionMetrics, from.ServiceTransactionMetrics,
+		)
+		from.ServiceTransactionMetrics = nil
+		to.TransactionMetrics = mergeSlices[aggregationpb.KeyedTransactionMetrics](
+			to.TransactionMetrics, from.TransactionMetrics,
+		)
+		from.TransactionMetrics = nil
+		to.SpanMetrics = mergeSlices[aggregationpb.KeyedSpanMetrics](
+			to.SpanMetrics, from.SpanMetrics,
+		)
+		from.SpanMetrics = nil
+		from.ReturnToVTPool()
 	}
 
 	switch e.Type() {
 	case modelpb.TransactionEventType:
 		repCount := e.GetTransaction().GetRepresentativeCount()
 		if repCount <= 0 {
-			return nil, nil
+			return nil
 		}
-		tm := newTransactionMetrics()
-		tm.Histogram.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
+
+		hdr := hdrhistogram.New()
+		hdr.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
+
+		// Transaction metrics
+		tm := aggregationpb.TransactionMetricsFromVTPool()
+		tm.Histogram = HistogramToProto(hdr)
+
 		txnKey := transactionKey(e)
-		cmk := unpartitionedKey
-		cmk.PartitionID = partitioner.Partition(hasher.Chain(txnKey).Sum())
-		setCombinedMetrics(cmk, ServiceInstanceMetrics{
-			TransactionGroups: map[TransactionAggregationKey]TransactionMetrics{txnKey: tm},
-		})
+		ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
+		ktm.Key, ktm.Metrics = txnKey, tm
 
-		stm := newServiceTransactionMetrics()
-		stm.Histogram.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
-		setMetricCountBasedOnOutcome(&stm, e)
+		svcInstanceMetrics := aggregationpb.ServiceInstanceMetricsFromVTPool()
+		svcInstanceMetrics.TransactionMetrics = append(
+			svcInstanceMetrics.TransactionMetrics, ktm,
+		)
+		partitionID := partitioner.Partition(
+			hasher.Chain(transactionKeyHasher(txnKey)).Sum(),
+		)
+		addToM(partitionID, svcInstanceMetrics)
+
+		// Service Transaction metrics
+		stm := aggregationpb.ServiceTransactionMetricsFromVTPool()
+		stm.Histogram = HistogramToProto(hdr) // use same histogram
+		setMetricCountBasedOnOutcome(stm, e)
+
 		svcTxnKey := serviceTransactionKey(e)
-		cmk.PartitionID = partitioner.Partition(hasher.Chain(svcTxnKey).Sum())
-		setCombinedMetrics(cmk, ServiceInstanceMetrics{
-			ServiceTransactionGroups: map[ServiceTransactionAggregationKey]ServiceTransactionMetrics{svcTxnKey: stm},
-		})
+		kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
+		kstm.Key, kstm.Metrics = svcTxnKey, stm
 
-		// Handle dropped span stats
+		svcInstanceMetrics = aggregationpb.ServiceInstanceMetricsFromVTPool()
+		svcInstanceMetrics.ServiceTransactionMetrics = append(
+			svcInstanceMetrics.ServiceTransactionMetrics, kstm,
+		)
+		partitionID = partitioner.Partition(
+			hasher.Chain(serviceTransactionKeyHasher(svcTxnKey)).Sum(),
+		)
+		addToM(partitionID, svcInstanceMetrics)
+
+		// Dropped span stats
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
+			spm := aggregationpb.SpanMetricsFromVTPool()
+			spm.Count = float64(dss.GetDuration().GetCount()) * repCount
+			spm.Sum = float64(dss.GetDuration().GetSum().AsDuration()) * repCount
+
 			dssKey := droppedSpanStatsKey(dss)
-			cmk.PartitionID = partitioner.Partition(hasher.Chain(dssKey).Sum())
-			setCombinedMetrics(cmk, ServiceInstanceMetrics{
-				SpanGroups: map[SpanAggregationKey]SpanMetrics{
-					dssKey: SpanMetrics{
-						Count: float64(dss.GetDuration().GetCount()) * repCount,
-						Sum:   float64(dss.GetDuration().GetSum().AsDuration()) * repCount,
-					},
-				},
-			})
+			kspm := aggregationpb.KeyedSpanMetricsFromVTPool()
+			kspm.Key, kspm.Metrics = dssKey, spm
+
+			svcInstanceMetrics = aggregationpb.ServiceInstanceMetricsFromVTPool()
+			svcInstanceMetrics.SpanMetrics = append(
+				svcInstanceMetrics.SpanMetrics, kspm,
+			)
+			partitionID = partitioner.Partition(
+				hasher.Chain(spanKeyHasher(dssKey)).Sum(),
+			)
+			addToM(partitionID, svcInstanceMetrics)
 		}
 	case modelpb.SpanEventType:
 		target := e.GetService().GetTarget()
 		repCount := e.GetSpan().GetRepresentativeCount()
 		destSvc := e.GetSpan().GetDestinationService().GetResource()
 		if repCount <= 0 || (target == nil && destSvc == "") {
-			return nil, nil
+			return nil
 		}
 
 		var count uint32 = 1
@@ -141,28 +155,59 @@ func EventToCombinedMetrics(
 			count = composite.GetCount()
 			duration = time.Duration(composite.GetSum() * float64(time.Millisecond))
 		}
+
+		spm := aggregationpb.SpanMetricsFromVTPool()
+		spm.Count = float64(count) * repCount
+		spm.Sum = float64(duration) * repCount
+
 		spanKey := spanKey(e)
-		cmk := unpartitionedKey
-		cmk.PartitionID = partitioner.Partition(hasher.Chain(spanKey).Sum())
-		setCombinedMetrics(cmk, ServiceInstanceMetrics{
-			SpanGroups: map[SpanAggregationKey]SpanMetrics{
-				spanKey: SpanMetrics{
-					Count: float64(count) * repCount,
-					Sum:   float64(duration) * repCount,
-				},
-			},
-		})
+		kspm := aggregationpb.KeyedSpanMetricsFromVTPool()
+		kspm.Key, kspm.Metrics = spanKey, spm
+
+		svcInstanceMetrics := aggregationpb.ServiceInstanceMetricsFromVTPool()
+		svcInstanceMetrics.SpanMetrics = append(
+			svcInstanceMetrics.SpanMetrics, kspm,
+		)
+		partitionID := partitioner.Partition(
+			hasher.Chain(spanKeyHasher(spanKey)).Sum(),
+		)
+		addToM(partitionID, svcInstanceMetrics)
 	}
 
 	// Approximate events total by uniformly distributing the events total
 	// amongst the partitioned key values.
-	weightedEventsTotal := 1 / float64(len(kvs))
-	eventTS := e.GetEvent().GetReceived().AsTime()
-	for _, cm := range kvs {
-		cm.eventsTotal = weightedEventsTotal
-		cm.youngestEventTimestamp = eventTS
+	weightedEventsTotal := 1 / float64(len(m))
+	eventTS := tspb.TimeToPBTimestamp(e.GetEvent().GetReceived().AsTime())
+
+	ksim := aggregationpb.KeyedServiceInstanceMetricsFromVTPool()
+	ksim.Key = svcInstanceKey
+
+	ksm := aggregationpb.KeyedServiceMetricsFromVTPool()
+	ksm.Key, ksm.Metrics = svcKey, aggregationpb.ServiceMetricsFromVTPool()
+	ksm.Metrics.ServiceInstanceMetrics = append(ksm.Metrics.ServiceInstanceMetrics, ksim)
+
+	cm := aggregationpb.CombinedMetricsFromVTPool()
+	defer cm.ReturnToVTPool()
+	cm.ServiceMetrics = append(cm.ServiceMetrics, ksm)
+
+	var errs []error
+	for partitionID, svcInstanceMetrics := range m {
+		key := unpartitionedKey
+		key.PartitionID = partitionID
+
+		cm.ServiceMetrics[0].Metrics.ServiceInstanceMetrics[0].Metrics = svcInstanceMetrics
+		cm.EventsTotal = weightedEventsTotal
+		cm.YoungestEventTimestamp = uint64(eventTS)
+		if err := callback(key, cm); err != nil {
+			errs = append(errs, err)
+		}
+		cm.ServiceMetrics[0].Metrics.ServiceInstanceMetrics[0].Metrics = nil
+		svcInstanceMetrics.ReturnToVTPool()
 	}
-	return kvs, nil
+	if len(errs) > 0 {
+		return fmt.Errorf("failed while executing callback: %w", errors.Join(errs...))
+	}
+	return nil
 }
 
 // CombinedMetricsToBatch converts CombinedMetrics to a batch of APMEvents.
@@ -679,70 +724,107 @@ func overflowSpanMetricsToAPMEvent(
 	baseEvent.Metricset.DocCount = int64(overflowCount)
 }
 
-func serviceKey(e *modelpb.APMEvent, aggInterval time.Duration) ServiceAggregationKey {
-	return ServiceAggregationKey{
-		Timestamp:           e.GetTimestamp().AsTime().Truncate(aggInterval),
-		ServiceName:         e.GetService().GetName(),
-		ServiceEnvironment:  e.GetService().GetEnvironment(),
-		ServiceLanguageName: e.GetService().GetLanguage().GetName(),
-		AgentName:           e.GetAgent().GetName(),
-	}
+func serviceKey(e *modelpb.APMEvent, aggInterval time.Duration) *aggregationpb.ServiceAggregationKey {
+	key := aggregationpb.ServiceAggregationKeyFromVTPool()
+	key.Timestamp = tspb.TimeToPBTimestamp(
+		e.GetTimestamp().AsTime().Truncate(aggInterval),
+	)
+	key.ServiceName = e.GetService().GetName()
+	key.ServiceEnvironment = e.GetService().GetEnvironment()
+	key.ServiceLanguageName = e.GetService().GetLanguage().GetName()
+	key.AgentName = e.GetAgent().GetName()
+
+	return key
 }
 
-func transactionKey(e *modelpb.APMEvent) TransactionAggregationKey {
+func serviceInstanceKey(e *modelpb.APMEvent) (*aggregationpb.ServiceInstanceAggregationKey, error) {
+	var gl GlobalLabels
+	for k, v := range e.Labels {
+		if !v.Global {
+			continue
+		}
+		if (&gl).Labels == nil {
+			(&gl).Labels = make(modelpb.Labels)
+		}
+		gl.Labels[k] = v
+	}
+	for k, v := range e.NumericLabels {
+		if !v.Global {
+			continue
+		}
+		if (&gl).NumericLabels == nil {
+			(&gl).NumericLabels = make(modelpb.NumericLabels)
+		}
+		gl.NumericLabels[k] = v
+	}
+	glb, err := gl.MarshalBinary()
+	if err != nil {
+		return nil, fmt.Errorf("failed to parse global labels: %w", err)
+	}
+
+	key := aggregationpb.ServiceInstanceAggregationKeyFromVTPool()
+	key.GlobalLabelsStr = glb
+
+	return key, nil
+}
+
+func transactionKey(e *modelpb.APMEvent) *aggregationpb.TransactionAggregationKey {
 	var faasColdstart NullableBool
 	faas := e.GetFaas()
 	if faas != nil {
 		faasColdstart.ParseBoolPtr(faas.ColdStart)
 	}
-	return TransactionAggregationKey{
-		TraceRoot: e.GetParentId() == "",
 
-		ContainerID:       e.GetContainer().GetId(),
-		KubernetesPodName: e.GetKubernetes().GetPodName(),
+	key := aggregationpb.TransactionAggregationKeyFromVTPool()
+	key.TraceRoot = e.GetParentId() == ""
 
-		ServiceVersion:  e.GetService().GetVersion(),
-		ServiceNodeName: e.GetService().GetNode().GetName(),
+	key.ContainerId = e.GetContainer().GetId()
+	key.KubernetesPodName = e.GetKubernetes().GetPodName()
 
-		ServiceRuntimeName:     e.GetService().GetRuntime().GetName(),
-		ServiceRuntimeVersion:  e.GetService().GetRuntime().GetVersion(),
-		ServiceLanguageVersion: e.GetService().GetLanguage().GetVersion(),
+	key.ServiceVersion = e.GetService().GetVersion()
+	key.ServiceNodeName = e.GetService().GetNode().GetName()
 
-		HostHostname:   e.GetHost().GetHostname(),
-		HostName:       e.GetHost().GetName(),
-		HostOSPlatform: e.GetHost().GetOs().GetPlatform(),
+	key.ServiceRuntimeName = e.GetService().GetRuntime().GetName()
+	key.ServiceRuntimeVersion = e.GetService().GetRuntime().GetVersion()
+	key.ServiceLanguageVersion = e.GetService().GetLanguage().GetVersion()
 
-		EventOutcome: e.GetEvent().GetOutcome(),
+	key.HostHostname = e.GetHost().GetHostname()
+	key.HostName = e.GetHost().GetName()
+	key.HostOsPlatform = e.GetHost().GetOs().GetPlatform()
 
-		TransactionName:   e.GetTransaction().GetName(),
-		TransactionType:   e.GetTransaction().GetType(),
-		TransactionResult: e.GetTransaction().GetResult(),
+	key.EventOutcome = e.GetEvent().GetOutcome()
 
-		FAASColdstart:   faasColdstart,
-		FAASID:          faas.GetId(),
-		FAASName:        faas.GetName(),
-		FAASVersion:     faas.GetVersion(),
-		FAASTriggerType: faas.GetTriggerType(),
+	key.TransactionName = e.GetTransaction().GetName()
+	key.TransactionType = e.GetTransaction().GetType()
+	key.TransactionResult = e.GetTransaction().GetResult()
 
-		CloudProvider:         e.GetCloud().GetProvider(),
-		CloudRegion:           e.GetCloud().GetRegion(),
-		CloudAvailabilityZone: e.GetCloud().GetAvailabilityZone(),
-		CloudServiceName:      e.GetCloud().GetServiceName(),
-		CloudAccountID:        e.GetCloud().GetAccountId(),
-		CloudAccountName:      e.GetCloud().GetAccountName(),
-		CloudMachineType:      e.GetCloud().GetMachineType(),
-		CloudProjectID:        e.GetCloud().GetProjectId(),
-		CloudProjectName:      e.GetCloud().GetProjectName(),
-	}
+	key.FaasColdstart = uint32(faasColdstart)
+	key.FaasId = faas.GetId()
+	key.FaasName = faas.GetName()
+	key.FaasVersion = faas.GetVersion()
+	key.FaasTriggerType = faas.GetTriggerType()
+
+	key.CloudProvider = e.GetCloud().GetProvider()
+	key.CloudRegion = e.GetCloud().GetRegion()
+	key.CloudAvailabilityZone = e.GetCloud().GetAvailabilityZone()
+	key.CloudServiceName = e.GetCloud().GetServiceName()
+	key.CloudAccountId = e.GetCloud().GetAccountId()
+	key.CloudAccountName = e.GetCloud().GetAccountName()
+	key.CloudMachineType = e.GetCloud().GetMachineType()
+	key.CloudProjectId = e.GetCloud().GetProjectId()
+	key.CloudProjectName = e.GetCloud().GetProjectName()
+
+	return key
 }
 
-func serviceTransactionKey(e *modelpb.APMEvent) ServiceTransactionAggregationKey {
-	return ServiceTransactionAggregationKey{
-		TransactionType: e.GetTransaction().GetType(),
-	}
+func serviceTransactionKey(e *modelpb.APMEvent) *aggregationpb.ServiceTransactionAggregationKey {
+	key := aggregationpb.ServiceTransactionAggregationKeyFromVTPool()
+	key.TransactionType = e.GetTransaction().GetType()
+
+	return key
 }
 
-func spanKey(e *modelpb.APMEvent) SpanAggregationKey {
+func spanKey(e *modelpb.APMEvent) *aggregationpb.SpanAggregationKey {
 	var resource, targetType, targetName string
 	target := e.GetService().GetTarget()
 	if target != nil {
@@ -753,28 +835,44 @@ func spanKey(e *modelpb.APMEvent) SpanAggregationKey {
 	if destSvc != nil {
 		resource = destSvc.GetResource()
 	}
-	return SpanAggregationKey{
-		SpanName: e.GetSpan().GetName(),
-		Outcome:  e.GetEvent().GetOutcome(),
 
-		TargetType: targetType,
-		TargetName: targetName,
+	key := aggregationpb.SpanAggregationKeyFromVTPool()
+	key.SpanName = e.GetSpan().GetName()
+	key.Outcome = e.GetEvent().GetOutcome()
 
-		Resource: resource,
-	}
+	key.TargetType = targetType
+	key.TargetName = targetName
+
+	key.Resource = resource
+
+	return key
 }
 
-func droppedSpanStatsKey(dss *modelpb.DroppedSpanStats) SpanAggregationKey {
-	return SpanAggregationKey{
-		// Dropped span statistics do not contain span name because it
-		// would be too expensive to track dropped span stats per span name.
-		SpanName: "",
-		Outcome:  dss.GetOutcome(),
+func droppedSpanStatsKey(dss *modelpb.DroppedSpanStats) *aggregationpb.SpanAggregationKey {
+	key := aggregationpb.SpanAggregationKeyFromVTPool()
+	// Dropped span statistics do not contain span name because it
+	// would be too expensive to track dropped span stats per span name.
+	key.SpanName = ""
+	key.Outcome = dss.GetOutcome()
 
-		TargetType: dss.GetServiceTargetType(),
-		TargetName: dss.GetServiceTargetName(),
+	key.TargetType = dss.GetServiceTargetType()
+	key.TargetName = dss.GetServiceTargetName()
 
-		Resource: dss.GetDestinationServiceResource(),
+	key.Resource = dss.GetDestinationServiceResource()
+
+	return key
+}
+
+func setMetricCountBasedOnOutcome(
+	stm *aggregationpb.ServiceTransactionMetrics,
+	from *modelpb.APMEvent,
+) {
+	txn := from.GetTransaction()
+	switch from.GetEvent().GetOutcome() {
+	case "failure":
+		stm.FailureCount = txn.GetRepresentativeCount()
+	case "success":
+		stm.SuccessCount = txn.GetRepresentativeCount()
 	}
 }
 
@@ -790,4 +888,12 @@ func populateNil[T any](a *T) *T {
 		return new(T)
 	}
 	return a
+}
+
+func mergeSlices[T any](to []*T, from []*T) []*T {
+	if len(from) == 0 {
+		return to
+	}
+	to = slices.Grow(to, len(from))
+	return append(to, from...)
 }
