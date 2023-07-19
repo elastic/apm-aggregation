@@ -52,7 +52,7 @@ type Aggregator struct {
 	mu             sync.Mutex
 	processingTime time.Time
 	batch          *pebble.Batch
-	cachedStats    map[time.Duration]map[string]stats
+	cachedStats    map[time.Duration]map[[16]byte]stats
 
 	stopping   chan struct{}
 	runStarted atomic.Bool
@@ -118,10 +118,10 @@ func New(opts ...Option) (*Aggregator, error) {
 	}, nil
 }
 
-func newCachedStats(ivls []time.Duration) map[time.Duration]map[string]stats {
-	m := make(map[time.Duration]map[string]stats, len(ivls))
+func newCachedStats(ivls []time.Duration) map[time.Duration]map[[16]byte]stats {
+	m := make(map[time.Duration]map[[16]byte]stats, len(ivls))
 	for _, ivl := range ivls {
-		m[ivl] = make(map[string]stats)
+		m[ivl] = make(map[[16]byte]stats)
 	}
 	return m
 }
@@ -131,7 +131,7 @@ func newCachedStats(ivls []time.Duration) map[time.Duration]map[string]stats {
 // However, it doesn't require aggregator to be running to perform aggregation.
 func (a *Aggregator) AggregateBatch(
 	ctx context.Context,
-	id string,
+	id [16]byte,
 	b *modelpb.Batch,
 ) error {
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(id)
@@ -207,7 +207,7 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	if _, ok := a.cachedStats[cmk.Interval]; !ok {
 		// Protection for stats collected from a different instance
 		// of aggregator as aggregators can be chained.
-		a.cachedStats[cmk.Interval] = make(map[string]stats)
+		a.cachedStats[cmk.Interval] = make(map[[16]byte]stats)
 	}
 	cmStats := a.cachedStats[cmk.Interval][cmk.ID]
 	cmStats.eventsTotal += cm.eventsTotal
@@ -254,7 +254,7 @@ func (a *Aggregator) Run(ctx context.Context) error {
 			if _, ok := harvestStats[ivl]; !ok {
 				// Protection for stats collected from a different instance
 				// of aggregator as aggregators can be chained.
-				harvestStats[ivl] = make(map[string]stats)
+				harvestStats[ivl] = make(map[[16]byte]stats)
 			}
 			for cmID, cmStats := range statsm {
 				hstats := harvestStats[ivl][cmID]
@@ -409,7 +409,7 @@ func (a *Aggregator) commitAndHarvest(
 	ctx context.Context,
 	batch *pebble.Batch,
 	to time.Time,
-	harvestStats map[time.Duration]map[string]stats,
+	harvestStats map[time.Duration]map[[16]byte]stats,
 ) error {
 	ctx, span := a.cfg.Tracer.Start(ctx, "commitAndHarvest")
 	defer span.End()
@@ -441,7 +441,7 @@ func (a *Aggregator) commitAndHarvest(
 func (a *Aggregator) harvest(
 	ctx context.Context,
 	end time.Time,
-	harvestStats map[time.Duration]map[string]stats,
+	harvestStats map[time.Duration]map[[16]byte]stats,
 ) error {
 	snap := a.db.NewSnapshot()
 	defer snap.Close()
@@ -481,7 +481,7 @@ func (a *Aggregator) harvestForInterval(
 	snap *pebble.Snapshot,
 	start, end time.Time,
 	ivl time.Duration,
-	cmStats map[string]stats,
+	cmStats map[[16]byte]stats,
 ) (int, error) {
 	from := CombinedMetricsKey{
 		Interval:       ivl,

@@ -21,11 +21,10 @@ func TestCombinedMetricsKey(t *testing.T) {
 	expected := CombinedMetricsKey{
 		Interval:       time.Minute,
 		ProcessingTime: time.Now().Truncate(time.Minute),
-		ID:             "cm01",
+		ID:             EncodeToCombinedMetricsKeyID(t, "ab01"),
 	}
 	data := make([]byte, expected.SizeBinary())
 	assert.NoError(t, expected.MarshalBinaryToSizedBuffer(data))
-
 	var actual CombinedMetricsKey
 	assert.NoError(t, (&actual).UnmarshalBinary(data))
 	assert.Empty(t, cmp.Diff(expected, actual))
@@ -117,4 +116,13 @@ func BenchmarkCombinedMetricsDecoding(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		expected.FromProto(cmproto)
 	}
+}
+
+func EncodeToCombinedMetricsKeyID(tb testing.TB, s string) [16]byte {
+	var b [16]byte
+	if len(s) > len(b) {
+		tb.Fatal("invalid key length passed")
+	}
+	copy(b[len(b)-len(s):], s)
+	return b
 }

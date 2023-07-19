@@ -115,7 +115,7 @@ type CombinedMetricsKey struct {
 	Interval       time.Duration
 	ProcessingTime time.Time
 	PartitionID    uint16
-	ID             string
+	ID             [16]byte
 }
 
 // CombinedMetrics models the value to store the data in LSM tree.

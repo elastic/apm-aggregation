@@ -31,17 +31,19 @@ import (
 // ID first and then ordered by the partition ID.
 func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	ivlSeconds := uint16(k.Interval.Seconds())
-	if len(data) < k.SizeBinary() {
-		return errors.New("sized buffer of insufficient length")
+	if len(data) != k.SizeBinary() {
+		return errors.New("failed to marshal due to incorrect sized buffer")
 	}
 	var offset int
+
 	binary.BigEndian.PutUint16(data[offset:], ivlSeconds)
 	offset += 2
 
 	binary.BigEndian.PutUint64(data[offset:], uint64(k.ProcessingTime.Unix()))
 	offset += 8
 
-	offset += copy(data[offset:], k.ID)
+	copy(data[offset:], k.ID[:])
+	offset += 16
 
 	binary.BigEndian.PutUint16(data[offset:], k.PartitionID)
 	return nil
@@ -52,12 +54,17 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 	if len(data) < 12 {
 		return errors.New("invalid encoded data of insufficient length")
 	}
-	k.Interval = time.Duration(binary.BigEndian.Uint16(data[0:2])) * time.Second
-	k.ProcessingTime = time.Unix(int64(binary.BigEndian.Uint64(data[2:10])), 0)
+	var offset int
+	k.Interval = time.Duration(binary.BigEndian.Uint16(data[offset:2])) * time.Second
+	offset += 2
 
-	partitionIDOffset := len(data) - 2
-	k.PartitionID = binary.BigEndian.Uint16(data[partitionIDOffset:])
-	k.ID = string(data[10:partitionIDOffset])
+	k.ProcessingTime = time.Unix(int64(binary.BigEndian.Uint64(data[offset:offset+8])), 0)
+	offset += 8
+
+	copy(k.ID[:], data[offset:offset+len(k.ID)])
+	offset += len(k.ID)
+
+	k.PartitionID = binary.BigEndian.Uint16(data[offset:])
 	return nil
 }
 
@@ -66,9 +73,9 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 func (k *CombinedMetricsKey) SizeBinary() int {
 	// 2 bytes for interval encoding
 	// 8 bytes for timestamp encoding
-	// len of metrics ID bytes for encoding combined metrics ID
+	// 16 bytes for ID encoding
 	// 2 bytes for partition ID
-	return 2 + 8 + len(k.ID) + 2
+	return 2 + 8 + 16 + 2
 }
 
 // ToProto converts CombinedMetrics to its protobuf representation.
