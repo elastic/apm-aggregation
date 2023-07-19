@@ -52,7 +52,7 @@ type Aggregator struct {
 	mu             sync.Mutex
 	processingTime time.Time
 	batch          *pebble.Batch
-	cachedStats    map[time.Duration]map[string]stats
+	cachedStats    map[time.Duration]map[[16]byte]stats
 
 	stopping   chan struct{}
 	runStarted atomic.Bool
@@ -118,10 +118,10 @@ func New(opts ...Option) (*Aggregator, error) {
 	}, nil
 }
 
-func newCachedStats(ivls []time.Duration) map[time.Duration]map[string]stats {
-	m := make(map[time.Duration]map[string]stats, len(ivls))
+func newCachedStats(ivls []time.Duration) map[time.Duration]map[[16]byte]stats {
+	m := make(map[time.Duration]map[[16]byte]stats, len(ivls))
 	for _, ivl := range ivls {
-		m[ivl] = make(map[string]stats)
+		m[ivl] = make(map[[16]byte]stats)
 	}
 	return m
 }
@@ -147,9 +147,14 @@ func (a *Aggregator) AggregateBatch(
 	default:
 	}
 
+	cmkID, err := EncodeToCombinedMetricsKeyID(id)
+	if err != nil {
+		return fmt.Errorf("invalid ID received: %w", err)
+	}
+
 	var errs []error
 	var totalBytesIn int64
-	cmk := CombinedMetricsKey{ID: id}
+	cmk := CombinedMetricsKey{ID: cmkID}
 	for _, ivl := range a.cfg.AggregationIntervals {
 		cmk.ProcessingTime = a.processingTime.Truncate(ivl)
 		cmk.Interval = ivl
@@ -160,9 +165,9 @@ func (a *Aggregator) AggregateBatch(
 			}
 			totalBytesIn += int64(bytesIn)
 		}
-		cmStats := a.cachedStats[ivl][id]
+		cmStats := a.cachedStats[ivl][cmkID]
 		cmStats.eventsTotal += float64(len(*b))
-		a.cachedStats[ivl][id] = cmStats
+		a.cachedStats[ivl][cmkID] = cmStats
 	}
 
 	cmIDAttrSet := attribute.NewSet(cmIDAttrs...)
@@ -184,7 +189,8 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	cmk CombinedMetricsKey,
 	cm CombinedMetrics,
 ) error {
-	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(cmk.ID)
+	cmkID := DecodeFromCombinedMetricsKeyID(cmk.ID)
+	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(cmkID)
 	traceAttrs := append(append([]attribute.KeyValue{}, cmIDAttrs...),
 		attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
 		attribute.String("processing_time", cmk.ProcessingTime.String()))
@@ -207,7 +213,7 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	if _, ok := a.cachedStats[cmk.Interval]; !ok {
 		// Protection for stats collected from a different instance
 		// of aggregator as aggregators can be chained.
-		a.cachedStats[cmk.Interval] = make(map[string]stats)
+		a.cachedStats[cmk.Interval] = make(map[[16]byte]stats)
 	}
 	cmStats := a.cachedStats[cmk.Interval][cmk.ID]
 	cmStats.eventsTotal += cm.eventsTotal
@@ -254,7 +260,7 @@ func (a *Aggregator) Run(ctx context.Context) error {
 			if _, ok := harvestStats[ivl]; !ok {
 				// Protection for stats collected from a different instance
 				// of aggregator as aggregators can be chained.
-				harvestStats[ivl] = make(map[string]stats)
+				harvestStats[ivl] = make(map[[16]byte]stats)
 			}
 			for cmID, cmStats := range statsm {
 				hstats := harvestStats[ivl][cmID]
@@ -409,7 +415,7 @@ func (a *Aggregator) commitAndHarvest(
 	ctx context.Context,
 	batch *pebble.Batch,
 	to time.Time,
-	harvestStats map[time.Duration]map[string]stats,
+	harvestStats map[time.Duration]map[[16]byte]stats,
 ) error {
 	ctx, span := a.cfg.Tracer.Start(ctx, "commitAndHarvest")
 	defer span.End()
@@ -441,7 +447,7 @@ func (a *Aggregator) commitAndHarvest(
 func (a *Aggregator) harvest(
 	ctx context.Context,
 	end time.Time,
-	harvestStats map[time.Duration]map[string]stats,
+	harvestStats map[time.Duration]map[[16]byte]stats,
 ) error {
 	snap := a.db.NewSnapshot()
 	defer snap.Close()
@@ -481,7 +487,7 @@ func (a *Aggregator) harvestForInterval(
 	snap *pebble.Snapshot,
 	start, end time.Time,
 	ivl time.Duration,
-	cmStats map[string]stats,
+	cmStats map[[16]byte]stats,
 ) (int, error) {
 	from := CombinedMetricsKey{
 		Interval:       ivl,
@@ -503,7 +509,8 @@ func (a *Aggregator) harvestForInterval(
 	// premature harvest as part of the graceful shutdown process.
 	ivlAttr := attribute.String(aggregationIvlKey, formatDuration(ivl))
 	for cmID, stats := range cmStats {
-		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmID), ivlAttr)
+		cmIDStr := DecodeFromCombinedMetricsKeyID(cmID)
+		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmIDStr), ivlAttr)
 		a.metrics.EventsTotal.Add(
 			ctx, stats.eventsTotal,
 			metric.WithAttributeSet(
@@ -535,7 +542,8 @@ func (a *Aggregator) harvestForInterval(
 		}
 		cmCount++
 
-		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmk.ID), ivlAttr)
+		cmIDStr := DecodeFromCombinedMetricsKeyID(cmk.ID)
+		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmIDStr), ivlAttr)
 		attrSet := metric.WithAttributeSet(attribute.NewSet(attrs...))
 		// processingDelay is normalized by subtracting aggregation interval and
 		// harvest delay, both of which are expected delays. Normalization helps

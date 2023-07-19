@@ -24,7 +24,29 @@ import (
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
-const maxSizeForCombinedMetricsKeyID = 16
+// EncodeToCombinedMetricsKeyID encodes a given string to a byte array
+// of length 16, compatible with the requirements of CombinedMetricsKey.
+func EncodeToCombinedMetricsKeyID(s string) ([16]byte, error) {
+	var b [16]byte
+	decodedLen := hex.DecodedLen(len(s))
+	if decodedLen > len(b) {
+		return b, fmt.Errorf("unexpected ID field, ID must be of max decoded length %d", len(b))
+	}
+	// Add padding to accomodate smaller strings
+	padding := len(b) - decodedLen
+	for i := 0; i < padding; i++ {
+		b[i] = '\x00'
+	}
+	if _, err := hex.Decode(b[padding:], []byte(s)); err != nil {
+		return b, fmt.Errorf("failed to decode ID, ID must be hexadecimal string: %w", err)
+	}
+	return b, nil
+}
+
+// DecodeFromCombinedMetricsKeyID decodes a given byte array to string.
+func DecodeFromCombinedMetricsKeyID(b [16]byte) string {
+	return hex.EncodeToString(bytes.TrimLeft(b[:], "\x00"))
+}
 
 // MarshalBinaryToSizedBuffer will marshal the combined metrics key into
 // its binary representation. The encoded byte slice will be used as a
@@ -39,16 +61,6 @@ func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	if len(data) != k.SizeBinary() {
 		return errors.New("failed to marshal due to incorrect sized buffer")
 	}
-	decodedID, err := hex.DecodeString(k.ID)
-	if err != nil {
-		return fmt.Errorf("failed to decode ID, ID must be hexadecimal string: %w", err)
-	}
-	if len(decodedID) > maxSizeForCombinedMetricsKeyID {
-		return fmt.Errorf(
-			"unexpected ID field, ID must be of max decoded length %d: %w",
-			maxSizeForCombinedMetricsKeyID, err,
-		)
-	}
 	var offset int
 
 	binary.BigEndian.PutUint16(data[offset:], ivlSeconds)
@@ -57,13 +69,8 @@ func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	binary.BigEndian.PutUint64(data[offset:], uint64(k.ProcessingTime.Unix()))
 	offset += 8
 
-	// Pad ID to maxSizeForCombinedMetricsKeyID
-	padding := maxSizeForCombinedMetricsKeyID - len(decodedID)
-	for i := 0; i < padding; i++ {
-		data[offset+i] = '\x00'
-	}
-	copy(data[(offset+padding):], decodedID)
-	offset += maxSizeForCombinedMetricsKeyID
+	copy(data[offset:], k.ID[:])
+	offset += 16
 
 	binary.BigEndian.PutUint16(data[offset:], k.PartitionID)
 	return nil
@@ -81,10 +88,8 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 	k.ProcessingTime = time.Unix(int64(binary.BigEndian.Uint64(data[offset:offset+8])), 0)
 	offset += 8
 
-	k.ID = hex.EncodeToString(bytes.TrimLeft(
-		data[offset:offset+maxSizeForCombinedMetricsKeyID], "\x00",
-	))
-	offset += maxSizeForCombinedMetricsKeyID
+	copy(k.ID[:], data[offset:offset+len(k.ID)])
+	offset += len(k.ID)
 
 	k.PartitionID = binary.BigEndian.Uint16(data[offset:])
 	return nil
@@ -95,9 +100,9 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 func (k *CombinedMetricsKey) SizeBinary() int {
 	// 2 bytes for interval encoding
 	// 8 bytes for timestamp encoding
-	// 32 bytes for ID encoding
+	// 16 bytes for ID encoding
 	// 2 bytes for partition ID
-	return 2 + 8 + maxSizeForCombinedMetricsKeyID + 2
+	return 2 + 8 + 16 + 2
 }
 
 // ToProto converts CombinedMetrics to its protobuf representation.

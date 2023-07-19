@@ -44,10 +44,12 @@ func TestEventToCombinedMetrics(t *testing.T) {
 			Type:                "testtyp",
 		},
 	}
+	cmkID, err := EncodeToCombinedMetricsKeyID("ab01")
+	require.NoError(t, err)
 	cmk := CombinedMetricsKey{
 		Interval:       time.Minute,
 		ProcessingTime: time.Now().Truncate(time.Minute),
-		ID:             "test-id",
+		ID:             cmkID,
 	}
 	kvs, err := EventToCombinedMetrics(event, cmk, NewHashPartitioner(1))
 	require.NoError(t, err)
@@ -252,10 +254,12 @@ func BenchmarkEventToCombinedMetrics(b *testing.B) {
 			Type:                "testtyp",
 		},
 	}
+	cmkID, err := EncodeToCombinedMetricsKeyID("ab01")
+	require.NoError(b, err)
 	cmk := CombinedMetricsKey{
 		Interval:       time.Minute,
 		ProcessingTime: time.Now().Truncate(time.Minute),
-		ID:             "testid",
+		ID:             cmkID,
 	}
 	partitioner := NewHashPartitioner(1)
 	b.ResetTimer()

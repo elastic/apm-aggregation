@@ -634,10 +634,12 @@ func TestCombinedMetricsKeyOrdered(t *testing.T) {
 	ts := time.Now().Add(-time.Hour)
 	ivl := time.Minute
 
+	cmID, err := EncodeToCombinedMetricsKeyID("ab01")
+	require.NoError(t, err)
 	before := CombinedMetricsKey{
 		ProcessingTime: ts.Truncate(time.Minute),
 		Interval:       ivl,
-		ID:             "ab01",
+		ID:             cmID,
 	}
 	marshaledBufferSize := before.SizeBinary()
 	beforeBytes := make([]byte, marshaledBufferSize)
@@ -645,13 +647,15 @@ func TestCombinedMetricsKeyOrdered(t *testing.T) {
 
 	for i := 0; i < 10; i++ {
 		ts = ts.Add(time.Minute)
+		cmID, err = EncodeToCombinedMetricsKeyID(fmt.Sprintf("ab%02d", rand.Intn(100)))
+		require.NoError(t, err)
 		after := CombinedMetricsKey{
 			ProcessingTime: ts.Truncate(time.Minute),
 			Interval:       ivl,
 			// combined metrics ID shouldn't matter. Keep length to be
 			// 5 to ensure it is within expected bounds of the
 			// sized buffer.
-			ID: fmt.Sprintf("ab%02d", rand.Intn(100)),
+			ID: cmID,
 		}
 		require.NoError(t, after.MarshalBinaryToSizedBuffer(afterBytes))
 		require.NoError(t, before.MarshalBinaryToSizedBuffer(beforeBytes))
@@ -680,7 +684,8 @@ func TestCombinedMetricsKeyOrderedByProjectID(t *testing.T) {
 	keys := make([]CombinedMetricsKey, 0, cmCount*pidCount)
 
 	for i := 0; i < cmCount; i++ {
-		cmID := fmt.Sprintf("ab%06d", i)
+		cmID, err := EncodeToCombinedMetricsKeyID(fmt.Sprintf("ab%06d", i))
+		require.NoError(t, err)
 		for k := 0; k < pidCount; k++ {
 			key := keyTemplate
 			key.PartitionID = uint16(k)
@@ -716,7 +721,7 @@ func TestCombinedMetricsKeyOrderedByProjectID(t *testing.T) {
 func TestHarvest(t *testing.T) {
 	cmCount := 5
 	ivls := []time.Duration{time.Second, 2 * time.Second, 4 * time.Second}
-	m := make(map[time.Duration]map[string]bool)
+	m := make(map[time.Duration]map[[16]byte]bool)
 	processorDone := make(chan struct{})
 	processor := func(
 		_ context.Context,
@@ -726,7 +731,7 @@ func TestHarvest(t *testing.T) {
 	) error {
 		cmMap, ok := m[ivl]
 		if !ok {
-			m[ivl] = make(map[string]bool)
+			m[ivl] = make(map[[16]byte]bool)
 			cmMap = m[ivl]
 		}
 		// For each unique interval, we should only have a single combined metrics ID
@@ -1117,10 +1122,12 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	b.Cleanup(func() {
 		agg.Stop(context.Background())
 	})
+	cmID, err := EncodeToCombinedMetricsKeyID("ab01")
+	require.NoError(b, err)
 	cmk := CombinedMetricsKey{
 		Interval:       aggIvl,
 		ProcessingTime: time.Now().Truncate(aggIvl),
-		ID:             "ab01",
+		ID:             cmID,
 	}
 	kvs, err := EventToCombinedMetrics(
 		&modelpb.APMEvent{

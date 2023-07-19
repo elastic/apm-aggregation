@@ -12,45 +12,39 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
-func TestCombinedMetricsKey(t *testing.T) {
+func TestCombinedMetricsKeyIDCodec(t *testing.T) {
 	for _, tc := range []struct {
-		name   string
-		id     string
-		errStr string
+		name     string
+		expected string
+		errStr   string
 	}{
 		{
-			name: "smaller-length",
-			id:   "ab01",
+			name:     "smaller-length",
+			expected: "ab01",
 		},
 		{
-			name: "max-length",
-			id:   "e12f3634256b4c2aa780b8b0068f6b46",
+			name:     "max-length",
+			expected: "e12f3634256b4c2aa780b8b0068f6b46",
 		},
 		{
-			name:   "not-hex",
-			id:     "zzzz",
-			errStr: "failed to decode ID, ID must be hexadecimal string",
+			name:     "not-hex",
+			expected: "zzzz",
+			errStr:   "failed to decode ID, ID must be hexadecimal string",
 		},
 		{
-			name:   "too-large",
-			id:     "e12f3634256b4c2aa780b8b0068f6b4612",
-			errStr: "unexpected ID field, ID must be of max decoded length",
+			name:     "too-large",
+			expected: "e12f3634256b4c2aa780b8b0068f6b4612",
+			errStr:   "unexpected ID field, ID must be of max decoded length",
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			expected := CombinedMetricsKey{
-				Interval:       time.Minute,
-				ProcessingTime: time.Now().Truncate(time.Minute),
-				ID:             tc.id,
-			}
-			data := make([]byte, expected.SizeBinary())
-			err := expected.MarshalBinaryToSizedBuffer(data)
-
+			b, err := EncodeToCombinedMetricsKeyID(tc.expected)
 			if tc.errStr != "" {
 				assert.Error(t, err)
 				assert.ErrorContains(t, err, tc.errStr)
@@ -58,11 +52,24 @@ func TestCombinedMetricsKey(t *testing.T) {
 			}
 
 			assert.NoError(t, err)
-			var actual CombinedMetricsKey
-			assert.NoError(t, (&actual).UnmarshalBinary(data))
-			assert.Empty(t, cmp.Diff(expected, actual))
+			assert.Equal(t, tc.expected, DecodeFromCombinedMetricsKeyID(b))
 		})
 	}
+}
+
+func TestCombinedMetricsKey(t *testing.T) {
+	cmID, err := EncodeToCombinedMetricsKeyID("ab01")
+	require.NoError(t, err)
+	expected := CombinedMetricsKey{
+		Interval:       time.Minute,
+		ProcessingTime: time.Now().Truncate(time.Minute),
+		ID:             cmID,
+	}
+	data := make([]byte, expected.SizeBinary())
+	assert.NoError(t, expected.MarshalBinaryToSizedBuffer(data))
+	var actual CombinedMetricsKey
+	assert.NoError(t, (&actual).UnmarshalBinary(data))
+	assert.Empty(t, cmp.Diff(expected, actual))
 }
 
 func TestGlobalLabels(t *testing.T) {
