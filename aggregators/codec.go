@@ -26,28 +26,38 @@ import (
 // key in pebbledb. To ensure efficient sorting and time range based
 // query, the first 2 bytes of the encoded slice is the aggregation
 // interval, the next 8 bytes of the encoded slice is the processing time
-// slot of the combined metrics.
+// followed by combined metrics ID, the last 2 bytes is the partition ID.
+// The binary representation ensures that all entries are ordered by the
+// ID first and then ordered by the partition ID.
 func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	ivlSeconds := uint16(k.Interval.Seconds())
 	if len(data) < k.SizeBinary() {
 		return errors.New("sized buffer of insufficient length")
 	}
-	binary.BigEndian.PutUint16(data, ivlSeconds)
-	offset := 2
+	var offset int
+	binary.BigEndian.PutUint16(data[offset:], ivlSeconds)
+	offset += 2
+
 	binary.BigEndian.PutUint64(data[offset:], uint64(k.ProcessingTime.Unix()))
 	offset += 8
-	copy(data[offset:], k.ID)
+
+	offset += copy(data[offset:], k.ID)
+
+	binary.BigEndian.PutUint16(data[offset:], k.PartitionID)
 	return nil
 }
 
 // UnmarshalBinary will convert the byte encoded data into CombinedMetricsKey.
 func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
-	if len(data) < 10 {
+	if len(data) < 12 {
 		return errors.New("invalid encoded data of insufficient length")
 	}
-	k.Interval = time.Duration(binary.BigEndian.Uint16(data[:2])) * time.Second
+	k.Interval = time.Duration(binary.BigEndian.Uint16(data[0:2])) * time.Second
 	k.ProcessingTime = time.Unix(int64(binary.BigEndian.Uint64(data[2:10])), 0)
-	k.ID = string(data[10:])
+
+	partitionIDOffset := len(data) - 2
+	k.PartitionID = binary.BigEndian.Uint16(data[partitionIDOffset:])
+	k.ID = string(data[10:partitionIDOffset])
 	return nil
 }
 
@@ -56,8 +66,9 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 func (k *CombinedMetricsKey) SizeBinary() int {
 	// 2 bytes for interval encoding
 	// 8 bytes for timestamp encoding
-	// rest for encoding combined metrics ID
-	return 2 + 8 + len(k.ID)
+	// len of metrics ID bytes for encoding combined metrics ID
+	// 2 bytes for partition ID
+	return 2 + 8 + len(k.ID) + 2
 }
 
 // ToProto converts CombinedMetrics to its protobuf representation.

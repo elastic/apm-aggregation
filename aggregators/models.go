@@ -114,6 +114,7 @@ type Limits struct {
 type CombinedMetricsKey struct {
 	Interval       time.Duration
 	ProcessingTime time.Time
+	PartitionID    uint16
 	ID             string
 }
 
@@ -136,8 +137,9 @@ type CombinedMetrics struct {
 
 	// eventsTotal is the total number of individual events, including
 	// all overflows, that were aggregated for this combined metrics. It
-	// is used for internal monitoring purposes.
-	eventsTotal int64
+	// is used for internal monitoring purposes and is approximated when
+	// partitioning is enabled.
+	eventsTotal float64
 
 	// youngestEventTimestamp is the youngest event that was aggregated
 	// in the combined metrics based on the received timestamp.

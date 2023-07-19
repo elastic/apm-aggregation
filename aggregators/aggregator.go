@@ -67,7 +67,7 @@ type Aggregator struct {
 // Mostly useful for metrics which needs to be correlated with
 // harvest time metrics.
 type stats struct {
-	eventsTotal int64
+	eventsTotal float64
 }
 
 func (s *stats) merge(from stats) {
@@ -161,7 +161,7 @@ func (a *Aggregator) AggregateBatch(
 			totalBytesIn += int64(bytesIn)
 		}
 		cmStats := a.cachedStats[ivl][id]
-		cmStats.eventsTotal += int64(len(*b))
+		cmStats.eventsTotal += float64(len(*b))
 		a.cachedStats[ivl][id] = cmStats
 	}
 
@@ -350,15 +350,19 @@ func (a *Aggregator) aggregateAPMEvent(
 	cmk CombinedMetricsKey,
 	e *modelpb.APMEvent,
 ) (int, error) {
-	cm, err := EventToCombinedMetrics(e, cmk.Interval)
+	kvs, err := EventToCombinedMetrics(e, cmk, a.cfg.Partitioner)
 	if err != nil {
 		return 0, fmt.Errorf("failed to convert event to combined metrics: %w", err)
 	}
-	bytesIn, err := a.aggregate(ctx, cmk, cm)
-	if err != nil {
-		return bytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)
+	var totalBytesIn int
+	for cmk, cm := range kvs {
+		bytesIn, err := a.aggregate(ctx, cmk, *cm)
+		totalBytesIn += bytesIn
+		if err != nil {
+			return totalBytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)
+		}
 	}
-	return bytesIn, nil
+	return totalBytesIn, nil
 }
 
 // aggregate aggregates combined metrics for a given key and returns
@@ -563,7 +567,7 @@ func (a *Aggregator) harvestForInterval(
 }
 
 type harvestStats struct {
-	eventsTotal            int64
+	eventsTotal            float64
 	youngestEventTimestamp time.Time
 }
 

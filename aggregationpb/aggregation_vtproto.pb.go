@@ -62,9 +62,10 @@ func (m *CombinedMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		dAtA[i] = 0x28
 	}
 	if m.EventsTotal != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.EventsTotal))
+		i -= 8
+		binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.EventsTotal))))
 		i--
-		dAtA[i] = 0x20
+		dAtA[i] = 0x21
 	}
 	if len(m.OverflowServiceInstancesEstimator) > 0 {
 		i -= len(m.OverflowServiceInstancesEstimator)
@@ -1789,7 +1790,7 @@ func (m *CombinedMetrics) SizeVT() (n int) {
 		n += 1 + l + sov(uint64(l))
 	}
 	if m.EventsTotal != 0 {
-		n += 1 + sov(uint64(m.EventsTotal))
+		n += 9
 	}
 	if m.YoungestEventTimestamp != 0 {
 		n += 1 + sov(uint64(m.YoungestEventTimestamp))
@@ -2431,24 +2432,16 @@ func (m *CombinedMetrics) UnmarshalVT(dAtA []byte) error {
 			}
 			iNdEx = postIndex
 		case 4:
-			if wireType != 0 {
+			if wireType != 1 {
 				return fmt.Errorf("proto: wrong wireType = %d for field EventsTotal", wireType)
 			}
-			m.EventsTotal = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.EventsTotal |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
+			var v uint64
+			if (iNdEx + 8) > l {
+				return io.ErrUnexpectedEOF
 			}
+			v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
+			iNdEx += 8
+			m.EventsTotal = float64(math.Float64frombits(v))
 		case 5:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field YoungestEventTimestamp", wireType)

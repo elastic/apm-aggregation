@@ -35,86 +35,135 @@ func setMetricCountBasedOnOutcome(stm *ServiceTransactionMetrics, from *modelpb.
 	}
 }
 
-// EventToCombinedMetrics converts APMEvent to CombinedMetrics.
+// EventToCombinedMetrics converts APMEvent to one or more CombinedMetrics.
+// If an event results in multiple metrics, they may be spread across different partitions.
+//
+// EventToCombinedMetrics will never produce overflow metrics, as it applies to a single APMEvent.
 func EventToCombinedMetrics(
 	e *modelpb.APMEvent,
-	aggInterval time.Duration,
-) (CombinedMetrics, error) {
-	var (
-		cm  CombinedMetrics
-		sim ServiceInstanceMetrics
-	)
+	unpartitionedKey CombinedMetricsKey,
+	partitioner Partitioner,
+) (map[CombinedMetricsKey]*CombinedMetrics, error) {
+	var gl GlobalLabels
+	gl.fromLabelsAndNumericLabels(e.Labels, e.NumericLabels)
+	gls, err := gl.MarshalString()
+	if err != nil {
+		return nil, err
+	}
 
-	cm.eventsTotal = 1 // combined metrics is representing a single APM event
-	cm.youngestEventTimestamp = e.GetEvent().GetReceived().AsTime()
+	kvs := make(map[CombinedMetricsKey]*CombinedMetrics)
+	svcKey := serviceKey(e, unpartitionedKey.Interval)
+	svcInstanceKey := ServiceInstanceAggregationKey{GlobalLabelsStr: gls}
+	hasher := Hasher{}.Chain(svcKey).Chain(svcInstanceKey)
+
+	setCombinedMetrics := func(k CombinedMetricsKey, sim ServiceInstanceMetrics) {
+		cm, ok := kvs[k]
+		if !ok {
+			cm = &CombinedMetrics{
+				Services: map[ServiceAggregationKey]ServiceMetrics{
+					svcKey: ServiceMetrics{
+						ServiceInstanceGroups: map[ServiceInstanceAggregationKey]ServiceInstanceMetrics{},
+					},
+				},
+			}
+			kvs[k] = cm
+		}
+		svcInstanceM := cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey]
+		for k, v := range sim.TransactionGroups {
+			if svcInstanceM.TransactionGroups == nil {
+				svcInstanceM.TransactionGroups = make(map[TransactionAggregationKey]TransactionMetrics)
+			}
+			svcInstanceM.TransactionGroups[k] = v
+		}
+		for k, v := range sim.ServiceTransactionGroups {
+			if svcInstanceM.ServiceTransactionGroups == nil {
+				svcInstanceM.ServiceTransactionGroups = make(map[ServiceTransactionAggregationKey]ServiceTransactionMetrics)
+			}
+			svcInstanceM.ServiceTransactionGroups[k] = v
+		}
+		for k, v := range sim.SpanGroups {
+			if svcInstanceM.SpanGroups == nil {
+				svcInstanceM.SpanGroups = make(map[SpanAggregationKey]SpanMetrics)
+			}
+			svcInstanceM.SpanGroups[k] = v
+		}
+		cm.Services[svcKey].ServiceInstanceGroups[svcInstanceKey] = svcInstanceM
+	}
 
 	processor := e.GetProcessor()
 	switch {
 	case processor.IsTransaction():
 		repCount := e.GetTransaction().GetRepresentativeCount()
 		if repCount <= 0 {
-			return cm, nil
+			return nil, nil
 		}
 		tm := newTransactionMetrics()
-		stm := newServiceTransactionMetrics()
 		tm.Histogram.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
-		stm.Histogram.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
+		txnKey := transactionKey(e)
+		cmk := unpartitionedKey
+		cmk.PartitionID = partitioner.Partition(hasher.Chain(txnKey).Sum())
+		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+			TransactionGroups: map[TransactionAggregationKey]TransactionMetrics{txnKey: tm},
+		})
 
+		stm := newServiceTransactionMetrics()
+		stm.Histogram.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
 		setMetricCountBasedOnOutcome(&stm, e)
-		sim.TransactionGroups = map[TransactionAggregationKey]TransactionMetrics{
-			transactionKey(e): tm,
-		}
-		sim.ServiceTransactionGroups = map[ServiceTransactionAggregationKey]ServiceTransactionMetrics{
-			serviceTransactionKey(e): stm,
-		}
+		svcTxnKey := serviceTransactionKey(e)
+		cmk.PartitionID = partitioner.Partition(hasher.Chain(svcTxnKey).Sum())
+		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+			ServiceTransactionGroups: map[ServiceTransactionAggregationKey]ServiceTransactionMetrics{svcTxnKey: stm},
+		})
+
 		// Handle dropped span stats
-		dss := e.GetTransaction().GetDroppedSpansStats()
-		var spanGroups map[SpanAggregationKey]SpanMetrics
-		if len(dss) > 0 {
-			spanGroups = make(map[SpanAggregationKey]SpanMetrics, len(dss))
-			for _, ds := range dss {
-				spanGroups[droppedSpanStatsKey(ds)] = SpanMetrics{
-					Count: float64(ds.GetDuration().GetCount()) * repCount,
-					Sum:   float64(ds.GetDuration().GetSum().AsDuration()) * repCount,
-				}
-			}
-			sim.SpanGroups = spanGroups
+		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
+			dssKey := droppedSpanStatsKey(dss)
+			cmk.PartitionID = partitioner.Partition(hasher.Chain(dssKey).Sum())
+			setCombinedMetrics(cmk, ServiceInstanceMetrics{
+				SpanGroups: map[SpanAggregationKey]SpanMetrics{
+					dssKey: SpanMetrics{
+						Count: float64(dss.GetDuration().GetCount()) * repCount,
+						Sum:   float64(dss.GetDuration().GetSum().AsDuration()) * repCount,
+					},
+				},
+			})
 		}
 	case processor.IsSpan():
 		target := e.GetService().GetTarget()
 		repCount := e.GetSpan().GetRepresentativeCount()
 		destSvc := e.GetSpan().GetDestinationService().GetResource()
 		if repCount <= 0 || (target == nil && destSvc == "") {
-			return cm, nil
+			return nil, nil
 		}
-		var count uint32
-		count = 1
+
+		var count uint32 = 1
 		duration := e.GetEvent().GetDuration().AsDuration()
-		composite := e.GetSpan().GetComposite()
-		if composite != nil {
+		if composite := e.GetSpan().GetComposite(); composite != nil {
 			count = composite.GetCount()
 			duration = time.Duration(composite.GetSum() * float64(time.Millisecond))
 		}
-		sim.SpanGroups = map[SpanAggregationKey]SpanMetrics{
-			spanKey(e): SpanMetrics{
-				Count: float64(count) * repCount,
-				Sum:   float64(duration) * repCount,
+		spanKey := spanKey(e)
+		cmk := unpartitionedKey
+		cmk.PartitionID = partitioner.Partition(hasher.Chain(spanKey).Sum())
+		setCombinedMetrics(cmk, ServiceInstanceMetrics{
+			SpanGroups: map[SpanAggregationKey]SpanMetrics{
+				spanKey: SpanMetrics{
+					Count: float64(count) * repCount,
+					Sum:   float64(duration) * repCount,
+				},
 			},
-		}
+		})
 	}
 
-	var gl GlobalLabels
-	gl.fromLabelsAndNumericLabels(e.GetLabels(), e.GetNumericLabels())
-	gls, err := gl.MarshalString()
-	if err != nil {
-		return CombinedMetrics{}, err
+	// Approximate events total by uniformly distributing the events total
+	// amongst the partitioned key values.
+	weightedEventsTotal := 1 / float64(len(kvs))
+	eventTS := e.GetEvent().GetReceived().AsTime()
+	for _, cm := range kvs {
+		cm.eventsTotal = weightedEventsTotal
+		cm.youngestEventTimestamp = eventTS
 	}
-	sm := newServiceMetrics()
-	sm.ServiceInstanceGroups[ServiceInstanceAggregationKey{GlobalLabelsStr: gls}] = sim
-	cm.Services = map[ServiceAggregationKey]ServiceMetrics{
-		serviceKey(e, aggInterval): sm,
-	}
-	return cm, nil
+	return kvs, nil
 }
 
 // CombinedMetricsToBatch converts CombinedMetrics to a batch of APMEvents.
