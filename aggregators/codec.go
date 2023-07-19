@@ -10,6 +10,7 @@ package aggregators
 import (
 	"bytes"
 	"encoding/binary"
+	"encoding/hex"
 	"errors"
 	"fmt"
 	"sort"
@@ -23,7 +24,7 @@ import (
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
-const maxSizeForCombinedMetricsKeyID = 32
+const maxSizeForCombinedMetricsKeyID = 16
 
 // MarshalBinaryToSizedBuffer will marshal the combined metrics key into
 // its binary representation. The encoded byte slice will be used as a
@@ -38,10 +39,14 @@ func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	if len(data) != k.SizeBinary() {
 		return errors.New("failed to marshal due to incorrect sized buffer")
 	}
-	if len(k.ID) > maxSizeForCombinedMetricsKeyID {
+	decodedID, err := hex.DecodeString(k.ID)
+	if err != nil {
+		return fmt.Errorf("failed to decode ID, ID must be hexadecimal string: %w", err)
+	}
+	if len(decodedID) > maxSizeForCombinedMetricsKeyID {
 		return fmt.Errorf(
-			"combined metrics key length cannot be greater than %d",
-			maxSizeForCombinedMetricsKeyID,
+			"unexpected ID field, ID must be of max decoded length %d: %w",
+			maxSizeForCombinedMetricsKeyID, err,
 		)
 	}
 	var offset int
@@ -53,11 +58,11 @@ func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	offset += 8
 
 	// Pad if projectID is of smaller length
-	padding := maxSizeForCombinedMetricsKeyID - len(k.ID)
+	padding := maxSizeForCombinedMetricsKeyID - len(decodedID)
 	for i := 0; i < padding; i++ {
 		data[offset+i] = '\x00'
 	}
-	copy(data[(offset+padding):], k.ID)
+	copy(data[(offset+padding):], decodedID)
 	offset += maxSizeForCombinedMetricsKeyID
 
 	binary.BigEndian.PutUint16(data[offset:], k.PartitionID)
@@ -76,7 +81,7 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 	k.ProcessingTime = time.Unix(int64(binary.BigEndian.Uint64(data[offset:offset+8])), 0)
 	offset += 8
 
-	k.ID = string(bytes.TrimLeft(
+	k.ID = hex.EncodeToString(bytes.TrimLeft(
 		data[offset:offset+maxSizeForCombinedMetricsKeyID], "\x00",
 	))
 	offset += maxSizeForCombinedMetricsKeyID

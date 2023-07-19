@@ -54,7 +54,7 @@ func TestAggregateBatch(t *testing.T) {
 	require.NoError(t, err)
 	mp := metric.NewMeterProvider(metric.WithReader(gatherer))
 
-	cmID := "testid"
+	cmID := "ab01"
 	txnDuration := 100 * time.Millisecond
 	uniqueEventCount := 100 // for each of txns and spans
 	uniqueServices := 10
@@ -585,7 +585,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 					defaultNumericLabels,
 				)
 				for i := 0; i < count; i++ {
-					err := agg.AggregateBatch(context.Background(), "testid", &modelpb.Batch{span})
+					err := agg.AggregateBatch(context.Background(), "ab01", &modelpb.Batch{span})
 					require.NoError(t, err)
 				}
 			}
@@ -637,7 +637,7 @@ func TestCombinedMetricsKeyOrdered(t *testing.T) {
 	before := CombinedMetricsKey{
 		ProcessingTime: ts.Truncate(time.Minute),
 		Interval:       ivl,
-		ID:             "cm01",
+		ID:             "ab01",
 	}
 	marshaledBufferSize := before.SizeBinary()
 	beforeBytes := make([]byte, marshaledBufferSize)
@@ -651,7 +651,7 @@ func TestCombinedMetricsKeyOrdered(t *testing.T) {
 			// combined metrics ID shouldn't matter. Keep length to be
 			// 5 to ensure it is within expected bounds of the
 			// sized buffer.
-			ID: fmt.Sprintf("cm%02d", rand.Intn(100)),
+			ID: fmt.Sprintf("ab%02d", rand.Intn(100)),
 		}
 		require.NoError(t, after.MarshalBinaryToSizedBuffer(afterBytes))
 		require.NoError(t, before.MarshalBinaryToSizedBuffer(beforeBytes))
@@ -680,7 +680,7 @@ func TestCombinedMetricsKeyOrderedByProjectID(t *testing.T) {
 	keys := make([]CombinedMetricsKey, 0, cmCount*pidCount)
 
 	for i := 0; i < cmCount; i++ {
-		cmID := fmt.Sprintf("cm%05d", i)
+		cmID := fmt.Sprintf("ab%06d", i)
 		for k := 0; k < pidCount; k++ {
 			key := keyTemplate
 			key.PartitionID = uint16(k)
@@ -788,7 +788,7 @@ func TestHarvest(t *testing.T) {
 	})
 	expectedMeasurements := make([]apmmodel.Metrics, 0, cmCount+(cmCount*len(ivls)))
 	for i := 0; i < cmCount; i++ {
-		cmID := fmt.Sprintf("testid%d", i)
+		cmID := fmt.Sprintf("ab0%d", i)
 		require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
@@ -894,7 +894,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 		WithAggregationIntervals([]time.Duration{time.Second}),
 	)
 	require.NoError(t, err)
-	require.NoError(t, agg.AggregateBatch(context.Background(), "test", &batch))
+	require.NoError(t, agg.AggregateBatch(context.Background(), "ab01", &batch))
 	require.NoError(t, agg.Stop(context.Background()))
 
 	expected := []*modelpb.APMEvent{
@@ -1030,7 +1030,7 @@ func TestRunStopOrchestration(t *testing.T) {
 	callAggregateBatch := func(agg *Aggregator) error {
 		return agg.AggregateBatch(
 			context.Background(),
-			"testid",
+			"ab01",
 			&modelpb.Batch{
 				&modelpb.APMEvent{
 					Processor: modelpb.TransactionProcessor(),
@@ -1120,7 +1120,7 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	cmk := CombinedMetricsKey{
 		Interval:       aggIvl,
 		ProcessingTime: time.Now().Truncate(aggIvl),
-		ID:             "testid",
+		ID:             "ab01",
 	}
 	kvs, err := EventToCombinedMetrics(
 		&modelpb.APMEvent{
@@ -1155,7 +1155,7 @@ func BenchmarkAggregateBatchSerial(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		if err := agg.AggregateBatch(context.Background(), "test", batch); err != nil {
+		if err := agg.AggregateBatch(context.Background(), "ab01", batch); err != nil {
 			b.Fatal(err)
 		}
 	}
@@ -1170,7 +1170,7 @@ func BenchmarkAggregateBatchParallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			if err := agg.AggregateBatch(context.Background(), "test", batch); err != nil {
+			if err := agg.AggregateBatch(context.Background(), "ab01", batch); err != nil {
 				b.Fatal(err)
 			}
 		}

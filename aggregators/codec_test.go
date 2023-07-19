@@ -18,17 +18,51 @@ import (
 )
 
 func TestCombinedMetricsKey(t *testing.T) {
-	expected := CombinedMetricsKey{
-		Interval:       time.Minute,
-		ProcessingTime: time.Now().Truncate(time.Minute),
-		ID:             "cm01",
-	}
-	data := make([]byte, expected.SizeBinary())
-	assert.NoError(t, expected.MarshalBinaryToSizedBuffer(data))
+	for _, tc := range []struct {
+		name   string
+		id     string
+		errStr string
+	}{
+		{
+			name: "smaller-length",
+			id:   "ab01",
+		},
+		{
+			name: "max-length",
+			id:   "e12f3634256b4c2aa780b8b0068f6b46",
+		},
+		{
+			name:   "not-hex",
+			id:     "zzzz",
+			errStr: "failed to decode ID, ID must be hexadecimal string",
+		},
+		{
+			name:   "too-large",
+			id:     "e12f3634256b4c2aa780b8b0068f6b4612",
+			errStr: "unexpected ID field, ID must be of max decoded length",
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			expected := CombinedMetricsKey{
+				Interval:       time.Minute,
+				ProcessingTime: time.Now().Truncate(time.Minute),
+				ID:             tc.id,
+			}
+			data := make([]byte, expected.SizeBinary())
+			err := expected.MarshalBinaryToSizedBuffer(data)
 
-	var actual CombinedMetricsKey
-	assert.NoError(t, (&actual).UnmarshalBinary(data))
-	assert.Empty(t, cmp.Diff(expected, actual))
+			if tc.errStr != "" {
+				assert.Error(t, err)
+				assert.ErrorContains(t, err, tc.errStr)
+				return
+			}
+
+			assert.NoError(t, err)
+			var actual CombinedMetricsKey
+			assert.NoError(t, (&actual).UnmarshalBinary(data))
+			assert.Empty(t, cmp.Diff(expected, actual))
+		})
+	}
 }
 
 func TestGlobalLabels(t *testing.T) {
