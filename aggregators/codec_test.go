@@ -12,58 +12,16 @@ import (
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
-func TestCombinedMetricsKeyIDCodec(t *testing.T) {
-	for _, tc := range []struct {
-		name     string
-		expected string
-		errStr   string
-	}{
-		{
-			name:     "smaller-length",
-			expected: "ab01",
-		},
-		{
-			name:     "max-length",
-			expected: "e12f3634256b4c2aa780b8b0068f6b46",
-		},
-		{
-			name:     "not-hex",
-			expected: "zzzz",
-			errStr:   "failed to decode ID, ID must be hexadecimal string",
-		},
-		{
-			name:     "too-large",
-			expected: "e12f3634256b4c2aa780b8b0068f6b4612",
-			errStr:   "unexpected ID field, ID must be of max decoded length",
-		},
-	} {
-		t.Run(tc.name, func(t *testing.T) {
-			b, err := EncodeToCombinedMetricsKeyID(tc.expected)
-			if tc.errStr != "" {
-				assert.Error(t, err)
-				assert.ErrorContains(t, err, tc.errStr)
-				return
-			}
-
-			assert.NoError(t, err)
-			assert.Equal(t, tc.expected, DecodeFromCombinedMetricsKeyID(b))
-		})
-	}
-}
-
 func TestCombinedMetricsKey(t *testing.T) {
-	cmID, err := EncodeToCombinedMetricsKeyID("ab01")
-	require.NoError(t, err)
 	expected := CombinedMetricsKey{
 		Interval:       time.Minute,
 		ProcessingTime: time.Now().Truncate(time.Minute),
-		ID:             cmID,
+		ID:             EncodeToCombinedMetricsKeyID(t, "ab01"),
 	}
 	data := make([]byte, expected.SizeBinary())
 	assert.NoError(t, expected.MarshalBinaryToSizedBuffer(data))
@@ -158,4 +116,13 @@ func BenchmarkCombinedMetricsDecoding(b *testing.B) {
 	for i := 0; i < b.N; i++ {
 		expected.FromProto(cmproto)
 	}
+}
+
+func EncodeToCombinedMetricsKeyID(tb testing.TB, s string) [16]byte {
+	var b [16]byte
+	if len(s) > len(b) {
+		tb.Fatal("invalid key length passed")
+	}
+	copy(b[len(b)-len(s):], s)
+	return b
 }

@@ -8,11 +8,8 @@ package aggregators
 // fields are properly set.
 
 import (
-	"bytes"
 	"encoding/binary"
-	"encoding/hex"
 	"errors"
-	"fmt"
 	"sort"
 	"time"
 
@@ -23,30 +20,6 @@ import (
 	"github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
 	"github.com/elastic/apm-data/model/modelpb"
 )
-
-// EncodeToCombinedMetricsKeyID encodes a given string to a byte array
-// of length 16, compatible with the requirements of CombinedMetricsKey.
-func EncodeToCombinedMetricsKeyID(s string) ([16]byte, error) {
-	var b [16]byte
-	decodedLen := hex.DecodedLen(len(s))
-	if decodedLen > len(b) {
-		return b, fmt.Errorf("unexpected ID field, ID must be of max decoded length %d", len(b))
-	}
-	// Add padding to accomodate smaller strings
-	padding := len(b) - decodedLen
-	for i := 0; i < padding; i++ {
-		b[i] = '\x00'
-	}
-	if _, err := hex.Decode(b[padding:], []byte(s)); err != nil {
-		return b, fmt.Errorf("failed to decode ID, ID must be hexadecimal string: %w", err)
-	}
-	return b, nil
-}
-
-// DecodeFromCombinedMetricsKeyID decodes a given byte array to string.
-func DecodeFromCombinedMetricsKeyID(b [16]byte) string {
-	return hex.EncodeToString(bytes.TrimLeft(b[:], "\x00"))
-}
 
 // MarshalBinaryToSizedBuffer will marshal the combined metrics key into
 // its binary representation. The encoded byte slice will be used as a
