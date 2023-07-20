@@ -12,19 +12,13 @@ import (
 	"github.com/cespare/xxhash/v2"
 )
 
-type testHashable func(xxhash.Digest) xxhash.Digest
-
-func (f testHashable) Hash(h xxhash.Digest) xxhash.Digest {
-	return f(h)
-}
-
 func TestHasher(t *testing.T) {
 	a := Hasher{}
-	b := a.Chain(testHashable(func(h xxhash.Digest) xxhash.Digest {
+	b := a.Chain(HashableFunc(func(h xxhash.Digest) xxhash.Digest {
 		h.WriteString("1")
 		return h
 	}))
-	c := a.Chain(testHashable(func(h xxhash.Digest) xxhash.Digest {
+	c := a.Chain(HashableFunc(func(h xxhash.Digest) xxhash.Digest {
 		h.WriteString("1")
 		return h
 	}))

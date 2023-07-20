@@ -90,8 +90,10 @@ func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 		ksm.Metrics = m.ToProto()
 		pb.ServiceMetrics = append(pb.ServiceMetrics, ksm)
 	}
-	pb.OverflowServices = m.OverflowServices.ToProto()
-	pb.OverflowServiceInstancesEstimator = hllBytes(m.OverflowServiceInstancesEstimator)
+	if pb.OverflowServiceInstancesEstimator != nil {
+		pb.OverflowServices = m.OverflowServices.ToProto()
+		pb.OverflowServiceInstancesEstimator = hllBytes(m.OverflowServiceInstancesEstimator)
+	}
 	pb.EventsTotal = m.eventsTotal
 	pb.YoungestEventTimestamp = timestamppb.TimeToPBTimestamp(m.youngestEventTimestamp)
 	return pb
@@ -109,8 +111,8 @@ func (m *CombinedMetrics) FromProto(pb *aggregationpb.CombinedMetrics) {
 	}
 	if pb.OverflowServices != nil {
 		m.OverflowServices.FromProto(pb.OverflowServices)
+		m.OverflowServiceInstancesEstimator = hllSketch(pb.OverflowServiceInstancesEstimator)
 	}
-	m.OverflowServiceInstancesEstimator = hllSketch(pb.OverflowServiceInstancesEstimator)
 	m.eventsTotal = pb.EventsTotal
 	m.youngestEventTimestamp = timestamppb.PBTimestampToTime(pb.YoungestEventTimestamp)
 }
@@ -179,7 +181,9 @@ func (m *ServiceMetrics) FromProto(pb *aggregationpb.ServiceMetrics) {
 		v.FromProto(ksim.Metrics)
 		m.ServiceInstanceGroups[k] = v
 	}
-	m.OverflowGroups.FromProto(pb.OverflowGroups)
+	if pb.OverflowGroups != nil {
+		m.OverflowGroups.FromProto(pb.OverflowGroups)
+	}
 }
 
 // ToProto converts ServiceInstanceAggregationKey to its protobuf representation.
@@ -467,23 +471,35 @@ func (m *SpanMetrics) FromProto(pb *aggregationpb.SpanMetrics) {
 // ToProto converts Overflow to its protobuf representation.
 func (o *Overflow) ToProto() *aggregationpb.Overflow {
 	pb := aggregationpb.OverflowFromVTPool()
-	pb.OverflowTransactions = o.OverflowTransaction.Metrics.ToProto()
-	pb.OverflowServiceTransactions = o.OverflowServiceTransaction.Metrics.ToProto()
-	pb.OverflowSpans = o.OverflowSpan.Metrics.ToProto()
-	pb.OverflowTransactionsEstimator = hllBytes(o.OverflowTransaction.Estimator)
-	pb.OverflowServiceTransactionsEstimator = hllBytes(o.OverflowServiceTransaction.Estimator)
-	pb.OverflowSpansEstimator = hllBytes(o.OverflowSpan.Estimator)
+	if !o.OverflowTransaction.Empty() {
+		pb.OverflowTransactions = o.OverflowTransaction.Metrics.ToProto()
+		pb.OverflowTransactionsEstimator = hllBytes(o.OverflowTransaction.Estimator)
+	}
+	if !o.OverflowServiceTransaction.Empty() {
+		pb.OverflowServiceTransactions = o.OverflowServiceTransaction.Metrics.ToProto()
+		pb.OverflowServiceTransactionsEstimator = hllBytes(o.OverflowServiceTransaction.Estimator)
+	}
+	if !o.OverflowSpan.Empty() {
+		pb.OverflowSpans = o.OverflowSpan.Metrics.ToProto()
+		pb.OverflowSpansEstimator = hllBytes(o.OverflowSpan.Estimator)
+	}
 	return pb
 }
 
 // FromProto converts protobuf representation to Overflow.
 func (o *Overflow) FromProto(pb *aggregationpb.Overflow) {
-	o.OverflowTransaction.Metrics.FromProto(pb.OverflowTransactions)
-	o.OverflowServiceTransaction.Metrics.FromProto(pb.OverflowServiceTransactions)
-	o.OverflowSpan.Metrics.FromProto(pb.OverflowSpans)
-	o.OverflowTransaction.Estimator = hllSketch(pb.OverflowTransactionsEstimator)
-	o.OverflowServiceTransaction.Estimator = hllSketch(pb.OverflowServiceTransactionsEstimator)
-	o.OverflowSpan.Estimator = hllSketch(pb.OverflowSpansEstimator)
+	if pb.OverflowTransactions != nil {
+		o.OverflowTransaction.Metrics.FromProto(pb.OverflowTransactions)
+		o.OverflowTransaction.Estimator = hllSketch(pb.OverflowTransactionsEstimator)
+	}
+	if pb.OverflowServiceTransactions != nil {
+		o.OverflowServiceTransaction.Metrics.FromProto(pb.OverflowServiceTransactions)
+		o.OverflowServiceTransaction.Estimator = hllSketch(pb.OverflowServiceTransactionsEstimator)
+	}
+	if pb.OverflowSpans != nil {
+		o.OverflowSpan.Metrics.FromProto(pb.OverflowSpans)
+		o.OverflowSpan.Estimator = hllSketch(pb.OverflowSpansEstimator)
+	}
 }
 
 // ToProto converts GlobalLabels to its protobuf representation.

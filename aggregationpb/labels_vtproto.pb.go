@@ -15,6 +15,7 @@ import (
 	math "math"
 	sync "sync"
 
+	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
@@ -24,6 +25,84 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+func (m *GlobalLabels) CloneVT() *GlobalLabels {
+	if m == nil {
+		return (*GlobalLabels)(nil)
+	}
+	r := &GlobalLabels{}
+	if rhs := m.Labels; rhs != nil {
+		tmpContainer := make([]*Label, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Labels = tmpContainer
+	}
+	if rhs := m.NumericLabels; rhs != nil {
+		tmpContainer := make([]*NumericLabel, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.NumericLabels = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *GlobalLabels) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *Label) CloneVT() *Label {
+	if m == nil {
+		return (*Label)(nil)
+	}
+	r := &Label{
+		Key:   m.Key,
+		Value: m.Value,
+	}
+	if rhs := m.Values; rhs != nil {
+		tmpContainer := make([]string, len(rhs))
+		copy(tmpContainer, rhs)
+		r.Values = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *Label) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *NumericLabel) CloneVT() *NumericLabel {
+	if m == nil {
+		return (*NumericLabel)(nil)
+	}
+	r := &NumericLabel{
+		Key:   m.Key,
+		Value: m.Value,
+	}
+	if rhs := m.Values; rhs != nil {
+		tmpContainer := make([]float64, len(rhs))
+		copy(tmpContainer, rhs)
+		r.Values = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *NumericLabel) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
 
 func (m *GlobalLabels) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {

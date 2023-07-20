@@ -16,6 +16,7 @@ import (
 	bits "math/bits"
 	sync "sync"
 
+	proto "google.golang.org/protobuf/proto"
 	protoimpl "google.golang.org/protobuf/runtime/protoimpl"
 )
 
@@ -25,6 +26,470 @@ const (
 	// Verify that runtime/protoimpl is sufficiently up-to-date.
 	_ = protoimpl.EnforceVersion(protoimpl.MaxVersion - 20)
 )
+
+func (m *CombinedMetrics) CloneVT() *CombinedMetrics {
+	if m == nil {
+		return (*CombinedMetrics)(nil)
+	}
+	r := &CombinedMetrics{
+		OverflowServices:       m.OverflowServices.CloneVT(),
+		EventsTotal:            m.EventsTotal,
+		YoungestEventTimestamp: m.YoungestEventTimestamp,
+	}
+	if rhs := m.ServiceMetrics; rhs != nil {
+		tmpContainer := make([]*KeyedServiceMetrics, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.ServiceMetrics = tmpContainer
+	}
+	if rhs := m.OverflowServiceInstancesEstimator; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.OverflowServiceInstancesEstimator = tmpBytes
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *CombinedMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *KeyedServiceMetrics) CloneVT() *KeyedServiceMetrics {
+	if m == nil {
+		return (*KeyedServiceMetrics)(nil)
+	}
+	r := &KeyedServiceMetrics{
+		Key:     m.Key.CloneVT(),
+		Metrics: m.Metrics.CloneVT(),
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *KeyedServiceMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *ServiceAggregationKey) CloneVT() *ServiceAggregationKey {
+	if m == nil {
+		return (*ServiceAggregationKey)(nil)
+	}
+	r := &ServiceAggregationKey{
+		Timestamp:           m.Timestamp,
+		ServiceName:         m.ServiceName,
+		ServiceEnvironment:  m.ServiceEnvironment,
+		ServiceLanguageName: m.ServiceLanguageName,
+		AgentName:           m.AgentName,
+	}
+	if rhs := m.GlobalLabelsStr; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.GlobalLabelsStr = tmpBytes
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *ServiceAggregationKey) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *ServiceMetrics) CloneVT() *ServiceMetrics {
+	if m == nil {
+		return (*ServiceMetrics)(nil)
+	}
+	r := &ServiceMetrics{
+		OverflowGroups: m.OverflowGroups.CloneVT(),
+	}
+	if rhs := m.ServiceInstanceMetrics; rhs != nil {
+		tmpContainer := make([]*KeyedServiceInstanceMetrics, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.ServiceInstanceMetrics = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *ServiceMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *ServiceInstanceAggregationKey) CloneVT() *ServiceInstanceAggregationKey {
+	if m == nil {
+		return (*ServiceInstanceAggregationKey)(nil)
+	}
+	r := &ServiceInstanceAggregationKey{}
+	if rhs := m.GlobalLabelsStr; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.GlobalLabelsStr = tmpBytes
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *ServiceInstanceAggregationKey) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *ServiceInstanceMetrics) CloneVT() *ServiceInstanceMetrics {
+	if m == nil {
+		return (*ServiceInstanceMetrics)(nil)
+	}
+	r := &ServiceInstanceMetrics{}
+	if rhs := m.TransactionMetrics; rhs != nil {
+		tmpContainer := make([]*KeyedTransactionMetrics, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.TransactionMetrics = tmpContainer
+	}
+	if rhs := m.ServiceTransactionMetrics; rhs != nil {
+		tmpContainer := make([]*KeyedServiceTransactionMetrics, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.ServiceTransactionMetrics = tmpContainer
+	}
+	if rhs := m.SpanMetrics; rhs != nil {
+		tmpContainer := make([]*KeyedSpanMetrics, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.SpanMetrics = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *ServiceInstanceMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *KeyedServiceInstanceMetrics) CloneVT() *KeyedServiceInstanceMetrics {
+	if m == nil {
+		return (*KeyedServiceInstanceMetrics)(nil)
+	}
+	r := &KeyedServiceInstanceMetrics{
+		Key:     m.Key.CloneVT(),
+		Metrics: m.Metrics.CloneVT(),
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *KeyedServiceInstanceMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *KeyedTransactionMetrics) CloneVT() *KeyedTransactionMetrics {
+	if m == nil {
+		return (*KeyedTransactionMetrics)(nil)
+	}
+	r := &KeyedTransactionMetrics{
+		Key:     m.Key.CloneVT(),
+		Metrics: m.Metrics.CloneVT(),
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *KeyedTransactionMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *TransactionAggregationKey) CloneVT() *TransactionAggregationKey {
+	if m == nil {
+		return (*TransactionAggregationKey)(nil)
+	}
+	r := &TransactionAggregationKey{
+		TraceRoot:              m.TraceRoot,
+		ContainerId:            m.ContainerId,
+		KubernetesPodName:      m.KubernetesPodName,
+		ServiceVersion:         m.ServiceVersion,
+		ServiceNodeName:        m.ServiceNodeName,
+		ServiceRuntimeName:     m.ServiceRuntimeName,
+		ServiceRuntimeVersion:  m.ServiceRuntimeVersion,
+		ServiceLanguageVersion: m.ServiceLanguageVersion,
+		HostHostname:           m.HostHostname,
+		HostName:               m.HostName,
+		HostOsPlatform:         m.HostOsPlatform,
+		EventOutcome:           m.EventOutcome,
+		TransactionName:        m.TransactionName,
+		TransactionType:        m.TransactionType,
+		TransactionResult:      m.TransactionResult,
+		FaasColdstart:          m.FaasColdstart,
+		FaasId:                 m.FaasId,
+		FaasName:               m.FaasName,
+		FaasVersion:            m.FaasVersion,
+		FaasTriggerType:        m.FaasTriggerType,
+		CloudProvider:          m.CloudProvider,
+		CloudRegion:            m.CloudRegion,
+		CloudAvailabilityZone:  m.CloudAvailabilityZone,
+		CloudServiceName:       m.CloudServiceName,
+		CloudAccountId:         m.CloudAccountId,
+		CloudAccountName:       m.CloudAccountName,
+		CloudMachineType:       m.CloudMachineType,
+		CloudProjectId:         m.CloudProjectId,
+		CloudProjectName:       m.CloudProjectName,
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *TransactionAggregationKey) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *TransactionMetrics) CloneVT() *TransactionMetrics {
+	if m == nil {
+		return (*TransactionMetrics)(nil)
+	}
+	r := &TransactionMetrics{
+		Histogram: m.Histogram.CloneVT(),
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *TransactionMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *KeyedServiceTransactionMetrics) CloneVT() *KeyedServiceTransactionMetrics {
+	if m == nil {
+		return (*KeyedServiceTransactionMetrics)(nil)
+	}
+	r := &KeyedServiceTransactionMetrics{
+		Key:     m.Key.CloneVT(),
+		Metrics: m.Metrics.CloneVT(),
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *KeyedServiceTransactionMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *ServiceTransactionAggregationKey) CloneVT() *ServiceTransactionAggregationKey {
+	if m == nil {
+		return (*ServiceTransactionAggregationKey)(nil)
+	}
+	r := &ServiceTransactionAggregationKey{
+		TransactionType: m.TransactionType,
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *ServiceTransactionAggregationKey) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *ServiceTransactionMetrics) CloneVT() *ServiceTransactionMetrics {
+	if m == nil {
+		return (*ServiceTransactionMetrics)(nil)
+	}
+	r := &ServiceTransactionMetrics{
+		Histogram:    m.Histogram.CloneVT(),
+		FailureCount: m.FailureCount,
+		SuccessCount: m.SuccessCount,
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *ServiceTransactionMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *KeyedSpanMetrics) CloneVT() *KeyedSpanMetrics {
+	if m == nil {
+		return (*KeyedSpanMetrics)(nil)
+	}
+	r := &KeyedSpanMetrics{
+		Key:     m.Key.CloneVT(),
+		Metrics: m.Metrics.CloneVT(),
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *KeyedSpanMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *SpanAggregationKey) CloneVT() *SpanAggregationKey {
+	if m == nil {
+		return (*SpanAggregationKey)(nil)
+	}
+	r := &SpanAggregationKey{
+		SpanName:   m.SpanName,
+		Outcome:    m.Outcome,
+		TargetType: m.TargetType,
+		TargetName: m.TargetName,
+		Resource:   m.Resource,
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *SpanAggregationKey) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *SpanMetrics) CloneVT() *SpanMetrics {
+	if m == nil {
+		return (*SpanMetrics)(nil)
+	}
+	r := &SpanMetrics{
+		Count: m.Count,
+		Sum:   m.Sum,
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *SpanMetrics) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *CountValue) CloneVT() *CountValue {
+	if m == nil {
+		return (*CountValue)(nil)
+	}
+	r := &CountValue{
+		Count: m.Count,
+		Value: m.Value,
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *CountValue) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *HDRHistogram) CloneVT() *HDRHistogram {
+	if m == nil {
+		return (*HDRHistogram)(nil)
+	}
+	r := &HDRHistogram{
+		LowestTrackableValue:  m.LowestTrackableValue,
+		HighestTrackableValue: m.HighestTrackableValue,
+		SignificantFigures:    m.SignificantFigures,
+	}
+	if rhs := m.Counts; rhs != nil {
+		tmpContainer := make([]int64, len(rhs))
+		copy(tmpContainer, rhs)
+		r.Counts = tmpContainer
+	}
+	if rhs := m.Buckets; rhs != nil {
+		tmpContainer := make([]int32, len(rhs))
+		copy(tmpContainer, rhs)
+		r.Buckets = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *HDRHistogram) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *Overflow) CloneVT() *Overflow {
+	if m == nil {
+		return (*Overflow)(nil)
+	}
+	r := &Overflow{
+		OverflowTransactions:        m.OverflowTransactions.CloneVT(),
+		OverflowServiceTransactions: m.OverflowServiceTransactions.CloneVT(),
+		OverflowSpans:               m.OverflowSpans.CloneVT(),
+	}
+	if rhs := m.OverflowTransactionsEstimator; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.OverflowTransactionsEstimator = tmpBytes
+	}
+	if rhs := m.OverflowServiceTransactionsEstimator; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.OverflowServiceTransactionsEstimator = tmpBytes
+	}
+	if rhs := m.OverflowSpansEstimator; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.OverflowSpansEstimator = tmpBytes
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *Overflow) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
 
 func (m *CombinedMetrics) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
