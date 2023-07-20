@@ -7,7 +7,6 @@ package aggregators
 import (
 	"errors"
 	"fmt"
-	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"math"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	tspb "github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
+	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 

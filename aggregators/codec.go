@@ -10,7 +10,6 @@ package aggregators
 import (
 	"encoding/binary"
 	"errors"
-	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"sort"
 	"time"
 
@@ -19,6 +18,7 @@ import (
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
+	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
