@@ -93,7 +93,7 @@ func (m *cachedEventsMap) loadAndDelete(end time.Time) map[time.Duration]map[[16
 		value := float64(vscaled / math.MaxUint16)
 		intervalMetrics[key.id] = value
 		m.m.Delete(k)
-		m.countPool.Put(vscaled)
+		m.countPool.Put(v)
 		return true
 	})
 	return loaded
