@@ -31,7 +31,7 @@ type Processor func(
 // Partitioner partitions the aggregation key based on the configured
 // partition logic.
 type Partitioner interface {
-	Partition(uint64) uint16
+	Partition(Hasher) uint16
 }
 
 // Config contains the required config for running the aggregator.
