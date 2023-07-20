@@ -447,21 +447,3 @@ type GlobalLabels struct {
 	Labels        modelpb.Labels
 	NumericLabels modelpb.NumericLabels
 }
-
-func (gl *GlobalLabels) fromLabelsAndNumericLabels(labels modelpb.Labels, numericLabels modelpb.NumericLabels) {
-	gl.Labels = make(modelpb.Labels)
-	for k, v := range labels {
-		if !v.Global {
-			continue
-		}
-		gl.Labels[k] = v
-	}
-
-	gl.NumericLabels = make(modelpb.NumericLabels)
-	for k, v := range numericLabels {
-		if !v.Global {
-			continue
-		}
-		gl.NumericLabels[k] = v
-	}
-}

@@ -155,7 +155,7 @@ func TestAggregateBatch(t *testing.T) {
 		{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 149750},
+				"aggregator.bytes.ingested": {Value: 133750},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -788,7 +788,7 @@ func TestHarvest(t *testing.T) {
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 318},
+				"aggregator.bytes.ingested": {Value: 270},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -1080,7 +1080,6 @@ func TestRunStopOrchestration(t *testing.T) {
 }
 
 func BenchmarkAggregateCombinedMetrics(b *testing.B) {
-	b.ReportAllocs()
 	gatherer, err := apmotel.NewGatherer()
 	if err != nil {
 		b.Fatal(err)
@@ -1117,28 +1116,28 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 		ProcessingTime: time.Now().Truncate(aggIvl),
 		ID:             EncodeToCombinedMetricsKeyID(b, "ab01"),
 	}
-	kvs, err := EventToCombinedMetrics(
-		&modelpb.APMEvent{
-			Event: &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
-			Transaction: &modelpb.Transaction{
-				Name:                "T-1000",
-				Type:                "type",
-				RepresentativeCount: 1,
-			},
-		},
-		cmk, NewHashPartitioner(1),
-	)
-	if err != nil {
-		b.Fatal(err)
-	}
+	cm := (*CombinedMetrics)(createTestCombinedMetrics(withEventsTotal(1)).
+		addServiceTransaction(
+			time.Now(),
+			"test-svc",
+			"",
+			testServiceTransaction{txnType: "txntype", count: 1},
+		).
+		addTransaction(
+			time.Now(),
+			"test-svc",
+			"",
+			testTransaction{txnName: "txntest", txnType: "txntype", count: 1},
+		),
+	).ToProto()
+	b.Cleanup(func() { cm.ReturnToVTPool() })
 	ctx, cancel := context.WithCancel(context.Background())
 	b.Cleanup(func() { cancel() })
+	b.ReportAllocs()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		for cmk, cm := range kvs {
-			if err := agg.AggregateCombinedMetrics(ctx, cmk, *cm); err != nil {
-				b.Fatal(err)
-			}
+		if err := agg.AggregateCombinedMetrics(ctx, cmk, cm); err != nil {
+			b.Fatal(err)
 		}
 	}
 }

@@ -534,6 +534,8 @@ type testSpan struct {
 	spanName            string
 	destinationResource string
 	targetName          string
+	targetType          string
+	outcome             string
 	count               int
 }
 
@@ -557,7 +559,9 @@ func spanKeyFromTestSpan(span testSpan) SpanAggregationKey {
 	return SpanAggregationKey{
 		SpanName:   span.spanName,
 		TargetName: span.targetName,
+		TargetType: span.targetType,
 		Resource:   span.destinationResource,
+		Outcome:    span.outcome,
 	}
 }
 

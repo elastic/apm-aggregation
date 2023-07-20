@@ -20,6 +20,7 @@ import (
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
 
+	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/telemetry"
 	"github.com/elastic/apm-data/model/modelpb"
 )
@@ -224,7 +225,7 @@ func (a *Aggregator) AggregateBatch(
 func (a *Aggregator) AggregateCombinedMetrics(
 	ctx context.Context,
 	cmk CombinedMetricsKey,
-	cm CombinedMetrics,
+	cm *aggregationpb.CombinedMetrics,
 ) error {
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(cmk.ID)
 	traceAttrs := append(append([]attribute.KeyValue{}, cmIDAttrs...),
@@ -245,8 +246,7 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	}
 
 	bytesIn, err := a.aggregate(ctx, cmk, cm)
-
-	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.eventsTotal)
+	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
 
 	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
 	cmIDAttrSet := attribute.NewSet(cmIDAttrs...)
@@ -372,17 +372,15 @@ func (a *Aggregator) aggregateAPMEvent(
 	cmk CombinedMetricsKey,
 	e *modelpb.APMEvent,
 ) (int, error) {
-	kvs, err := EventToCombinedMetrics(e, cmk, a.cfg.Partitioner)
-	if err != nil {
-		return 0, fmt.Errorf("failed to convert event to combined metrics: %w", err)
-	}
 	var totalBytesIn int
-	for cmk, cm := range kvs {
-		bytesIn, err := a.aggregate(ctx, cmk, *cm)
+	aggregateFunc := func(k CombinedMetricsKey, m *aggregationpb.CombinedMetrics) error {
+		bytesIn, err := a.aggregate(ctx, k, m)
 		totalBytesIn += bytesIn
-		if err != nil {
-			return totalBytesIn, fmt.Errorf("failed to aggregate combined metrics: %w", err)
-		}
+		return err
+	}
+	err := EventToCombinedMetrics(e, cmk, a.cfg.Partitioner, aggregateFunc)
+	if err != nil {
+		return 0, fmt.Errorf("failed to aggregate combined metrics: %w", err)
 	}
 	return totalBytesIn, nil
 }
@@ -392,29 +390,26 @@ func (a *Aggregator) aggregateAPMEvent(
 func (a *Aggregator) aggregate(
 	ctx context.Context,
 	cmk CombinedMetricsKey,
-	cm CombinedMetrics,
+	cm *aggregationpb.CombinedMetrics,
 ) (int, error) {
-	cmproto := cm.ToProto()
-	defer cmproto.ReturnToVTPool()
-
 	if a.batch == nil {
 		// Batch is backed by a sync pool. After each commit we will release the batch
 		// back to the pool by calling Batch#Close and subsequently acquire a new batch.
 		a.batch = a.db.NewBatch()
 	}
 
-	op := a.batch.MergeDeferred(cmk.SizeBinary(), cmproto.SizeVT())
+	op := a.batch.MergeDeferred(cmk.SizeBinary(), cm.SizeVT())
 	if err := cmk.MarshalBinaryToSizedBuffer(op.Key); err != nil {
 		return 0, fmt.Errorf("failed to marshal combined metrics key: %w", err)
 	}
-	if _, err := cmproto.MarshalToSizedBufferVT(op.Value); err != nil {
+	if _, err := cm.MarshalToSizedBufferVT(op.Value); err != nil {
 		return 0, fmt.Errorf("failed to marshal combined metrics: %w", err)
 	}
 	if err := op.Finish(); err != nil {
 		return 0, fmt.Errorf("failed to finalize merge operation: %w", err)
 	}
 
-	bytesIn := cmproto.SizeVT()
+	bytesIn := cm.SizeVT()
 	if a.batch.Len() >= dbCommitThresholdBytes {
 		if err := a.batch.Commit(pebble.Sync); err != nil {
 			return bytesIn, fmt.Errorf("failed to commit pebble batch: %w", err)
