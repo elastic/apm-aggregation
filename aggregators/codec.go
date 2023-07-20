@@ -10,6 +10,7 @@ package aggregators
 import (
 	"encoding/binary"
 	"errors"
+	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"sort"
 	"time"
 
@@ -327,7 +328,7 @@ func (k *TransactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggre
 	k.TransactionType = pb.TransactionType
 	k.TransactionResult = pb.TransactionResult
 
-	k.FAASColdstart = NullableBool(pb.FaasColdstart)
+	k.FAASColdstart = nullable.NullableBool(pb.FaasColdstart)
 	k.FAASID = pb.FaasId
 	k.FAASName = pb.FaasName
 	k.FAASVersion = pb.FaasVersion

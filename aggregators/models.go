@@ -12,49 +12,9 @@ import (
 	"github.com/cespare/xxhash/v2"
 
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
+	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
-
-// NullableBool represents a bool value which can be set to nil.
-// Using uint32 since uint32 is smallest proto type.
-type NullableBool uint32
-
-const (
-	// Nil represents an unset bool value.
-	Nil NullableBool = iota
-	// False represents a false bool value.
-	False
-	// True represents a true bool value.
-	True
-)
-
-// ParseBoolPtr sets nullable bool from bool pointer.
-func (nb *NullableBool) ParseBoolPtr(b *bool) {
-	if b == nil {
-		*nb = Nil
-		return
-	}
-	if *b {
-		*nb = True
-		return
-	}
-	*nb = False
-}
-
-// ToBoolPtr converts Nullable bool to bool pointer.
-func (nb *NullableBool) ToBoolPtr() *bool {
-	if nb == nil || *nb == Nil {
-		return nil
-	}
-	var b bool
-	switch *nb {
-	case False:
-		b = false
-	case True:
-		b = true
-	}
-	return &b
-}
 
 // Limits define the aggregation limits. Once the limits are reached
 // the metrics will overflow into dedicated overflow buckets.
@@ -306,7 +266,7 @@ type TransactionAggregationKey struct {
 	TransactionType   string
 	TransactionResult string
 
-	FAASColdstart   NullableBool
+	FAASColdstart   nullable.NullableBool
 	FAASID          string
 	FAASName        string
 	FAASVersion     string
@@ -349,7 +309,7 @@ func (k TransactionAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
 	h.WriteString(k.TransactionType)
 	h.WriteString(k.TransactionResult)
 
-	if k.FAASColdstart == True {
+	if k.FAASColdstart == nullable.True {
 		h.WriteString("1")
 	}
 	h.WriteString(k.FAASID)
