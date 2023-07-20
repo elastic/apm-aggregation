@@ -172,6 +172,11 @@ func EventToCombinedMetrics(
 			hasher.Chain(spanKeyHasher(spanKey)).Sum(),
 		)
 		addToM(partitionID, svcInstanceMetrics)
+	default:
+		// All other event types should result in service summary metrics
+		sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
+		partitionID := partitioner.Partition(hasher.Sum())
+		addToM(partitionID, sim)
 	}
 
 	// Approximate events total by uniformly distributing the events total
