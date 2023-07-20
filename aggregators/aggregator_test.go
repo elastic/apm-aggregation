@@ -1198,14 +1198,13 @@ func newTestAggregator(tb testing.TB) *Aggregator {
 }
 
 func flushTestAggregator(tb testing.TB, agg *Aggregator) {
-	if agg.batch != nil {
-		if err := agg.batch.Commit(pebble.Sync); err != nil {
+	for _, batch := range agg.batches {
+		if err := batch.Commit(pebble.Sync); err != nil {
 			tb.Fatal(err)
 		}
-		if err := agg.batch.Close(); err != nil {
+		if err := batch.Close(); err != nil {
 			tb.Fatal(err)
 		}
-		agg.batch = nil
 	}
 	if err := agg.db.Close(); err != nil {
 		tb.Fatal(err)
