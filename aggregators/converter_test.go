@@ -196,6 +196,47 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 			},
 		},
+		{
+			name: "with-metricset",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Metricset = &modelpb.Metricset{
+					Name:     "testmetricset",
+					Interval: "1m",
+				}
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return []*aggregationpb.CombinedMetrics{
+					(*CombinedMetrics)(createTestCombinedMetrics(
+						withEventsTotal(1),
+						withYoungestEventTimestamp(receivedTS),
+					).addServiceInstance(
+						ts.Truncate(time.Minute), "test", "",
+					)).ToProto(),
+				}
+			},
+		},
+		{
+			name: "with-log",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Log = &modelpb.Log{}
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return []*aggregationpb.CombinedMetrics{
+					(*CombinedMetrics)(createTestCombinedMetrics(
+						withEventsTotal(1),
+						withYoungestEventTimestamp(receivedTS),
+					).addServiceInstance(
+						ts.Truncate(time.Minute), "test", "",
+					)).ToProto(),
+				}
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			cmk := CombinedMetricsKey{
