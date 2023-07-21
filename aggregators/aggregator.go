@@ -26,8 +26,8 @@ import (
 )
 
 const (
-	dbCommitThresholdBytes = 10 * 1024 * 1024 // commit every 10MB
-	aggregationIvlKey      = "aggregation_interval"
+	aggregationIvlKey = "aggregation_interval"
+	maxBatchGroupSize = 20 // TODO: scale with memory?
 )
 
 var (
@@ -51,9 +51,9 @@ type Aggregator struct {
 	db  *pebble.DB
 	cfg Config
 
-	mu             sync.Mutex
+	mu             sync.RWMutex
 	processingTime time.Time
-	batch          *pebble.Batch
+	batchGroup     *batchGroup
 	cachedEvents   cachedEventsMap
 
 	stopping   chan struct{}
@@ -168,6 +168,7 @@ func New(opts ...Option) (*Aggregator, error) {
 		stopping:       make(chan struct{}),
 		runStopped:     make(chan struct{}),
 		metrics:        metrics,
+		batchGroup:     newBatchGroup(maxBatchGroupSize, pb),
 	}, nil
 }
 
@@ -181,8 +182,8 @@ func (a *Aggregator) AggregateBatch(
 ) error {
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(id)
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
 	select {
 	case <-ctx.Done():
@@ -234,8 +235,8 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	ctx, span := a.cfg.Tracer.Start(ctx, "AggregateCombinedMetrics", trace.WithAttributes(traceAttrs...))
 	defer span.End()
 
-	a.mu.Lock()
-	defer a.mu.Unlock()
+	a.mu.RLock()
+	defer a.mu.RUnlock()
 
 	select {
 	case <-ctx.Done():
@@ -281,13 +282,14 @@ func (a *Aggregator) Run(ctx context.Context) error {
 		}
 
 		a.mu.Lock()
-		batch := a.batch
-		a.batch = nil
 		a.processingTime = to
 		cachedEventsStats := a.cachedEvents.loadAndDelete(to)
+
+		batchGroup := a.batchGroup
+		a.batchGroup = newBatchGroup(maxBatchGroupSize, a.db)
 		a.mu.Unlock()
 
-		if err := a.commitAndHarvest(ctx, batch, to, cachedEventsStats); err != nil {
+		if err := a.commitAndHarvest(ctx, batchGroup, to, cachedEventsStats); err != nil {
 			a.cfg.Logger.Warn("failed to commit and harvest metrics", zap.Error(err))
 		}
 		to = to.Add(a.cfg.AggregationIntervals[0])
@@ -323,16 +325,9 @@ func (a *Aggregator) Stop(ctx context.Context) error {
 
 	if a.db != nil {
 		a.cfg.Logger.Info("running final aggregation")
-		if a.batch != nil {
-			if err := a.batch.Commit(pebble.Sync); err != nil {
-				span.RecordError(err)
-				return fmt.Errorf("failed to commit batch: %w", err)
-			}
-			if err := a.batch.Close(); err != nil {
-				span.RecordError(err)
-				return fmt.Errorf("failed to close batch: %w", err)
-			}
-			a.batch = nil
+		if err := a.batchGroup.commitAll(); err != nil {
+			span.RecordError(err)
+			return fmt.Errorf("failed to commit batch group: %w", err)
 		}
 		var errs []error
 		for _, ivl := range a.cfg.AggregationIntervals {
@@ -392,13 +387,13 @@ func (a *Aggregator) aggregate(
 	cmk CombinedMetricsKey,
 	cm *aggregationpb.CombinedMetrics,
 ) (int, error) {
-	if a.batch == nil {
-		// Batch is backed by a sync pool. After each commit we will release the batch
-		// back to the pool by calling Batch#Close and subsequently acquire a new batch.
-		a.batch = a.db.NewBatch()
+	batch, err := a.batchGroup.getBatch()
+	defer a.batchGroup.releaseBatch(batch)
+	if err != nil {
+		return 0, fmt.Errorf("failed to acquire batch: %w", err)
 	}
 
-	op := a.batch.MergeDeferred(cmk.SizeBinary(), cm.SizeVT())
+	op := batch.MergeDeferred(cmk.SizeBinary(), cm.SizeVT())
 	if err := cmk.MarshalBinaryToSizedBuffer(op.Key); err != nil {
 		return 0, fmt.Errorf("failed to marshal combined metrics key: %w", err)
 	}
@@ -408,23 +403,12 @@ func (a *Aggregator) aggregate(
 	if err := op.Finish(); err != nil {
 		return 0, fmt.Errorf("failed to finalize merge operation: %w", err)
 	}
-
-	bytesIn := cm.SizeVT()
-	if a.batch.Len() >= dbCommitThresholdBytes {
-		if err := a.batch.Commit(pebble.Sync); err != nil {
-			return bytesIn, fmt.Errorf("failed to commit pebble batch: %w", err)
-		}
-		if err := a.batch.Close(); err != nil {
-			return bytesIn, fmt.Errorf("failed to close pebble batch: %w", err)
-		}
-		a.batch = nil
-	}
-	return bytesIn, nil
+	return cm.SizeVT(), nil
 }
 
 func (a *Aggregator) commitAndHarvest(
 	ctx context.Context,
-	batch *pebble.Batch,
+	batch *batchGroup,
 	to time.Time,
 	cachedEventsStats map[time.Duration]map[[16]byte]float64,
 ) error {
@@ -432,15 +416,8 @@ func (a *Aggregator) commitAndHarvest(
 	defer span.End()
 
 	var errs []error
-	if batch != nil {
-		if err := batch.Commit(pebble.Sync); err != nil {
-			span.RecordError(err)
-			errs = append(errs, fmt.Errorf("failed to commit batch before harvest: %w", err))
-		}
-		if err := batch.Close(); err != nil {
-			span.RecordError(err)
-			errs = append(errs, fmt.Errorf("failed to close batch before harvest: %w", err))
-		}
+	if err := batch.commitAll(); err != nil {
+		errs = append(errs, err)
 	}
 	if err := a.harvest(ctx, to, cachedEventsStats); err != nil {
 		span.RecordError(err)
