@@ -150,8 +150,10 @@ func New(opts ...Option) (*Aggregator, error) {
 			},
 		},
 	}
-	if cfg.InMemoryFS {
-		pebbleOpts.FS = vfs.NewStrictMem()
+	if cfg.InMemory {
+		pebbleOpts.FS = vfs.NewMem()
+		pebbleOpts.DisableWAL = true
+		cfg.WriteOpts = pebble.NoSync
 	}
 	pb, err := pebble.Open(cfg.DataDir, pebbleOpts)
 	if err != nil {
@@ -329,7 +331,7 @@ func (a *Aggregator) Stop(ctx context.Context) error {
 	if a.db != nil {
 		a.cfg.Logger.Info("running final aggregation")
 		if a.batch != nil {
-			if err := a.batch.Commit(pebble.Sync); err != nil {
+			if err := a.batch.Commit(a.cfg.WriteOpts); err != nil {
 				span.RecordError(err)
 				return fmt.Errorf("failed to commit batch: %w", err)
 			}
@@ -416,7 +418,7 @@ func (a *Aggregator) aggregate(
 
 	bytesIn := cm.SizeVT()
 	if a.batch.Len() >= dbCommitThresholdBytes {
-		if err := a.batch.Commit(pebble.Sync); err != nil {
+		if err := a.batch.Commit(a.cfg.WriteOpts); err != nil {
 			return bytesIn, fmt.Errorf("failed to commit pebble batch: %w", err)
 		}
 		if err := a.batch.Close(); err != nil {
@@ -438,7 +440,7 @@ func (a *Aggregator) commitAndHarvest(
 
 	var errs []error
 	if batch != nil {
-		if err := batch.Commit(pebble.Sync); err != nil {
+		if err := batch.Commit(a.cfg.WriteOpts); err != nil {
 			span.RecordError(err)
 			errs = append(errs, fmt.Errorf("failed to commit batch before harvest: %w", err))
 		}
@@ -572,7 +574,7 @@ func (a *Aggregator) harvestForInterval(
 		a.metrics.ProcessingDelay.Record(ctx, processingDelay, attrSet)
 		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, attrSet)
 	}
-	err := a.db.DeleteRange(lb, ub, pebble.Sync)
+	err := a.db.DeleteRange(lb, ub, a.cfg.WriteOpts)
 	if len(errs) > 0 {
 		err = errors.Join(err, fmt.Errorf(
 			"failed to process %d out of %d metrics:\n%w",

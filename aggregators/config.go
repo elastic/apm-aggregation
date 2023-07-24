@@ -11,6 +11,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/cockroachdb/pebble"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -43,7 +44,8 @@ type Config struct {
 	AggregationIntervals   []time.Duration
 	HarvestDelay           time.Duration
 	CombinedMetricsIDToKVs func([16]byte) []attribute.KeyValue
-	InMemoryFS             bool
+	InMemory               bool
+	WriteOpts              *pebble.WriteOptions
 
 	Meter  metric.Meter
 	Tracer trace.Tracer
@@ -168,10 +170,10 @@ func WithLogger(logger *zap.Logger) Option {
 	}
 }
 
-// WithInMemoryFS defines whether aggregator uses in-memory file system.
-func WithInMemoryFS(enabled bool) Option {
+// WithInMemory defines whether aggregator uses in-memory file system.
+func WithInMemory(enabled bool) Option {
 	return func(c Config) Config {
-		c.InMemoryFS = enabled
+		c.InMemory = enabled
 		return c
 	}
 }
@@ -186,6 +188,7 @@ func defaultCfg() Config {
 		Tracer:                 otel.Tracer(instrumentationName),
 		CombinedMetricsIDToKVs: func(_ [16]byte) []attribute.KeyValue { return nil },
 		Logger:                 zap.Must(zap.NewDevelopment()),
+		WriteOpts:              pebble.Sync,
 	}
 }
 
@@ -224,6 +227,10 @@ func validateCfg(cfg Config) error {
 	}
 	if highest > 18*time.Hour {
 		return errors.New("aggregation interval greater than 18 hours is not supported")
+	}
+
+	if cfg.WriteOpts != pebble.Sync && cfg.WriteOpts != pebble.NoSync {
+		return errors.New("write opts should be pebble.Sync or pebble.NoSync")
 	}
 	return nil
 }
