@@ -900,7 +900,7 @@ func populateNil[T any](a *T) *T {
 
 // combinedMetricsCollector collects and categorizes partitioned metrics into the
 // alloted partitions. If more than one metrics are added mapping to the same partition
-// then they represent are merged.
+// then they are merged.
 type combinedMetricsCollector map[uint16]*aggregationpb.ServiceInstanceMetrics
 
 func (c combinedMetricsCollector) add(
