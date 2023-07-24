@@ -120,7 +120,6 @@ func EventToCombinedMetrics(
 		}
 		cm.ServiceMetrics[0].Metrics.ServiceInstanceMetrics[0].Metrics = nil
 		sim.ReturnToVTPool()
-		delete(collector, partitionID)
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed while executing callback: %w", errors.Join(errs...))
