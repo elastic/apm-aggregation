@@ -43,9 +43,10 @@ const (
 func EventToCombinedMetrics(
 	e *modelpb.APMEvent,
 	unpartitionedKey CombinedMetricsKey,
-	partitioner Partitioner,
+	p Partitioner,
 	callback func(CombinedMetricsKey, *aggregationpb.CombinedMetrics) error,
 ) error {
+	collector := combinedMetricsCollector{}
 	svcKey := serviceKey(e, unpartitionedKey.Interval)
 	svcInstanceKey, err := serviceInstanceKey(e)
 	if err != nil {
@@ -55,92 +56,24 @@ func EventToCombinedMetrics(
 		Chain(svcKey).
 		Chain(svcInstanceKey)
 
-	// m collects service instance metrics for each partition
-	m := make(map[uint16]*aggregationpb.ServiceInstanceMetrics)
-	addToM := func(partitionID uint16, from *aggregationpb.ServiceInstanceMetrics) {
-		to, ok := m[partitionID]
-		if !ok {
-			m[partitionID] = from
-			return
-		}
-		to.ServiceTransactionMetrics = mergeSlices[aggregationpb.KeyedServiceTransactionMetrics](
-			to.ServiceTransactionMetrics, from.ServiceTransactionMetrics,
-		)
-		from.ServiceTransactionMetrics = nil
-		to.TransactionMetrics = mergeSlices[aggregationpb.KeyedTransactionMetrics](
-			to.TransactionMetrics, from.TransactionMetrics,
-		)
-		from.TransactionMetrics = nil
-		to.SpanMetrics = mergeSlices[aggregationpb.KeyedSpanMetrics](
-			to.SpanMetrics, from.SpanMetrics,
-		)
-		from.SpanMetrics = nil
-		from.ReturnToVTPool()
-	}
-
 	switch e.Type() {
 	case modelpb.TransactionEventType:
 		repCount := e.GetTransaction().GetRepresentativeCount()
 		if repCount <= 0 {
 			return nil
 		}
-
 		hdr := hdrhistogram.New()
 		hdr.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
 
-		// Transaction metrics
-		tm := aggregationpb.TransactionMetricsFromVTPool()
-		tm.Histogram = HistogramToProto(hdr)
+		txnKey, sim := eventToTxnMetrics(e, hdr)
+		collector.add(p.Partition(hasher.Chain(txnKey)), sim)
 
-		txnKey := transactionKey(e)
-		ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
-		ktm.Key, ktm.Metrics = txnKey, tm
+		svcTxnKey, sim := eventToServiceTxnMetrics(e, hdr)
+		collector.add(p.Partition(hasher.Chain(svcTxnKey)), sim)
 
-		svcInstanceMetrics := aggregationpb.ServiceInstanceMetricsFromVTPool()
-		svcInstanceMetrics.TransactionMetrics = append(
-			svcInstanceMetrics.TransactionMetrics, ktm,
-		)
-		partitionID := partitioner.Partition(
-			hasher.Chain(txnKey).Sum(),
-		)
-		addToM(partitionID, svcInstanceMetrics)
-
-		// Service Transaction metrics
-		stm := aggregationpb.ServiceTransactionMetricsFromVTPool()
-		stm.Histogram = HistogramToProto(hdr) // use same histogram
-		setMetricCountBasedOnOutcome(stm, e)
-
-		svcTxnKey := serviceTransactionKey(e)
-		kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
-		kstm.Key, kstm.Metrics = svcTxnKey, stm
-
-		svcInstanceMetrics = aggregationpb.ServiceInstanceMetricsFromVTPool()
-		svcInstanceMetrics.ServiceTransactionMetrics = append(
-			svcInstanceMetrics.ServiceTransactionMetrics, kstm,
-		)
-		partitionID = partitioner.Partition(
-			hasher.Chain(svcTxnKey).Sum(),
-		)
-		addToM(partitionID, svcInstanceMetrics)
-
-		// Dropped span stats
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
-			spm := aggregationpb.SpanMetricsFromVTPool()
-			spm.Count = float64(dss.GetDuration().GetCount()) * repCount
-			spm.Sum = float64(dss.GetDuration().GetSum().AsDuration()) * repCount
-
-			dssKey := droppedSpanStatsKey(dss)
-			kspm := aggregationpb.KeyedSpanMetricsFromVTPool()
-			kspm.Key, kspm.Metrics = dssKey, spm
-
-			svcInstanceMetrics = aggregationpb.ServiceInstanceMetricsFromVTPool()
-			svcInstanceMetrics.SpanMetrics = append(
-				svcInstanceMetrics.SpanMetrics, kspm,
-			)
-			partitionID = partitioner.Partition(
-				hasher.Chain(dssKey).Sum(),
-			)
-			addToM(partitionID, svcInstanceMetrics)
+			dssKey, sim := eventToDSSMetrics(repCount, dss)
+			collector.add(p.Partition(hasher.Chain(dssKey)), sim)
 		}
 	case modelpb.SpanEventType:
 		target := e.GetService().GetTarget()
@@ -150,39 +83,17 @@ func EventToCombinedMetrics(
 			return nil
 		}
 
-		var count uint32 = 1
-		duration := e.GetEvent().GetDuration().AsDuration()
-		if composite := e.GetSpan().GetComposite(); composite != nil {
-			count = composite.GetCount()
-			duration = time.Duration(composite.GetSum() * float64(time.Millisecond))
-		}
-
-		spm := aggregationpb.SpanMetricsFromVTPool()
-		spm.Count = float64(count) * repCount
-		spm.Sum = float64(duration) * repCount
-
-		spanKey := spanKey(e)
-		kspm := aggregationpb.KeyedSpanMetricsFromVTPool()
-		kspm.Key, kspm.Metrics = spanKey, spm
-
-		svcInstanceMetrics := aggregationpb.ServiceInstanceMetricsFromVTPool()
-		svcInstanceMetrics.SpanMetrics = append(
-			svcInstanceMetrics.SpanMetrics, kspm,
-		)
-		partitionID := partitioner.Partition(
-			hasher.Chain(spanKey).Sum(),
-		)
-		addToM(partitionID, svcInstanceMetrics)
+		spanKey, sim := eventToSpanMetrics(repCount, e)
+		collector.add(p.Partition(hasher.Chain(spanKey)), sim)
 	default:
 		// All other event types should result in service summary metrics
 		sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
-		partitionID := partitioner.Partition(hasher.Sum())
-		addToM(partitionID, sim)
+		collector.add(p.Partition(hasher), sim)
 	}
 
 	// Approximate events total by uniformly distributing the events total
 	// amongst the partitioned key values.
-	weightedEventsTotal := 1 / float64(len(m))
+	weightedEventsTotal := 1 / float64(len(collector))
 	eventTS := tspb.TimeToPBTimestamp(e.GetEvent().GetReceived().AsTime())
 
 	ksim := aggregationpb.KeyedServiceInstanceMetricsFromVTPool()
@@ -197,18 +108,18 @@ func EventToCombinedMetrics(
 	cm.ServiceMetrics = append(cm.ServiceMetrics, ksm)
 
 	var errs []error
-	for partitionID, svcInstanceMetrics := range m {
+	for partitionID, sim := range collector {
 		key := unpartitionedKey
 		key.PartitionID = partitionID
 
-		cm.ServiceMetrics[0].Metrics.ServiceInstanceMetrics[0].Metrics = svcInstanceMetrics
+		cm.ServiceMetrics[0].Metrics.ServiceInstanceMetrics[0].Metrics = sim
 		cm.EventsTotal = weightedEventsTotal
 		cm.YoungestEventTimestamp = uint64(eventTS)
 		if err := callback(key, cm); err != nil {
 			errs = append(errs, err)
 		}
 		cm.ServiceMetrics[0].Metrics.ServiceInstanceMetrics[0].Metrics = nil
-		svcInstanceMetrics.ReturnToVTPool()
+		sim.ReturnToVTPool()
 	}
 	if len(errs) > 0 {
 		return fmt.Errorf("failed while executing callback: %w", errors.Join(errs...))
@@ -374,6 +285,96 @@ func CombinedMetricsToBatch(
 		}
 	}
 	return &b, nil
+}
+
+// eventToTxnMetrics converts an APMEvent to a transaction metrics. It accepts
+// a histogram so that it can be reused between txn and service txn metrics.
+func eventToTxnMetrics(
+	e *modelpb.APMEvent,
+	hdr *hdrhistogram.HistogramRepresentation,
+) (
+	*aggregationpb.TransactionAggregationKey,
+	*aggregationpb.ServiceInstanceMetrics,
+) {
+	tm := aggregationpb.TransactionMetricsFromVTPool()
+	tm.Histogram = HistogramToProto(hdr)
+
+	txnKey := transactionKey(e)
+	ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
+	ktm.Key, ktm.Metrics = txnKey, tm
+
+	sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
+	sim.TransactionMetrics = append(sim.TransactionMetrics, ktm)
+	return txnKey, sim
+}
+
+// eventToServiceTxnMetrics converts an APMEvent to a transaction metrics. It
+// accepts a histogram so that it can be reused between txn and service txn metrics.
+func eventToServiceTxnMetrics(
+	e *modelpb.APMEvent,
+	hdr *hdrhistogram.HistogramRepresentation,
+) (
+	*aggregationpb.ServiceTransactionAggregationKey,
+	*aggregationpb.ServiceInstanceMetrics,
+) {
+	stm := aggregationpb.ServiceTransactionMetricsFromVTPool()
+	stm.Histogram = HistogramToProto(hdr)
+	setMetricCountBasedOnOutcome(stm, e)
+
+	svcTxnKey := serviceTransactionKey(e)
+	kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
+	kstm.Key, kstm.Metrics = svcTxnKey, stm
+
+	sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
+	sim.ServiceTransactionMetrics = append(sim.ServiceTransactionMetrics, kstm)
+	return svcTxnKey, sim
+}
+
+func eventToSpanMetrics(
+	repCount float64,
+	e *modelpb.APMEvent,
+) (
+	*aggregationpb.SpanAggregationKey,
+	*aggregationpb.ServiceInstanceMetrics,
+) {
+	var count uint32 = 1
+	duration := e.GetEvent().GetDuration().AsDuration()
+	if composite := e.GetSpan().GetComposite(); composite != nil {
+		count = composite.GetCount()
+		duration = time.Duration(composite.GetSum() * float64(time.Millisecond))
+	}
+
+	spm := aggregationpb.SpanMetricsFromVTPool()
+	spm.Count = float64(count) * repCount
+	spm.Sum = float64(duration) * repCount
+
+	spanKey := spanKey(e)
+	kspm := aggregationpb.KeyedSpanMetricsFromVTPool()
+	kspm.Key, kspm.Metrics = spanKey, spm
+
+	sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
+	sim.SpanMetrics = append(sim.SpanMetrics, kspm)
+	return spanKey, sim
+}
+
+func eventToDSSMetrics(
+	repCount float64,
+	dss *modelpb.DroppedSpanStats,
+) (
+	*aggregationpb.SpanAggregationKey,
+	*aggregationpb.ServiceInstanceMetrics,
+) {
+	spm := aggregationpb.SpanMetricsFromVTPool()
+	spm.Count = float64(dss.GetDuration().GetCount()) * repCount
+	spm.Sum = float64(dss.GetDuration().GetSum().AsDuration()) * repCount
+
+	dssKey := droppedSpanStatsKey(dss)
+	kspm := aggregationpb.KeyedSpanMetricsFromVTPool()
+	kspm.Key, kspm.Metrics = dssKey, spm
+
+	sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
+	sim.SpanMetrics = append(sim.SpanMetrics, kspm)
+	return dssKey, sim
 }
 
 func getBaseEvent(key ServiceAggregationKey) *modelpb.APMEvent {
@@ -894,6 +895,35 @@ func populateNil[T any](a *T) *T {
 		return new(T)
 	}
 	return a
+}
+
+// combinedMetricsCollector collects and categorizes partitioned metrics into the
+// alloted partitions. If more than one metrics are added mapping to the same partition
+// then they are merged.
+type combinedMetricsCollector map[uint16]*aggregationpb.ServiceInstanceMetrics
+
+func (c combinedMetricsCollector) add(
+	partitionID uint16,
+	from *aggregationpb.ServiceInstanceMetrics,
+) {
+	to, ok := c[partitionID]
+	if !ok {
+		c[partitionID] = from
+		return
+	}
+	to.ServiceTransactionMetrics = mergeSlices[aggregationpb.KeyedServiceTransactionMetrics](
+		to.ServiceTransactionMetrics, from.ServiceTransactionMetrics,
+	)
+	to.TransactionMetrics = mergeSlices[aggregationpb.KeyedTransactionMetrics](
+		to.TransactionMetrics, from.TransactionMetrics,
+	)
+	to.SpanMetrics = mergeSlices[aggregationpb.KeyedSpanMetrics](
+		to.SpanMetrics, from.SpanMetrics,
+	)
+	from.ServiceTransactionMetrics = nil
+	from.TransactionMetrics = nil
+	from.SpanMetrics = nil
+	from.ReturnToVTPool()
 }
 
 func mergeSlices[T any](to []*T, from []*T) []*T {

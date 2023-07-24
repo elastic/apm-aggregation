@@ -19,6 +19,6 @@ func NewHashPartitioner(maxPartitions uint16) *HashPartitioner {
 }
 
 // Partition generates an ID to be used as partition ID given a hash of the key.
-func (p *HashPartitioner) Partition(h uint64) uint16 {
-	return uint16(h % uint64(p.maxPartitions))
+func (p *HashPartitioner) Partition(hasher Hasher) uint16 {
+	return uint16(hasher.Sum() % uint64(p.maxPartitions))
 }
