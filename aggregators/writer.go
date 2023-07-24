@@ -117,11 +117,6 @@ func (w *Writer) WriteEventMetrics(ctx context.Context, id [16]byte, events ...*
 // WriteCombinedMetrics writes combined metrics.
 //
 // This function will return an error if the writer has been closed.
-
-// WriteCombinedMetrics writes combined metrics into a bigger aggregate.
-// This function will return an error if the aggregator's Run loop has errored
-// or has been explicitly stopped. However, it doesn't require aggregator to be
-// running to perform aggregation.
 func (w *Writer) WriteCombinedMetrics(
 	ctx context.Context,
 	cmk CombinedMetricsKey,
