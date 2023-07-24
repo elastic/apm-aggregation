@@ -18,6 +18,7 @@ import (
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	tspb "github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
+	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -52,8 +53,8 @@ func EventToCombinedMetrics(
 		return err
 	}
 	hasher := Hasher{}.
-		Chain(serviceKeyHasher(svcKey)).
-		Chain(serviceInstanceKeyHasher(svcInstanceKey))
+		Chain(svcKey).
+		Chain(svcInstanceKey)
 
 	switch e.Type() {
 	case modelpb.TransactionEventType:
@@ -65,23 +66,14 @@ func EventToCombinedMetrics(
 		hdr.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
 
 		txnKey, sim := eventToTxnMetrics(e, hdr)
-		collector.add(
-			p.Partition(hasher.Chain(transactionKeyHasher(txnKey))),
-			sim,
-		)
+		collector.add(p.Partition(hasher.Chain(txnKey)), sim)
 
 		svcTxnKey, sim := eventToServiceTxnMetrics(e, hdr)
-		collector.add(
-			p.Partition(hasher.Chain(serviceTransactionKeyHasher(svcTxnKey))),
-			sim,
-		)
+		collector.add(p.Partition(hasher.Chain(svcTxnKey)), sim)
 
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
 			dssKey, sim := eventToDSSMetrics(repCount, dss)
-			collector.add(
-				p.Partition(hasher.Chain(spanKeyHasher(dssKey))),
-				sim,
-			)
+			collector.add(p.Partition(hasher.Chain(dssKey)), sim)
 		}
 	case modelpb.SpanEventType:
 		target := e.GetService().GetTarget()
@@ -92,10 +84,7 @@ func EventToCombinedMetrics(
 		}
 
 		spanKey, sim := eventToSpanMetrics(repCount, e)
-		collector.add(
-			p.Partition(hasher.Chain(spanKeyHasher(spanKey))),
-			sim,
-		)
+		collector.add(p.Partition(hasher.Chain(spanKey)), sim)
 	default:
 		// All other event types should result in service summary metrics
 		sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
@@ -519,7 +508,7 @@ func txnMetricsToAPMEvent(
 		baseEvent.Host.Os.Platform = key.HostOSPlatform
 	}
 
-	if key.FAASColdstart != Nil ||
+	if key.FAASColdstart != nullable.Nil ||
 		key.FAASID != "" ||
 		key.FAASName != "" ||
 		key.FAASVersion != "" ||
@@ -788,7 +777,7 @@ func serviceInstanceKey(e *modelpb.APMEvent) (*aggregationpb.ServiceInstanceAggr
 }
 
 func transactionKey(e *modelpb.APMEvent) *aggregationpb.TransactionAggregationKey {
-	var faasColdstart NullableBool
+	var faasColdstart nullable.Bool
 	faas := e.GetFaas()
 	if faas != nil {
 		faasColdstart.ParseBoolPtr(faas.ColdStart)
