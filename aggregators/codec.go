@@ -328,7 +328,7 @@ func (k *TransactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggre
 	k.TransactionType = pb.TransactionType
 	k.TransactionResult = pb.TransactionResult
 
-	k.FAASColdstart = nullable.NullableBool(pb.FaasColdstart)
+	k.FAASColdstart = nullable.Bool(pb.FaasColdstart)
 	k.FAASID = pb.FaasId
 	k.FAASName = pb.FaasName
 	k.FAASVersion = pb.FaasVersion

@@ -4,13 +4,13 @@
 
 package nullable
 
-// NullableBool represents a bool value which can be set to nil.
+// Bool represents a bool value which can be set to nil.
 // Using uint32 since uint32 is smallest proto type.
-type NullableBool uint32
+type Bool uint32
 
 const (
 	// Nil represents an unset bool value.
-	Nil NullableBool = iota
+	Nil Bool = iota
 	// False represents a false bool value.
 	False
 	// True represents a true bool value.
@@ -18,7 +18,7 @@ const (
 )
 
 // ParseBoolPtr sets nullable bool from bool pointer.
-func (nb *NullableBool) ParseBoolPtr(b *bool) {
+func (nb *Bool) ParseBoolPtr(b *bool) {
 	if b == nil {
 		*nb = Nil
 		return
@@ -30,8 +30,8 @@ func (nb *NullableBool) ParseBoolPtr(b *bool) {
 	*nb = False
 }
 
-// ToBoolPtr converts Nullable bool to bool pointer.
-func (nb *NullableBool) ToBoolPtr() *bool {
+// ToBoolPtr converts nullable bool to bool pointer.
+func (nb *Bool) ToBoolPtr() *bool {
 	if nb == nil || *nb == Nil {
 		return nil
 	}

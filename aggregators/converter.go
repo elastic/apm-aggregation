@@ -775,7 +775,7 @@ func serviceInstanceKey(e *modelpb.APMEvent) (*aggregationpb.ServiceInstanceAggr
 }
 
 func transactionKey(e *modelpb.APMEvent) *aggregationpb.TransactionAggregationKey {
-	var faasColdstart nullable.NullableBool
+	var faasColdstart nullable.Bool
 	faas := e.GetFaas()
 	if faas != nil {
 		faasColdstart.ParseBoolPtr(faas.ColdStart)

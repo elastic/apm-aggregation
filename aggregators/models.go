@@ -266,7 +266,7 @@ type TransactionAggregationKey struct {
 	TransactionType   string
 	TransactionResult string
 
-	FAASColdstart   nullable.NullableBool
+	FAASColdstart   nullable.Bool
 	FAASID          string
 	FAASName        string
 	FAASVersion     string
