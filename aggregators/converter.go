@@ -18,6 +18,7 @@ import (
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	tspb "github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
+	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -51,8 +52,8 @@ func EventToCombinedMetrics(
 		return err
 	}
 	hasher := Hasher{}.
-		Chain(serviceKeyHasher(svcKey)).
-		Chain(serviceInstanceKeyHasher(svcInstanceKey))
+		Chain(svcKey).
+		Chain(svcInstanceKey)
 
 	// m collects service instance metrics for each partition
 	m := make(map[uint16]*aggregationpb.ServiceInstanceMetrics)
@@ -100,7 +101,7 @@ func EventToCombinedMetrics(
 			svcInstanceMetrics.TransactionMetrics, ktm,
 		)
 		partitionID := partitioner.Partition(
-			hasher.Chain(transactionKeyHasher(txnKey)).Sum(),
+			hasher.Chain(txnKey).Sum(),
 		)
 		addToM(partitionID, svcInstanceMetrics)
 
@@ -118,7 +119,7 @@ func EventToCombinedMetrics(
 			svcInstanceMetrics.ServiceTransactionMetrics, kstm,
 		)
 		partitionID = partitioner.Partition(
-			hasher.Chain(serviceTransactionKeyHasher(svcTxnKey)).Sum(),
+			hasher.Chain(svcTxnKey).Sum(),
 		)
 		addToM(partitionID, svcInstanceMetrics)
 
@@ -137,7 +138,7 @@ func EventToCombinedMetrics(
 				svcInstanceMetrics.SpanMetrics, kspm,
 			)
 			partitionID = partitioner.Partition(
-				hasher.Chain(spanKeyHasher(dssKey)).Sum(),
+				hasher.Chain(dssKey).Sum(),
 			)
 			addToM(partitionID, svcInstanceMetrics)
 		}
@@ -169,7 +170,7 @@ func EventToCombinedMetrics(
 			svcInstanceMetrics.SpanMetrics, kspm,
 		)
 		partitionID := partitioner.Partition(
-			hasher.Chain(spanKeyHasher(spanKey)).Sum(),
+			hasher.Chain(spanKey).Sum(),
 		)
 		addToM(partitionID, svcInstanceMetrics)
 	default:
@@ -505,7 +506,7 @@ func txnMetricsToAPMEvent(
 		baseEvent.Host.Os.Platform = key.HostOSPlatform
 	}
 
-	if key.FAASColdstart != Nil ||
+	if key.FAASColdstart != nullable.Nil ||
 		key.FAASID != "" ||
 		key.FAASName != "" ||
 		key.FAASVersion != "" ||
@@ -774,7 +775,7 @@ func serviceInstanceKey(e *modelpb.APMEvent) (*aggregationpb.ServiceInstanceAggr
 }
 
 func transactionKey(e *modelpb.APMEvent) *aggregationpb.TransactionAggregationKey {
-	var faasColdstart NullableBool
+	var faasColdstart nullable.Bool
 	faas := e.GetFaas()
 	if faas != nil {
 		faasColdstart.ParseBoolPtr(faas.ColdStart)

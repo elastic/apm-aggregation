@@ -18,6 +18,7 @@ import (
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
+	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -327,7 +328,7 @@ func (k *TransactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggre
 	k.TransactionType = pb.TransactionType
 	k.TransactionResult = pb.TransactionResult
 
-	k.FAASColdstart = NullableBool(pb.FaasColdstart)
+	k.FAASColdstart = nullable.Bool(pb.FaasColdstart)
 	k.FAASID = pb.FaasId
 	k.FAASName = pb.FaasName
 	k.FAASVersion = pb.FaasVersion
