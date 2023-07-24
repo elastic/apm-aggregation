@@ -21,10 +21,7 @@ func BenchmarkGetBatchSerial(b *testing.B) {
 	b.ResetTimer()
 
 	for i := 0; i < b.N; i++ {
-		batch, err := bg.getBatch()
-		if err != nil {
-			b.Fatalf("failed with err: %+v", err)
-		}
+		batch := bg.getBatch()
 		bg.releaseBatch(batch)
 	}
 }
@@ -40,10 +37,7 @@ func BenchmarkGetBatchParallel(b *testing.B) {
 
 	b.RunParallel(func(pb *testing.PB) {
 		for pb.Next() {
-			batch, err := bg.getBatch()
-			if err != nil {
-				b.Fatalf("failed with err: %+v", err)
-			}
+			batch := bg.getBatch()
 			bg.releaseBatch(batch)
 		}
 	})

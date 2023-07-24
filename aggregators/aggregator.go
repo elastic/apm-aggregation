@@ -27,7 +27,7 @@ import (
 
 const (
 	aggregationIvlKey = "aggregation_interval"
-	maxBatchGroupSize = 20 // TODO: scale with memory?
+	maxBatchGroupSize = 100 // TODO: scale with memory?
 )
 
 var (
@@ -387,11 +387,8 @@ func (a *Aggregator) aggregate(
 	cmk CombinedMetricsKey,
 	cm *aggregationpb.CombinedMetrics,
 ) (int, error) {
-	batch, err := a.batchGroup.getBatch()
+	batch := a.batchGroup.getBatch()
 	defer a.batchGroup.releaseBatch(batch)
-	if err != nil {
-		return 0, fmt.Errorf("failed to acquire batch: %w", err)
-	}
 
 	op := batch.MergeDeferred(cmk.SizeBinary(), cm.SizeVT())
 	if err := cmk.MarshalBinaryToSizedBuffer(op.Key); err != nil {
