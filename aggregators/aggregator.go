@@ -49,8 +49,9 @@ var (
 // same processing time bucket and thereafter the processing time
 // bucket is advanced in factors of aggregation interval.
 type Aggregator struct {
-	db  *pebble.DB
-	cfg Config
+	db           *pebble.DB
+	writeOptions *pebble.WriteOptions
+	cfg          Config
 
 	mu             sync.Mutex
 	processingTime time.Time
@@ -150,10 +151,11 @@ func New(opts ...Option) (*Aggregator, error) {
 			},
 		},
 	}
+	writeOptions := pebble.Sync
 	if cfg.InMemory {
 		pebbleOpts.FS = vfs.NewMem()
 		pebbleOpts.DisableWAL = true
-		cfg.WriteOpts = pebble.NoSync
+		writeOptions = pebble.NoSync
 	}
 	pb, err := pebble.Open(cfg.DataDir, pebbleOpts)
 	if err != nil {
@@ -170,6 +172,7 @@ func New(opts ...Option) (*Aggregator, error) {
 
 	return &Aggregator{
 		db:             pb,
+		writeOptions:   writeOptions,
 		cfg:            cfg,
 		processingTime: time.Now().Truncate(cfg.AggregationIntervals[0]),
 		stopping:       make(chan struct{}),
@@ -331,7 +334,7 @@ func (a *Aggregator) Stop(ctx context.Context) error {
 	if a.db != nil {
 		a.cfg.Logger.Info("running final aggregation")
 		if a.batch != nil {
-			if err := a.batch.Commit(a.cfg.WriteOpts); err != nil {
+			if err := a.batch.Commit(a.writeOptions); err != nil {
 				span.RecordError(err)
 				return fmt.Errorf("failed to commit batch: %w", err)
 			}
@@ -418,7 +421,7 @@ func (a *Aggregator) aggregate(
 
 	bytesIn := cm.SizeVT()
 	if a.batch.Len() >= dbCommitThresholdBytes {
-		if err := a.batch.Commit(a.cfg.WriteOpts); err != nil {
+		if err := a.batch.Commit(a.writeOptions); err != nil {
 			return bytesIn, fmt.Errorf("failed to commit pebble batch: %w", err)
 		}
 		if err := a.batch.Close(); err != nil {
@@ -440,7 +443,7 @@ func (a *Aggregator) commitAndHarvest(
 
 	var errs []error
 	if batch != nil {
-		if err := batch.Commit(a.cfg.WriteOpts); err != nil {
+		if err := batch.Commit(a.writeOptions); err != nil {
 			span.RecordError(err)
 			errs = append(errs, fmt.Errorf("failed to commit batch before harvest: %w", err))
 		}
@@ -574,7 +577,7 @@ func (a *Aggregator) harvestForInterval(
 		a.metrics.ProcessingDelay.Record(ctx, processingDelay, attrSet)
 		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, attrSet)
 	}
-	err := a.db.DeleteRange(lb, ub, a.cfg.WriteOpts)
+	err := a.db.DeleteRange(lb, ub, a.writeOptions)
 	if len(errs) > 0 {
 		err = errors.Join(err, fmt.Errorf(
 			"failed to process %d out of %d metrics:\n%w",

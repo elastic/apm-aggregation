@@ -1199,7 +1199,7 @@ func newTestAggregator(tb testing.TB) *Aggregator {
 
 func flushTestAggregator(tb testing.TB, agg *Aggregator) {
 	if agg.batch != nil {
-		if err := agg.batch.Commit(agg.cfg.WriteOpts); err != nil {
+		if err := agg.batch.Commit(agg.writeOptions); err != nil {
 			tb.Fatal(err)
 		}
 		if err := agg.batch.Close(); err != nil {
