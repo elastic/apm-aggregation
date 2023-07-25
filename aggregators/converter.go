@@ -920,9 +920,10 @@ func (c combinedMetricsCollector) add(
 	to.SpanMetrics = mergeSlices[aggregationpb.KeyedSpanMetrics](
 		to.SpanMetrics, from.SpanMetrics,
 	)
-	from.ServiceTransactionMetrics = nil
-	from.TransactionMetrics = nil
-	from.SpanMetrics = nil
+	// nil out the slices to avoid ReturnToVTPool from releasing the underlying metrics in the slices
+	nilSlice(from.ServiceTransactionMetrics)
+	nilSlice(from.TransactionMetrics)
+	nilSlice(from.SpanMetrics)
 	from.ReturnToVTPool()
 }
 
@@ -932,4 +933,10 @@ func mergeSlices[T any](to []*T, from []*T) []*T {
 	}
 	to = slices.Grow(to, len(from))
 	return append(to, from...)
+}
+
+func nilSlice[T any](s []*T) {
+	for i := 0; i < len(s); i++ {
+		s[i] = nil
+	}
 }
