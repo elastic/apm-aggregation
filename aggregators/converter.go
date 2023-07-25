@@ -181,21 +181,21 @@ func CombinedMetricsToBatch(
 			}
 
 			// transaction metrics
-			for tk, tv := range sim.TransactionGroups {
+			for tk, ktm := range sim.TransactionGroups {
 				event := getBaseEventWithLabels()
-				txnMetricsToAPMEvent(tk, tv, event, aggIntervalStr)
+				txnMetricsToAPMEvent(tk, ktm.Metrics, event, aggIntervalStr)
 				b = append(b, event)
 			}
 			// service transaction metrics
-			for stk, stv := range sim.ServiceTransactionGroups {
+			for stk, kstm := range sim.ServiceTransactionGroups {
 				event := getBaseEventWithLabels()
-				svcTxnMetricsToAPMEvent(stk, stv, event, aggIntervalStr)
+				svcTxnMetricsToAPMEvent(stk, kstm.Metrics, event, aggIntervalStr)
 				b = append(b, event)
 			}
 			// service destination metrics
-			for spk, spv := range sim.SpanGroups {
+			for spk, kspm := range sim.SpanGroups {
 				event := getBaseEventWithLabels()
-				spanMetricsToAPMEvent(spk, spv, event, aggIntervalStr)
+				spanMetricsToAPMEvent(spk, kspm.Metrics, event, aggIntervalStr)
 				b = append(b, event)
 			}
 
@@ -414,11 +414,13 @@ func serviceMetricsToAPMEvent(
 
 func txnMetricsToAPMEvent(
 	key TransactionAggregationKey,
-	metrics TransactionMetrics,
+	metrics *aggregationpb.TransactionMetrics,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
 ) {
-	totalCount, counts, values := metrics.Histogram.Buckets()
+	histogram := hdrhistogram.New()
+	HistogramFromProto(histogram, metrics.Histogram)
+	totalCount, counts, values := histogram.Buckets()
 	var eventSuccessCount modelpb.SummaryMetric
 	switch key.EventOutcome {
 	case "success":
@@ -429,7 +431,6 @@ func txnMetricsToAPMEvent(
 	case "unknown":
 		// Keep both Count and Sum as 0.
 	}
-
 	transactionDurationSummary := modelpb.SummaryMetric{
 		Count: totalCount,
 	}
@@ -546,12 +547,13 @@ func txnMetricsToAPMEvent(
 
 func svcTxnMetricsToAPMEvent(
 	key ServiceTransactionAggregationKey,
-	metrics ServiceTransactionMetrics,
+	metrics *aggregationpb.ServiceTransactionMetrics,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
 ) {
-	totalCount, counts, values := metrics.Histogram.Buckets()
-
+	histogram := hdrhistogram.New()
+	HistogramFromProto(histogram, metrics.Histogram)
+	totalCount, counts, values := histogram.Buckets()
 	transactionDurationSummary := modelpb.SummaryMetric{
 		Count: totalCount,
 	}
@@ -581,7 +583,7 @@ func svcTxnMetricsToAPMEvent(
 
 func spanMetricsToAPMEvent(
 	key SpanAggregationKey,
-	metrics SpanMetrics,
+	metrics *aggregationpb.SpanMetrics,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
 ) {

@@ -76,16 +76,28 @@ func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 	b.ReportAllocs()
 	ts := time.Now()
 	cardinality := 10
-	tcm := createTestCombinedMetrics()
+	tcm := NewTestCombinedMetrics()
+	sim := tcm.AddServiceMetrics(ServiceAggregationKey{
+		Timestamp:   ts,
+		ServiceName: "bench",
+	}).AddServiceInstanceMetrics(ServiceInstanceAggregationKey{})
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)
 		spanName := fmt.Sprintf("spn%d", i)
-		tcm = tcm.addTransaction(ts, "bench", "", testTransaction{txnName: txnName, txnType: txnType, count: 200})
-		tcm = tcm.addServiceTransaction(ts, "bench", "", testServiceTransaction{txnType: txnType, count: 200})
-		tcm = tcm.addSpan(ts, "bench", "", testSpan{spanName: spanName})
+
+		sim.AddTransaction(TransactionAggregationKey{
+			TransactionName: txnName,
+			TransactionType: txnType,
+		}, WithTransactionCount(200))
+		sim.AddServiceTransaction(ServiceTransactionAggregationKey{
+			TransactionType: txnType,
+		}, WithTransactionCount(200))
+		sim.AddSpan(SpanAggregationKey{
+			SpanName: spanName,
+		})
 	}
-	cm := CombinedMetrics(*tcm)
+	cm := tcm.Get()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		cmproto := cm.ToProto()
@@ -97,17 +109,28 @@ func BenchmarkCombinedMetricsDecoding(b *testing.B) {
 	b.ReportAllocs()
 	ts := time.Now()
 	cardinality := 10
-	tcm := createTestCombinedMetrics()
+	tcm := NewTestCombinedMetrics()
+	sim := tcm.AddServiceMetrics(ServiceAggregationKey{
+		Timestamp:   ts,
+		ServiceName: "bench",
+	}).AddServiceInstanceMetrics(ServiceInstanceAggregationKey{})
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)
 		spanName := fmt.Sprintf("spn%d", i)
-		tcm = tcm.addTransaction(ts, "bench", "", testTransaction{txnName: txnName, txnType: txnType, count: 200})
-		tcm = tcm.addServiceTransaction(ts, "bench", "", testServiceTransaction{txnType: txnType, count: 200})
-		tcm = tcm.addSpan(ts, "bench", "", testSpan{spanName: spanName})
+
+		sim.AddTransaction(TransactionAggregationKey{
+			TransactionName: txnName,
+			TransactionType: txnType,
+		}, WithTransactionCount(200))
+		sim.AddServiceTransaction(ServiceTransactionAggregationKey{
+			TransactionType: txnType,
+		}, WithTransactionCount(200))
+		sim.AddSpan(SpanAggregationKey{
+			SpanName: spanName,
+		})
 	}
-	cm := CombinedMetrics(*tcm)
-	cmproto := cm.ToProto()
+	cmproto := tcm.GetProto()
 	b.Cleanup(func() {
 		cmproto.ReturnToVTPool()
 	})

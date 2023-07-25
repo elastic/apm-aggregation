@@ -23,6 +23,7 @@ import (
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/telemetry"
+	"github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -608,7 +609,7 @@ func (a *Aggregator) processHarvest(
 	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
 		return hs, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
-	hs.eventsTotal = cm.eventsTotal
-	hs.youngestEventTimestamp = cm.youngestEventTimestamp
+	hs.eventsTotal = cm.EventsTotal
+	hs.youngestEventTimestamp = timestamppb.PBTimestampToTime(cm.YoungestEventTimestamp)
 	return hs, nil
 }
