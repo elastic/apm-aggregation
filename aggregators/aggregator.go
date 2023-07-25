@@ -218,11 +218,11 @@ func (a *Aggregator) AggregateBatch(
 		a.cachedEvents.add(ivl, id, float64(len(*b)))
 	}
 
-	cmIDAttrSet := attribute.NewSet(cmIDAttrs...)
-	a.metrics.RequestsTotal.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
-	a.metrics.BytesIngested.Add(ctx, totalBytesIn, metric.WithAttributeSet(cmIDAttrSet))
+	attrSet := metric.WithAttributeSet(attribute.NewSet(cmIDAttrs...))
+	a.metrics.RequestsTotal.Add(ctx, 1, attrSet)
+	a.metrics.BytesIngested.Add(ctx, totalBytesIn, attrSet)
 	if len(errs) > 0 {
-		a.metrics.RequestsFailed.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
+		a.metrics.RequestsFailed.Add(ctx, 1, attrSet)
 		return fmt.Errorf("failed batch aggregation:\n%w", errors.Join(errs...))
 	}
 	return nil
@@ -259,11 +259,11 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
 
 	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
-	cmIDAttrSet := attribute.NewSet(cmIDAttrs...)
-	a.metrics.RequestsTotal.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
-	a.metrics.BytesIngested.Add(ctx, int64(bytesIn), metric.WithAttributeSet(cmIDAttrSet))
+	attrSet := metric.WithAttributeSet(attribute.NewSet(cmIDAttrs...))
+	a.metrics.RequestsTotal.Add(ctx, 1, attrSet)
+	a.metrics.BytesIngested.Add(ctx, int64(bytesIn), attrSet)
 	if err != nil {
-		a.metrics.RequestsFailed.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
+		a.metrics.RequestsFailed.Add(ctx, 1, attrSet)
 	}
 	return err
 }
