@@ -17,4 +17,4 @@ require (
 	google.golang.org/protobuf v1.28.1 // indirect
 )
 
-replace github.com/planetscale/vtprotobuf => github.com/carsonip/vtprotobuf v0.0.0-20230711135402-2cf3150fde0e
+replace github.com/planetscale/vtprotobuf => github.com/carsonip/vtprotobuf v0.0.0-20230725090823-22cdafcdd35e

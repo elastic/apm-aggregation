@@ -1,7 +1,7 @@
 github.com/BurntSushi/toml v1.2.1 h1:9F2/+DoOYIOksmaJFPw1tGFy1eDnIJXg+UHjuD8lTak=
 github.com/BurntSushi/toml v1.2.1/go.mod h1:CxXYINrC8qIiEnFrOxCa7Jy5BFHlXnUU2pbicEuybxQ=
-github.com/carsonip/vtprotobuf v0.0.0-20230711135402-2cf3150fde0e h1:lcgWGj99s7E/NzQTsyKtFN+VkHPmYAA8U73Y9fBFZdU=
-github.com/carsonip/vtprotobuf v0.0.0-20230711135402-2cf3150fde0e/go.mod h1:wm1N3qk9G/4+VM1WhpkLbvY/d8+0PbwYYpP5P5VhTks=
+github.com/carsonip/vtprotobuf v0.0.0-20230725090823-22cdafcdd35e h1:h7mHH+wX3BaqhjSZliudOO8f6hmxWRSEWV4uOJV8qEM=
+github.com/carsonip/vtprotobuf v0.0.0-20230725090823-22cdafcdd35e/go.mod h1:wm1N3qk9G/4+VM1WhpkLbvY/d8+0PbwYYpP5P5VhTks=
 github.com/davecgh/go-spew v1.1.0/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/elastic/go-licenser v0.4.1 h1:1xDURsc8pL5zYT9R29425J3vkHdt4RT5TNEMeRN48x4=
 github.com/elastic/go-licenser v0.4.1/go.mod h1:V56wHMpmdURfibNBggaSBfqgPxyT1Tldns1i87iTEvU=

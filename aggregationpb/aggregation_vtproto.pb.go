@@ -2815,11 +2815,11 @@ func (m *CombinedMetrics) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if len(m.ServiceMetrics) == cap(m.ServiceMetrics) {
-				m.ServiceMetrics = append(m.ServiceMetrics, &KeyedServiceMetrics{})
+				m.ServiceMetrics = append(m.ServiceMetrics, KeyedServiceMetricsFromVTPool())
 			} else {
 				m.ServiceMetrics = m.ServiceMetrics[:len(m.ServiceMetrics)+1]
 				if m.ServiceMetrics[len(m.ServiceMetrics)-1] == nil {
-					m.ServiceMetrics[len(m.ServiceMetrics)-1] = &KeyedServiceMetrics{}
+					m.ServiceMetrics[len(m.ServiceMetrics)-1] = KeyedServiceMetricsFromVTPool()
 				}
 			}
 			if err := m.ServiceMetrics[len(m.ServiceMetrics)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
@@ -3362,11 +3362,11 @@ func (m *ServiceMetrics) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if len(m.ServiceInstanceMetrics) == cap(m.ServiceInstanceMetrics) {
-				m.ServiceInstanceMetrics = append(m.ServiceInstanceMetrics, &KeyedServiceInstanceMetrics{})
+				m.ServiceInstanceMetrics = append(m.ServiceInstanceMetrics, KeyedServiceInstanceMetricsFromVTPool())
 			} else {
 				m.ServiceInstanceMetrics = m.ServiceInstanceMetrics[:len(m.ServiceInstanceMetrics)+1]
 				if m.ServiceInstanceMetrics[len(m.ServiceInstanceMetrics)-1] == nil {
-					m.ServiceInstanceMetrics[len(m.ServiceInstanceMetrics)-1] = &KeyedServiceInstanceMetrics{}
+					m.ServiceInstanceMetrics[len(m.ServiceInstanceMetrics)-1] = KeyedServiceInstanceMetricsFromVTPool()
 				}
 			}
 			if err := m.ServiceInstanceMetrics[len(m.ServiceInstanceMetrics)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
@@ -3575,11 +3575,11 @@ func (m *ServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if len(m.TransactionMetrics) == cap(m.TransactionMetrics) {
-				m.TransactionMetrics = append(m.TransactionMetrics, &KeyedTransactionMetrics{})
+				m.TransactionMetrics = append(m.TransactionMetrics, KeyedTransactionMetricsFromVTPool())
 			} else {
 				m.TransactionMetrics = m.TransactionMetrics[:len(m.TransactionMetrics)+1]
 				if m.TransactionMetrics[len(m.TransactionMetrics)-1] == nil {
-					m.TransactionMetrics[len(m.TransactionMetrics)-1] = &KeyedTransactionMetrics{}
+					m.TransactionMetrics[len(m.TransactionMetrics)-1] = KeyedTransactionMetricsFromVTPool()
 				}
 			}
 			if err := m.TransactionMetrics[len(m.TransactionMetrics)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
@@ -3616,11 +3616,11 @@ func (m *ServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if len(m.ServiceTransactionMetrics) == cap(m.ServiceTransactionMetrics) {
-				m.ServiceTransactionMetrics = append(m.ServiceTransactionMetrics, &KeyedServiceTransactionMetrics{})
+				m.ServiceTransactionMetrics = append(m.ServiceTransactionMetrics, KeyedServiceTransactionMetricsFromVTPool())
 			} else {
 				m.ServiceTransactionMetrics = m.ServiceTransactionMetrics[:len(m.ServiceTransactionMetrics)+1]
 				if m.ServiceTransactionMetrics[len(m.ServiceTransactionMetrics)-1] == nil {
-					m.ServiceTransactionMetrics[len(m.ServiceTransactionMetrics)-1] = &KeyedServiceTransactionMetrics{}
+					m.ServiceTransactionMetrics[len(m.ServiceTransactionMetrics)-1] = KeyedServiceTransactionMetricsFromVTPool()
 				}
 			}
 			if err := m.ServiceTransactionMetrics[len(m.ServiceTransactionMetrics)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
@@ -3657,11 +3657,11 @@ func (m *ServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if len(m.SpanMetrics) == cap(m.SpanMetrics) {
-				m.SpanMetrics = append(m.SpanMetrics, &KeyedSpanMetrics{})
+				m.SpanMetrics = append(m.SpanMetrics, KeyedSpanMetricsFromVTPool())
 			} else {
 				m.SpanMetrics = m.SpanMetrics[:len(m.SpanMetrics)+1]
 				if m.SpanMetrics[len(m.SpanMetrics)-1] == nil {
-					m.SpanMetrics[len(m.SpanMetrics)-1] = &KeyedSpanMetrics{}
+					m.SpanMetrics[len(m.SpanMetrics)-1] = KeyedSpanMetricsFromVTPool()
 				}
 			}
 			if err := m.SpanMetrics[len(m.SpanMetrics)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {

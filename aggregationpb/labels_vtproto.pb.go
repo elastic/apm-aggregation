@@ -470,11 +470,11 @@ func (m *GlobalLabels) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if len(m.Labels) == cap(m.Labels) {
-				m.Labels = append(m.Labels, &Label{})
+				m.Labels = append(m.Labels, LabelFromVTPool())
 			} else {
 				m.Labels = m.Labels[:len(m.Labels)+1]
 				if m.Labels[len(m.Labels)-1] == nil {
-					m.Labels[len(m.Labels)-1] = &Label{}
+					m.Labels[len(m.Labels)-1] = LabelFromVTPool()
 				}
 			}
 			if err := m.Labels[len(m.Labels)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
@@ -511,11 +511,11 @@ func (m *GlobalLabels) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			if len(m.NumericLabels) == cap(m.NumericLabels) {
-				m.NumericLabels = append(m.NumericLabels, &NumericLabel{})
+				m.NumericLabels = append(m.NumericLabels, NumericLabelFromVTPool())
 			} else {
 				m.NumericLabels = m.NumericLabels[:len(m.NumericLabels)+1]
 				if m.NumericLabels[len(m.NumericLabels)-1] == nil {
-					m.NumericLabels[len(m.NumericLabels)-1] = &NumericLabel{}
+					m.NumericLabels[len(m.NumericLabels)-1] = NumericLabelFromVTPool()
 				}
 			}
 			if err := m.NumericLabels[len(m.NumericLabels)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
