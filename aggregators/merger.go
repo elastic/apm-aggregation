@@ -8,6 +8,7 @@ import (
 	"io"
 
 	"github.com/axiomhq/hyperloglog"
+
 	"github.com/elastic/apm-aggregation/aggregationpb"
 )
 

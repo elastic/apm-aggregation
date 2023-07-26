@@ -9,15 +9,16 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastic/apm-aggregation/aggregationpb"
-	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
-	"github.com/elastic/apm-data/model/modelpb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/elastic/apm-aggregation/aggregationpb"
+	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
+	"github.com/elastic/apm-data/model/modelpb"
 )
 
 func TestEventToCombinedMetrics(t *testing.T) {

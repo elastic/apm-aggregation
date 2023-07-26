@@ -9,10 +9,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/google/go-cmp/cmp"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/testing/protocmp"
+
+	"github.com/elastic/apm-aggregation/aggregationpb"
 )
 
 func TestMerge(t *testing.T) {
