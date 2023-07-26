@@ -125,7 +125,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 func mergeServiceInstanceGroups(
 	to *ServiceMetrics,
 	from []*aggregationpb.KeyedServiceInstanceMetrics,
-	totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *Constraint,
+	totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *constraint,
 	limits Limits,
 	hash Hasher,
 	overflowServiceInstancesEstimator **hyperloglog.Sketch,
@@ -191,7 +191,7 @@ func mergeServiceInstanceGroups(
 func mergeTransactionGroups(
 	to map[TransactionAggregationKey]*aggregationpb.KeyedTransactionMetrics,
 	from []*aggregationpb.KeyedTransactionMetrics,
-	perSvcConstraint, globalConstraint *Constraint,
+	perSvcConstraint, globalConstraint *constraint,
 	hash Hasher,
 	overflowTo *OverflowTransaction,
 ) {
@@ -226,7 +226,7 @@ func mergeTransactionGroups(
 func mergeServiceTransactionGroups(
 	to map[ServiceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics,
 	from []*aggregationpb.KeyedServiceTransactionMetrics,
-	perSvcConstraint, globalConstraint *Constraint,
+	perSvcConstraint, globalConstraint *constraint,
 	hash Hasher,
 	overflowTo *OverflowServiceTransaction,
 ) {
@@ -260,7 +260,7 @@ func mergeServiceTransactionGroups(
 func mergeSpanGroups(
 	to map[SpanAggregationKey]*aggregationpb.KeyedSpanMetrics,
 	from []*aggregationpb.KeyedSpanMetrics,
-	perSvcConstraint, globalConstraint *Constraint,
+	perSvcConstraint, globalConstraint *constraint,
 	hash Hasher,
 	overflowTo *OverflowSpan,
 ) {
@@ -474,26 +474,26 @@ func newServiceInstanceMetrics() ServiceInstanceMetrics {
 	}
 }
 
-type Constraint struct {
+type constraint struct {
 	counter int
 	limit   int
 }
 
-func newConstraint(initialCount, limit int) *Constraint {
-	return &Constraint{
+func newConstraint(initialCount, limit int) *constraint {
+	return &constraint{
 		counter: initialCount,
 		limit:   limit,
 	}
 }
 
-func (c *Constraint) maxed() bool {
+func (c *constraint) maxed() bool {
 	return c.counter >= c.limit
 }
 
-func (c *Constraint) add(delta int) {
+func (c *constraint) add(delta int) {
 	c.counter += delta
 }
 
-func (c *Constraint) value() int {
+func (c *constraint) value() int {
 	return c.counter
 }
