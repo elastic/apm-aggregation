@@ -50,19 +50,12 @@ func (k *TransactionAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
 		h.WriteString("1")
 	}
 
-	h.WriteString(k.ContainerId)
-	h.WriteString(k.KubernetesPodName)
-
 	h.WriteString(k.ServiceVersion)
 	h.WriteString(k.ServiceNodeName)
 
 	h.WriteString(k.ServiceRuntimeName)
 	h.WriteString(k.ServiceRuntimeVersion)
 	h.WriteString(k.ServiceLanguageVersion)
-
-	h.WriteString(k.HostHostname)
-	h.WriteString(k.HostName)
-	h.WriteString(k.HostOsPlatform)
 
 	h.WriteString(k.EventOutcome)
 
@@ -77,6 +70,25 @@ func (k *TransactionAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
 	h.WriteString(k.FaasName)
 	h.WriteString(k.FaasVersion)
 	h.WriteString(k.FaasTriggerType)
+	return h
+}
+
+func (k *ServiceInstanceTransactionAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
+	h.WriteString(k.ContainerId)
+	h.WriteString(k.KubernetesPodName)
+
+	h.WriteString(k.ServiceVersion)
+	h.WriteString(k.ServiceNodeName)
+
+	h.WriteString(k.ServiceRuntimeName)
+	h.WriteString(k.ServiceRuntimeVersion)
+	h.WriteString(k.ServiceLanguageVersion)
+
+	h.WriteString(k.HostHostname)
+	h.WriteString(k.HostName)
+	h.WriteString(k.HostOsPlatform)
+
+	h.WriteString(k.TransactionType)
 
 	h.WriteString(k.CloudProvider)
 	h.WriteString(k.CloudRegion)
