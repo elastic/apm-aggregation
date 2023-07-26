@@ -18,6 +18,7 @@ type combinedMetricsMerger struct {
 
 func (m *combinedMetricsMerger) MergeNewer(value []byte) error {
 	from := aggregationpb.CombinedMetricsFromVTPool()
+	defer from.ReturnToVTPool()
 	if err := from.UnmarshalVT(value); err != nil {
 		return err
 	}
@@ -27,6 +28,7 @@ func (m *combinedMetricsMerger) MergeNewer(value []byte) error {
 
 func (m *combinedMetricsMerger) MergeOlder(value []byte) error {
 	from := aggregationpb.CombinedMetricsFromVTPool()
+	defer from.ReturnToVTPool()
 	if err := from.UnmarshalVT(value); err != nil {
 		return err
 	}
@@ -35,6 +37,9 @@ func (m *combinedMetricsMerger) MergeOlder(value []byte) error {
 }
 
 func (m *combinedMetricsMerger) Finish(includesBase bool) ([]byte, io.Closer, error) {
+	// TODO: Investigate test failures. Releasing this resource is causing test failures
+	// Are we holding a reference to released resource?
+	// defer m.metrics.ReturnToVTPool()
 	data, err := m.metrics.MarshalBinary()
 	return data, nil, err
 }
