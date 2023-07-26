@@ -452,6 +452,7 @@ func histogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 		pb.Buckets = append(pb.Buckets, bucket)
 		pb.Counts = append(pb.Counts, value)
 	})
+	sort.Sort(hdrhistogram.SortBy[int32, int64]{By: pb.Buckets, Other: pb.Counts})
 	return pb
 }
 
