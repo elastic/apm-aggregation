@@ -104,14 +104,6 @@ type CombinedMetrics struct {
 	YoungestEventTimestamp uint64
 }
 
-// ReturnToVTPool releases the proto resources held by CombinedMetrics.
-func (m *CombinedMetrics) ReturnToVTPool() {
-	m.OverflowServices.ReturnToVTPool()
-	for _, p := range m.Services {
-		p.ReturnToVTPool()
-	}
-}
-
 // ServiceAggregationKey models the key used to store service specific
 // aggregation metrics.
 type ServiceAggregationKey struct {
@@ -129,16 +121,6 @@ type ServiceMetrics struct {
 	OverflowGroups        Overflow
 }
 
-// ReturnToVTPool releases the proto resources held by ServiceMetrics.
-func (m *ServiceMetrics) ReturnToVTPool() {
-	if m == nil {
-		return
-	}
-	for _, p := range m.ServiceInstanceGroups {
-		p.ReturnToVTPool()
-	}
-}
-
 // ServiceInstanceAggregationKey models the key used to store service instance specific
 // aggregation metrics.
 type ServiceInstanceAggregationKey struct {
@@ -151,25 +133,6 @@ type ServiceInstanceMetrics struct {
 	TransactionGroups        map[TransactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
 	ServiceTransactionGroups map[ServiceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
 	SpanGroups               map[SpanAggregationKey]*aggregationpb.KeyedSpanMetrics
-}
-
-// ReturnToVTPool returns the proto resources held by ServiceInstanceMetrics.
-func (m *ServiceInstanceMetrics) ReturnToVTPool() {
-	if m == nil {
-		return
-	}
-	for k, p := range m.TransactionGroups {
-		p.ReturnToVTPool()
-		m.TransactionGroups[k] = nil
-	}
-	for k, p := range m.ServiceTransactionGroups {
-		p.ReturnToVTPool()
-		m.ServiceTransactionGroups[k] = nil
-	}
-	for k, p := range m.SpanGroups {
-		p.ReturnToVTPool()
-		m.SpanGroups[k] = nil
-	}
 }
 
 func insertHash(to **hyperloglog.Sketch, hash uint64) {
@@ -284,16 +247,6 @@ type Overflow struct {
 	OverflowTransaction        OverflowTransaction
 	OverflowServiceTransaction OverflowServiceTransaction
 	OverflowSpan               OverflowSpan
-}
-
-// ReturnToVTPool releases the prot resources held by Overflow.
-func (o *Overflow) ReturnToVTPool() {
-	if o == nil {
-		return
-	}
-	o.OverflowTransaction.Metrics.ReturnToVTPool()
-	o.OverflowServiceTransaction.Metrics.ReturnToVTPool()
-	o.OverflowSpan.Metrics.ReturnToVTPool()
 }
 
 // TransactionAggregationKey models the key used to store transaction
