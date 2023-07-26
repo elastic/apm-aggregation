@@ -130,9 +130,10 @@ type ServiceInstanceAggregationKey struct {
 // ServiceInstanceMetrics models the value to store all the aggregated metrics
 // for a specific service instance aggregation key.
 type ServiceInstanceMetrics struct {
-	TransactionGroups        map[TransactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
-	ServiceTransactionGroups map[ServiceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
-	SpanGroups               map[SpanAggregationKey]*aggregationpb.KeyedSpanMetrics
+	TransactionGroups                map[TransactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
+	ServiceInstanceTransactionGroups map[ServiceInstanceTransactionAggregationKey]*aggregationpb.KeyedServiceInstanceTransactionMetrics
+	ServiceTransactionGroups         map[ServiceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
+	SpanGroups                       map[SpanAggregationKey]*aggregationpb.KeyedSpanMetrics
 }
 
 func insertHash(to **hyperloglog.Sketch, hash uint64) {
@@ -178,6 +179,36 @@ func (o *OverflowTransaction) MergeOverflow(from *OverflowTransaction) {
 }
 
 func (o *OverflowTransaction) Empty() bool {
+	return o.Estimator == nil
+}
+
+type OverflowServiceInstanceTransaction struct {
+	Metrics   *aggregationpb.ServiceInstanceTransactionMetrics
+	Estimator *hyperloglog.Sketch
+}
+
+func (o *OverflowServiceInstanceTransaction) Merge(
+	from *aggregationpb.ServiceInstanceTransactionMetrics,
+	hash uint64,
+) {
+	if o.Metrics == nil {
+		o.Metrics = aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+	}
+	mergeServiceInstanceTransactionMetrics(o.Metrics, from)
+	insertHash(&o.Estimator, hash)
+}
+
+func (o *OverflowServiceInstanceTransaction) MergeOverflow(from *OverflowServiceInstanceTransaction) {
+	if from.Estimator != nil {
+		if o.Metrics == nil {
+			o.Metrics = aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+		}
+		mergeServiceInstanceTransactionMetrics(o.Metrics, from.Metrics)
+		mergeEstimator(&o.Estimator, from.Estimator)
+	}
+}
+
+func (o *OverflowServiceInstanceTransaction) Empty() bool {
 	return o.Estimator == nil
 }
 
@@ -244,9 +275,10 @@ func (o *OverflowSpan) Empty() bool {
 // Overflow contains transaction and spans overflow metrics and cardinality
 // estimators for the aggregation group for overflow buckets.
 type Overflow struct {
-	OverflowTransaction        OverflowTransaction
-	OverflowServiceTransaction OverflowServiceTransaction
-	OverflowSpan               OverflowSpan
+	OverflowTransaction                OverflowTransaction
+	OverflowServiceInstanceTransaction OverflowServiceInstanceTransaction
+	OverflowServiceTransaction         OverflowServiceTransaction
+	OverflowSpan                       OverflowSpan
 }
 
 // TransactionAggregationKey models the key used to store transaction
@@ -254,6 +286,29 @@ type Overflow struct {
 type TransactionAggregationKey struct {
 	TraceRoot bool
 
+	ServiceVersion  string
+	ServiceNodeName string
+
+	ServiceRuntimeName     string
+	ServiceRuntimeVersion  string
+	ServiceLanguageVersion string
+
+	EventOutcome string
+
+	TransactionName   string
+	TransactionType   string
+	TransactionResult string
+
+	FAASColdstart   nullable.Bool
+	FAASID          string
+	FAASName        string
+	FAASVersion     string
+	FAASTriggerType string
+}
+
+// ServiceInstanceTransactionAggregationKey models the key used to store
+// service instance transaction aggregation metrics.
+type ServiceInstanceTransactionAggregationKey struct {
 	ContainerID       string
 	KubernetesPodName string
 
@@ -268,17 +323,7 @@ type TransactionAggregationKey struct {
 	HostName       string
 	HostOSPlatform string
 
-	EventOutcome string
-
-	TransactionName   string
-	TransactionType   string
-	TransactionResult string
-
-	FAASColdstart   nullable.Bool
-	FAASID          string
-	FAASName        string
-	FAASVersion     string
-	FAASTriggerType string
+	TransactionType string
 
 	CloudProvider         string
 	CloudRegion           string

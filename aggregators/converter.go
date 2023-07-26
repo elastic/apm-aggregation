@@ -68,6 +68,9 @@ func EventToCombinedMetrics(
 		txnKey, sim := eventToTxnMetrics(e, hdr)
 		collector.add(p.Partition(hasher.Chain(txnKey)), sim)
 
+		svcInstTxnKey, sim := eventToServiceInstanceTxnMetrics(e, hdr)
+		collector.add(p.Partition(hasher.Chain(svcInstTxnKey)), sim)
+
 		svcTxnKey, sim := eventToServiceTxnMetrics(e, hdr)
 		collector.add(p.Partition(hasher.Chain(svcTxnKey)), sim)
 
@@ -305,6 +308,29 @@ func eventToTxnMetrics(
 
 	sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
 	sim.TransactionMetrics = append(sim.TransactionMetrics, ktm)
+	return txnKey, sim
+}
+
+// eventToServiceInstanceTxnMetrics converts an APMEvent to a
+// service instance transaction metrics.
+func eventToServiceInstanceTxnMetrics(
+	e *modelpb.APMEvent,
+	hdr *hdrhistogram.HistogramRepresentation,
+) (
+	*aggregationpb.TransactionAggregationKey,
+	*aggregationpb.ServiceInstanceMetrics,
+) {
+	tm := aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+	tm.Histogram = HistogramToProto(hdr)
+	tm.FailureCount
+	tm.SuccessCount
+
+	txnKey := serviceInstanceTransactionKey(e)
+	ktm := aggregationpb.KeyedServiceInstanceTransactionMetricsFromVTPool()
+	ktm.Key, ktm.Metrics = txnKey, tm
+
+	sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
+	sim.ServiceInstanceTransactionMetrics = append(sim.ServiceInstanceTransactionMetrics, ktm)
 	return txnKey, sim
 }
 

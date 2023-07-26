@@ -179,6 +179,17 @@ func mergeServiceInstanceGroups(
 			hash,
 			&to.OverflowGroups.OverflowSpan,
 		)
+		mergeServiceInstanceTransactionGroups(
+			toSvcIns.ServiceInstanceTransactionGroups,
+			fromSvcIns.Metrics.ServiceInstanceTransactionMetrics,
+			newConstraint(
+				len(toSvcIns.ServiceInstanceTransactionGroups),
+				limits.MaxServiceInstaceTransactionGroupsPerService,
+			),
+			totalServiceInstanceTransactionGroupsConstraint,
+			hash,
+			&to.OverflowGroups.OverflowServiceInstanceTransaction,
+		)
 		to.ServiceInstanceGroups[sik] = toSvcIns
 	}
 }
@@ -214,6 +225,40 @@ func mergeTransactionGroups(
 			continue
 		}
 		mergeKeyedTransactionMetrics(toTxn, fromTxn)
+	}
+}
+
+// mergeTransactionGroups merges service instance transaction aggregation groups for two combined metrics
+// considering max transaction groups and max transaction groups per service limits.
+func mergeServiceInstanceTransactionGroups(
+	to map[ServiceInstanceTransactionAggregationKey]*aggregationpb.KeyedServiceInstanceTransactionMetrics,
+	from []*aggregationpb.KeyedServiceInstanceTransactionMetrics,
+	perSvcConstraint, globalConstraint *constraint,
+	hash Hasher,
+	overflowTo *OverflowServiceInstanceTransaction,
+) {
+	for i := range from {
+		fromTxn := from[i]
+		var sitk ServiceInstanceTransactionAggregationKey
+		sitk.FromProto(fromTxn.Key)
+		toTxn, ok := to[sitk]
+		if !ok {
+			overflowed := perSvcConstraint.maxed() || globalConstraint.maxed()
+			if overflowed {
+				overflowTo.Merge(
+					fromTxn.Metrics,
+					hash.Chain(fromTxn.Key).Sum(),
+				)
+				continue
+			}
+			perSvcConstraint.add(1)
+			globalConstraint.add(1)
+
+			to[sitk] = fromTxn
+			from[i] = nil
+			continue
+		}
+		mergeKeyedServiceInstanceTransactionMetrics(toTxn, fromTxn)
 	}
 }
 
@@ -361,6 +406,31 @@ func mergeTransactionMetrics(
 	}
 }
 
+func mergeKeyedServiceInstanceTransactionMetrics(
+	to, from *aggregationpb.KeyedServiceInstanceTransactionMetrics,
+) {
+	if from.Metrics == nil {
+		return
+	}
+	if to.Metrics == nil {
+		to.Metrics = aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+	}
+	mergeServiceInstanceTransactionMetrics(to.Metrics, from.Metrics)
+}
+
+func mergeServiceInstanceTransactionMetrics(
+	to, from *aggregationpb.ServiceInstanceTransactionMetrics,
+) {
+	if to.Histogram == nil && from.Histogram != nil {
+		to.Histogram = aggregationpb.HDRHistogramFromVTPool()
+	}
+	if to.Histogram != nil && from.Histogram != nil {
+		mergeHistogram(to.Histogram, from.Histogram)
+	}
+	to.FailureCount += from.FailureCount
+	to.SuccessCount += from.SuccessCount
+}
+
 func mergeKeyedServiceTransactionMetrics(
 	to, from *aggregationpb.KeyedServiceTransactionMetrics,
 ) {
@@ -464,9 +534,10 @@ func newServiceMetrics() ServiceMetrics {
 
 func newServiceInstanceMetrics() ServiceInstanceMetrics {
 	return ServiceInstanceMetrics{
-		TransactionGroups:        make(map[TransactionAggregationKey]*aggregationpb.KeyedTransactionMetrics),
-		ServiceTransactionGroups: make(map[ServiceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics),
-		SpanGroups:               make(map[SpanAggregationKey]*aggregationpb.KeyedSpanMetrics),
+		TransactionGroups:                make(map[TransactionAggregationKey]*aggregationpb.KeyedTransactionMetrics),
+		ServiceInstanceTransactionGroups: make(map[ServiceInstanceTransactionAggregationKey]*aggregationpb.KeyedServiceInstanceTransactionMetrics),
+		ServiceTransactionGroups:         make(map[ServiceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics),
+		SpanGroups:                       make(map[SpanAggregationKey]*aggregationpb.KeyedSpanMetrics),
 	}
 }
 

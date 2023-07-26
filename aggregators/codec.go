@@ -315,6 +315,28 @@ func (k *TransactionAggregationKey) ToProto() *aggregationpb.TransactionAggregat
 func (k *TransactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggregationKey) {
 	k.TraceRoot = pb.TraceRoot
 
+	k.ServiceVersion = pb.ServiceVersion
+	k.ServiceNodeName = pb.ServiceNodeName
+
+	k.ServiceRuntimeName = pb.ServiceRuntimeName
+	k.ServiceRuntimeVersion = pb.ServiceRuntimeVersion
+	k.ServiceLanguageVersion = pb.ServiceLanguageVersion
+
+	k.EventOutcome = pb.EventOutcome
+
+	k.TransactionName = pb.TransactionName
+	k.TransactionType = pb.TransactionType
+	k.TransactionResult = pb.TransactionResult
+
+	k.FAASColdstart = nullable.Bool(pb.FaasColdstart)
+	k.FAASID = pb.FaasId
+	k.FAASName = pb.FaasName
+	k.FAASVersion = pb.FaasVersion
+	k.FAASTriggerType = pb.FaasTriggerType
+}
+
+// FromProto converts protobuf representation to ServiceInstanceTransactionAggregationKey.
+func (k *ServiceInstanceTransactionAggregationKey) FromProto(pb *aggregationpb.ServiceInstanceTransactionAggregationKey) {
 	k.ContainerID = pb.ContainerId
 	k.KubernetesPodName = pb.KubernetesPodName
 
@@ -329,17 +351,7 @@ func (k *TransactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggre
 	k.HostName = pb.HostName
 	k.HostOSPlatform = pb.HostOsPlatform
 
-	k.EventOutcome = pb.EventOutcome
-
-	k.TransactionName = pb.TransactionName
 	k.TransactionType = pb.TransactionType
-	k.TransactionResult = pb.TransactionResult
-
-	k.FAASColdstart = nullable.Bool(pb.FaasColdstart)
-	k.FAASID = pb.FaasId
-	k.FAASName = pb.FaasName
-	k.FAASVersion = pb.FaasVersion
-	k.FAASTriggerType = pb.FaasTriggerType
 
 	k.CloudProvider = pb.CloudProvider
 	k.CloudRegion = pb.CloudRegion
