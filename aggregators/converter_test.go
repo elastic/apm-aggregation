@@ -5,6 +5,7 @@
 package aggregators
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -386,65 +387,76 @@ func TestEventToCombinedMetrics(t *testing.T) {
 // 		})
 // 	}
 // }
-//
-// func BenchmarkCombinedMetricsToBatch(b *testing.B) {
-// 	ai := time.Hour
-// 	ts := time.Now()
-// 	pt := ts.Truncate(ai)
-// 	cardinality := 10
-// 	tcm := createTestCombinedMetrics()
-// 	for i := 0; i < cardinality; i++ {
-// 		txnName := fmt.Sprintf("txn%d", i)
-// 		txnType := fmt.Sprintf("typ%d", i)
-// 		spanName := fmt.Sprintf("spn%d", i)
-// 		tcm = tcm.addTransaction(ts, "bench", "", testTransaction{txnName: txnName, txnType: txnType, count: 200})
-// 		tcm = tcm.addServiceTransaction(ts, "bench", "", testServiceTransaction{txnType: txnType, count: 200})
-// 		tcm = tcm.addSpan(ts, "bench", "", testSpan{spanName: spanName})
-// 	}
-// 	cm := CombinedMetrics(*tcm)
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		_, err := CombinedMetricsToBatch(cm, pt, ai)
-// 		if err != nil {
-// 			b.Fatal(err)
-// 		}
-// 	}
-// }
-//
-// func BenchmarkEventToCombinedMetrics(b *testing.B) {
-// 	event := &modelpb.APMEvent{
-// 		Timestamp: timestamppb.Now(),
-// 		ParentId:  "nonroot",
-// 		Service: &modelpb.Service{
-// 			Name: "test",
-// 		},
-// 		Event: &modelpb.Event{
-// 			Duration: durationpb.New(time.Second),
-// 			Outcome:  "success",
-// 		},
-// 		Transaction: &modelpb.Transaction{
-// 			RepresentativeCount: 1,
-// 			Name:                "testtxn",
-// 			Type:                "testtyp",
-// 		},
-// 	}
-// 	cmk := CombinedMetricsKey{
-// 		Interval:       time.Minute,
-// 		ProcessingTime: time.Now().Truncate(time.Minute),
-// 		ID:             EncodeToCombinedMetricsKeyID(b, "ab01"),
-// 	}
-// 	partitioner := NewHashPartitioner(1)
-// 	noop := func(_ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics) error {
-// 		return nil
-// 	}
-// 	b.ResetTimer()
-// 	for i := 0; i < b.N; i++ {
-// 		err := EventToCombinedMetrics(event, cmk, partitioner, noop)
-// 		if err != nil {
-// 			b.Fatal(err)
-// 		}
-// 	}
-// }
+
+func BenchmarkCombinedMetricsToBatch(b *testing.B) {
+	ai := time.Hour
+	ts := time.Now()
+	pt := ts.Truncate(ai)
+	cardinality := 10
+	tcm := NewTestCombinedMetrics().
+		AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "bench"}).
+		AddServiceInstanceMetrics(ServiceInstanceAggregationKey{})
+	for i := 0; i < cardinality; i++ {
+		txnName := fmt.Sprintf("txn%d", i)
+		txnType := fmt.Sprintf("typ%d", i)
+		spanName := fmt.Sprintf("spn%d", i)
+		tcm.
+			AddTransaction(TransactionAggregationKey{
+				TransactionName: txnName,
+				TransactionType: txnType,
+			}, WithTransactionCount(200)).
+			AddServiceTransaction(ServiceTransactionAggregationKey{
+				TransactionType: txnType,
+			}, WithTransactionCount(200)).
+			AddSpan(SpanAggregationKey{
+				SpanName: spanName,
+			})
+	}
+	cm := tcm.Get()
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		_, err := CombinedMetricsToBatch(cm, pt, ai)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
+func BenchmarkEventToCombinedMetrics(b *testing.B) {
+	event := &modelpb.APMEvent{
+		Timestamp: timestamppb.Now(),
+		ParentId:  "nonroot",
+		Service: &modelpb.Service{
+			Name: "test",
+		},
+		Event: &modelpb.Event{
+			Duration: durationpb.New(time.Second),
+			Outcome:  "success",
+		},
+		Transaction: &modelpb.Transaction{
+			RepresentativeCount: 1,
+			Name:                "testtxn",
+			Type:                "testtyp",
+		},
+	}
+	cmk := CombinedMetricsKey{
+		Interval:       time.Minute,
+		ProcessingTime: time.Now().Truncate(time.Minute),
+		ID:             EncodeToCombinedMetricsKeyID(b, "ab01"),
+	}
+	partitioner := NewHashPartitioner(1)
+	noop := func(_ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics) error {
+		return nil
+	}
+	b.ResetTimer()
+	for i := 0; i < b.N; i++ {
+		err := EventToCombinedMetrics(event, cmk, partitioner, noop)
+		if err != nil {
+			b.Fatal(err)
+		}
+	}
+}
+
 //
 // func createTestServiceSummaryMetric(
 // 	ts time.Time,
