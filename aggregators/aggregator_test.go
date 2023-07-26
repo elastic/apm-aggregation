@@ -9,6 +9,7 @@ import (
 	"fmt"
 	"math/rand"
 	"net/netip"
+	"sort"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -27,11 +28,14 @@ import (
 	apmmodel "go.elastic.co/apm/v2/model"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/sdk/metric"
+	sdktrace "go.opentelemetry.io/otel/sdk/trace"
+	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
@@ -41,581 +45,561 @@ func TestNew(t *testing.T) {
 	assert.NotNil(t, agg)
 }
 
-// func TestAggregateBatch(t *testing.T) {
-// 	exp := tracetest.NewInMemoryExporter()
-// 	tp := sdktrace.NewTracerProvider(
-// 		sdktrace.WithSyncer(exp),
-// 	)
-// 	gatherer, err := apmotel.NewGatherer()
-// 	require.NoError(t, err)
-// 	mp := metric.NewMeterProvider(metric.WithReader(gatherer))
-//
-// 	cmID := EncodeToCombinedMetricsKeyID(t, "ab01")
-// 	txnDuration := 100 * time.Millisecond
-// 	uniqueEventCount := 100 // for each of txns and spans
-// 	uniqueServices := 10
-// 	repCount := 5
-// 	ts := time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC)
-// 	batch := make(modelpb.Batch, 0, uniqueEventCount*repCount*2)
-// 	// Distribute the total unique transaction count amongst the total
-// 	// unique services uniformly.
-// 	for i := 0; i < uniqueEventCount*repCount; i++ {
-// 		batch = append(batch, &modelpb.APMEvent{
-// 			Event: &modelpb.Event{
-// 				Outcome:  "success",
-// 				Duration: durationpb.New(txnDuration),
-// 				Received: timestamppb.New(ts),
-// 			},
-// 			Transaction: &modelpb.Transaction{
-// 				Name:                fmt.Sprintf("foo%d", i%uniqueEventCount),
-// 				Type:                fmt.Sprintf("txtype%d", i%uniqueEventCount),
-// 				RepresentativeCount: 1,
-// 				DroppedSpansStats: []*modelpb.DroppedSpanStats{
-// 					{
-// 						DestinationServiceResource: fmt.Sprintf("dropped_dest_resource%d", i%uniqueEventCount),
-// 						Outcome:                    "success",
-// 						Duration: &modelpb.AggregatedDuration{
-// 							Count: 1,
-// 							Sum:   durationpb.New(10 * time.Millisecond),
-// 						},
-// 					},
-// 				},
-// 			},
-// 			Service: &modelpb.Service{Name: fmt.Sprintf("svc%d", i%uniqueServices)},
-// 		})
-// 		batch = append(batch, &modelpb.APMEvent{
-// 			Event: &modelpb.Event{
-// 				Received: timestamppb.New(ts),
-// 			},
-// 			Span: &modelpb.Span{
-// 				Name:                fmt.Sprintf("bar%d", i%uniqueEventCount),
-// 				Type:                "type",
-// 				RepresentativeCount: 1,
-// 				DestinationService: &modelpb.DestinationService{
-// 					Resource: "test_dest",
-// 				},
-// 			},
-// 			Service: &modelpb.Service{Name: fmt.Sprintf("svc%d", i%uniqueServices)},
-// 		})
-// 	}
-//
-// 	out := make(chan CombinedMetrics, 1)
-// 	aggIvl := time.Minute
-// 	agg, err := New(
-// 		WithDataDir(t.TempDir()),
-// 		WithLimits(Limits{
-// 			MaxSpanGroups:                         1000,
-// 			MaxSpanGroupsPerService:               100,
-// 			MaxTransactionGroups:                  100,
-// 			MaxTransactionGroupsPerService:        10,
-// 			MaxServiceTransactionGroups:           100,
-// 			MaxServiceTransactionGroupsPerService: 10,
-// 			MaxServices:                           10,
-// 			MaxServiceInstanceGroupsPerService:    10,
-// 		}),
-// 		WithProcessor(combinedMetricsProcessor(out)),
-// 		WithAggregationIntervals([]time.Duration{aggIvl}),
-// 		WithHarvestDelay(time.Hour), // disable auto harvest
-// 		WithTracer(tp.Tracer("test")),
-// 		WithMeter(mp.Meter("test")),
-// 		WithCombinedMetricsIDToKVs(func(id [16]byte) []attribute.KeyValue {
-// 			return []attribute.KeyValue{attribute.String("id_key", string(id[:]))}
-// 		}),
-// 	)
-// 	require.NoError(t, err)
-//
-// 	require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
-// 	require.NoError(t, agg.Stop(context.Background()))
-// 	var cm CombinedMetrics
-// 	select {
-// 	case cm = <-out:
-// 	default:
-// 		t.Error("failed to get aggregated metrics")
-// 		t.FailNow()
-// 	}
-//
-// 	var span tracetest.SpanStub
-// 	for _, s := range exp.GetSpans() {
-// 		if s.Name == "AggregateBatch" {
-// 			span = s
-// 		}
-// 	}
-// 	assert.NotNil(t, span)
-//
-// 	expectedCombinedMetrics := CombinedMetrics{
-// 		Services:               make(map[ServiceAggregationKey]ServiceMetrics),
-// 		eventsTotal:            float64(len(batch)),
-// 		youngestEventTimestamp: ts,
-// 	}
-// 	expectedMeasurements := []apmmodel.Metrics{
-// 		{
-// 			Samples: map[string]apmmodel.Metric{
-// 				"aggregator.requests.total": {Value: 1},
-// 				"aggregator.bytes.ingested": {Value: 133750},
-// 			},
-// 			Labels: apmmodel.StringMap{
-// 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
-// 			},
-// 		},
-// 		{
-// 			Samples: map[string]apmmodel.Metric{
-// 				"aggregator.events.total":     {Value: float64(len(batch))},
-// 				"aggregator.events.processed": {Value: float64(len(batch))},
-// 				"events.processing-delay":     {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
-// 				"events.queued-delay":         {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
-// 			},
-// 			Labels: apmmodel.StringMap{
-// 				apmmodel.StringMapItem{Key: aggregationIvlKey, Value: formatDuration(aggIvl)},
-// 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
-// 			},
-// 		},
-// 	}
-// 	sik := ServiceInstanceAggregationKey{GlobalLabelsStr: ""}
-// 	for i := 0; i < uniqueEventCount*repCount; i++ {
-// 		svcKey := ServiceAggregationKey{
-// 			Timestamp:   time.Unix(0, 0).UTC(),
-// 			ServiceName: fmt.Sprintf("svc%d", i%uniqueServices),
-// 		}
-// 		txKey := TransactionAggregationKey{
-// 			TraceRoot:       true,
-// 			TransactionName: fmt.Sprintf("foo%d", i%uniqueEventCount),
-// 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
-// 			EventOutcome:    "success",
-// 		}
-// 		stxKey := ServiceTransactionAggregationKey{
-// 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
-// 		}
-// 		spanKey := SpanAggregationKey{
-// 			SpanName: fmt.Sprintf("bar%d", i%uniqueEventCount),
-// 			Resource: "test_dest",
-// 		}
-// 		if _, ok := expectedCombinedMetrics.Services[svcKey]; !ok {
-// 			expectedCombinedMetrics.Services[svcKey] = newServiceMetrics()
-// 		}
-// 		if _, ok := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik]; !ok {
-// 			expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik] = newServiceInstanceMetrics()
-// 		}
-// 		var ok bool
-// 		var tm TransactionMetrics
-// 		if tm, ok = expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].TransactionGroups[txKey]; !ok {
-// 			tm = newTransactionMetrics()
-// 		}
-// 		tm.Histogram.RecordDuration(txnDuration, 1)
-// 		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].TransactionGroups[txKey] = tm
-// 		var stm ServiceTransactionMetrics
-// 		if stm, ok = expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].ServiceTransactionGroups[stxKey]; !ok {
-// 			stm = newServiceTransactionMetrics()
-// 		}
-// 		stm.Histogram.RecordDuration(txnDuration, 1)
-// 		stm.SuccessCount++
-// 		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].ServiceTransactionGroups[stxKey] = stm
-// 		sm := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[spanKey]
-// 		sm.Count++
-// 		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[spanKey] = sm
-//
-// 		droppedSpanStatsKey := SpanAggregationKey{
-// 			SpanName: "",
-// 			Resource: fmt.Sprintf("dropped_dest_resource%d", i%uniqueEventCount),
-// 			Outcome:  "success",
-// 		}
-// 		dssm := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[droppedSpanStatsKey]
-// 		dssm.Count++
-// 		dssm.Sum += float64(10 * time.Millisecond)
-// 		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[droppedSpanStatsKey] = dssm
-// 	}
-// 	assert.Empty(t, cmp.Diff(
-// 		expectedCombinedMetrics, cm,
-// 		cmpopts.EquateEmpty(),
-// 		cmpopts.EquateApprox(0, 0.01),
-// 		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
-// 			return a.Equal(&b)
-// 		}),
-// 		cmp.AllowUnexported(CombinedMetrics{}),
-// 	))
-// 	assert.Empty(t, cmp.Diff(
-// 		expectedMeasurements,
-// 		gatherMetrics(
-// 			gatherer,
-// 			withIgnoreMetricPrefix("pebble."),
-// 			withZeroHistogramValues(true),
-// 		),
-// 		cmpopts.IgnoreUnexported(apmmodel.Time{}),
-// 		cmpopts.EquateApprox(0, 0.01),
-// 	))
-// }
+func TestAggregateBatch(t *testing.T) {
+	exp := tracetest.NewInMemoryExporter()
+	tp := sdktrace.NewTracerProvider(
+		sdktrace.WithSyncer(exp),
+	)
+	gatherer, err := apmotel.NewGatherer()
+	require.NoError(t, err)
+	mp := metric.NewMeterProvider(metric.WithReader(gatherer))
 
-// func TestAggregateSpanMetrics(t *testing.T) {
-// 	type input struct {
-// 		serviceName         string
-// 		agentName           string
-// 		destination         string
-// 		targetType          string
-// 		targetName          string
-// 		outcome             string
-// 		representativeCount float64
-// 	}
-//
-// 	destinationX := "destination-X"
-// 	destinationZ := "destination-Z"
-// 	trgTypeX := "trg-type-X"
-// 	trgNameX := "trg-name-X"
-// 	trgTypeZ := "trg-type-Z"
-// 	trgNameZ := "trg-name-Z"
-// 	defaultLabels := modelpb.Labels{
-// 		"department_name": &modelpb.LabelValue{Global: true, Value: "apm"},
-// 		"organization":    &modelpb.LabelValue{Global: true, Value: "observability"},
-// 		"company":         &modelpb.LabelValue{Global: true, Value: "elastic"},
-// 	}
-// 	defaultNumericLabels := modelpb.NumericLabels{
-// 		"user_id":     &modelpb.NumericLabelValue{Global: true, Value: 100},
-// 		"cost_center": &modelpb.NumericLabelValue{Global: true, Value: 10},
-// 	}
-//
-// 	for _, tt := range []struct {
-// 		name              string
-// 		inputs            []input
-// 		getExpectedEvents func(time.Time, time.Duration, time.Duration, int) []*modelpb.APMEvent
-// 	}{
-// 		{
-// 			name: "with destination and service targets",
-// 			inputs: []input{
-// 				{serviceName: "service-A", agentName: "java", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 2},
-// 				{serviceName: "service-A", agentName: "java", destination: destinationX, targetType: trgTypeX, targetName: trgNameX, outcome: "success", representativeCount: 1},
-// 				{serviceName: "service-B", agentName: "python", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 1},
-// 				{serviceName: "service-A", agentName: "java", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 1},
-// 				{serviceName: "service-A", agentName: "java", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 0},
-// 				{serviceName: "service-A", agentName: "java", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "failure", representativeCount: 1},
-// 			},
-// 			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
-// 				return []*modelpb.APMEvent{
-// 					{
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "java"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-A",
-// 						},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_summary",
-// 							Interval: formatDuration(ivl),
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					}, {
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "python"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-B",
-// 						},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_summary",
-// 							Interval: formatDuration(ivl),
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					}, {
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "java"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-A",
-// 							Target: &modelpb.ServiceTarget{
-// 								Type: trgTypeX,
-// 								Name: trgNameX,
-// 							},
-// 						},
-// 						Event: &modelpb.Event{Outcome: "success"},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_destination",
-// 							Interval: formatDuration(ivl),
-// 							DocCount: int64(count),
-// 						},
-// 						Span: &modelpb.Span{
-// 							Name: "service-A:" + destinationX,
-// 							DestinationService: &modelpb.DestinationService{
-// 								Resource: destinationX,
-// 								ResponseTime: &modelpb.AggregatedDuration{
-// 									Count: int64(count),
-// 									Sum:   durationpb.New(time.Duration(count) * duration),
-// 								},
-// 							},
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					}, {
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "java"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-A",
-// 							Target: &modelpb.ServiceTarget{
-// 								Type: trgTypeZ,
-// 								Name: trgNameZ,
-// 							},
-// 						},
-// 						Event: &modelpb.Event{Outcome: "failure"},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_destination",
-// 							Interval: formatDuration(ivl),
-// 							DocCount: int64(count),
-// 						},
-// 						Span: &modelpb.Span{
-// 							Name: "service-A:" + destinationZ,
-// 							DestinationService: &modelpb.DestinationService{
-// 								Resource: destinationZ,
-// 								ResponseTime: &modelpb.AggregatedDuration{
-// 									Count: int64(count),
-// 									Sum:   durationpb.New(time.Duration(count) * duration),
-// 								},
-// 							},
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					}, {
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "java"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-A",
-// 							Target: &modelpb.ServiceTarget{
-// 								Type: trgTypeZ,
-// 								Name: trgNameZ,
-// 							},
-// 						},
-// 						Event: &modelpb.Event{Outcome: "success"},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_destination",
-// 							Interval: formatDuration(ivl),
-// 							DocCount: int64(3 * count),
-// 						},
-// 						Span: &modelpb.Span{
-// 							Name: "service-A:" + destinationZ,
-// 							DestinationService: &modelpb.DestinationService{
-// 								Resource: destinationZ,
-// 								ResponseTime: &modelpb.AggregatedDuration{
-// 									Count: int64(3 * count),
-// 									Sum:   durationpb.New(time.Duration(3*count) * duration),
-// 								},
-// 							},
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					}, {
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "python"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-B",
-// 							Target: &modelpb.ServiceTarget{
-// 								Type: trgTypeZ,
-// 								Name: trgNameZ,
-// 							},
-// 						},
-// 						Event: &modelpb.Event{Outcome: "success"},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_destination",
-// 							Interval: formatDuration(ivl),
-// 							DocCount: int64(count),
-// 						},
-// 						Span: &modelpb.Span{
-// 							Name: "service-B:" + destinationZ,
-// 							DestinationService: &modelpb.DestinationService{
-// 								Resource: destinationZ,
-// 								ResponseTime: &modelpb.AggregatedDuration{
-// 									Count: int64(count),
-// 									Sum:   durationpb.New(time.Duration(count) * duration),
-// 								},
-// 							},
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					},
-// 				}
-// 			},
-// 		}, {
-// 			name: "with_no_destination_and_no_service_target",
-// 			inputs: []input{
-// 				{serviceName: "service-A", agentName: "java", outcome: "success", representativeCount: 1},
-// 			},
-// 			getExpectedEvents: func(_ time.Time, _, _ time.Duration, _ int) []*modelpb.APMEvent {
-// 				return nil
-// 			},
-// 		}, {
-// 			name: "with no destination and a service target",
-// 			inputs: []input{
-// 				{serviceName: "service-A", agentName: "java", targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 1},
-// 			},
-// 			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
-// 				return []*modelpb.APMEvent{
-// 					{
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "java"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-A",
-// 						},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_summary",
-// 							Interval: formatDuration(ivl),
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					}, {
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "java"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-A",
-// 							Target: &modelpb.ServiceTarget{
-// 								Type: trgTypeZ,
-// 								Name: trgNameZ,
-// 							},
-// 						},
-// 						Event: &modelpb.Event{Outcome: "success"},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_destination",
-// 							Interval: formatDuration(ivl),
-// 							DocCount: int64(count),
-// 						},
-// 						Span: &modelpb.Span{
-// 							Name: "service-A:",
-// 							DestinationService: &modelpb.DestinationService{
-// 								ResponseTime: &modelpb.AggregatedDuration{
-// 									Count: int64(count),
-// 									Sum:   durationpb.New(time.Duration(count) * duration),
-// 								},
-// 							},
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					},
-// 				}
-// 			},
-// 		}, {
-// 			name: "with a destination and no service target",
-// 			inputs: []input{
-// 				{serviceName: "service-A", agentName: "java", destination: destinationZ, outcome: "success", representativeCount: 1},
-// 			},
-// 			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
-// 				return []*modelpb.APMEvent{
-// 					{
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "java"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-A",
-// 						},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_summary",
-// 							Interval: formatDuration(ivl),
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					}, {
-// 						Timestamp: timestamppb.New(ts.Truncate(ivl)),
-// 						Agent:     &modelpb.Agent{Name: "java"},
-// 						Service: &modelpb.Service{
-// 							Name: "service-A",
-// 						},
-// 						Event: &modelpb.Event{Outcome: "success"},
-// 						Metricset: &modelpb.Metricset{
-// 							Name:     "service_destination",
-// 							Interval: formatDuration(ivl),
-// 							DocCount: int64(count),
-// 						},
-// 						Span: &modelpb.Span{
-// 							Name: "service-A:" + destinationZ,
-// 							DestinationService: &modelpb.DestinationService{
-// 								Resource: destinationZ,
-// 								ResponseTime: &modelpb.AggregatedDuration{
-// 									Count: int64(count),
-// 									Sum:   durationpb.New(time.Duration(count) * duration),
-// 								},
-// 							},
-// 						},
-// 						Labels:        defaultLabels,
-// 						NumericLabels: defaultNumericLabels,
-// 					},
-// 				}
-// 			},
-// 		},
-// 	} {
-// 		t.Run(tt.name, func(t *testing.T) {
-// 			var actualEvents []*modelpb.APMEvent
-// 			aggregationIvls := []time.Duration{time.Minute, 10 * time.Minute, time.Hour}
-// 			agg, err := New(
-// 				WithLimits(Limits{
-// 					MaxSpanGroups:                         1000,
-// 					MaxSpanGroupsPerService:               100,
-// 					MaxTransactionGroups:                  100,
-// 					MaxTransactionGroupsPerService:        10,
-// 					MaxServiceTransactionGroups:           100,
-// 					MaxServiceTransactionGroupsPerService: 10,
-// 					MaxServices:                           10,
-// 					MaxServiceInstanceGroupsPerService:    10,
-// 				}),
-// 				WithAggregationIntervals(aggregationIvls),
-// 				WithProcessor(sliceProcessor(&actualEvents)),
-// 				WithDataDir(t.TempDir()),
-// 			)
-// 			require.NoError(t, err)
-//
-// 			count := 100
-// 			now := time.Now()
-// 			duration := 100 * time.Millisecond
-// 			for _, in := range tt.inputs {
-// 				span := makeSpan(
-// 					now,
-// 					in.serviceName,
-// 					in.agentName,
-// 					in.destination,
-// 					in.targetType,
-// 					in.targetName,
-// 					in.outcome,
-// 					duration,
-// 					in.representativeCount,
-// 					defaultLabels,
-// 					defaultNumericLabels,
-// 				)
-// 				for i := 0; i < count; i++ {
-// 					err := agg.AggregateBatch(
-// 						context.Background(),
-// 						EncodeToCombinedMetricsKeyID(t, "ab01"),
-// 						&modelpb.Batch{span},
-// 					)
-// 					require.NoError(t, err)
-// 				}
-// 			}
-// 			require.NoError(t, agg.Stop(context.Background()))
-// 			var expectedEvents []*modelpb.APMEvent
-// 			for _, ivl := range aggregationIvls {
-// 				expectedEvents = append(expectedEvents, tt.getExpectedEvents(now, duration, ivl, count)...)
-// 			}
-// 			sortKey := func(e *modelpb.APMEvent) string {
-// 				var sb strings.Builder
-// 				sb.WriteString(e.GetService().GetName())
-// 				sb.WriteString(e.GetAgent().GetName())
-// 				sb.WriteString(e.GetMetricset().GetName())
-// 				sb.WriteString(e.GetMetricset().GetInterval())
-// 				destSvc := e.GetSpan().GetDestinationService()
-// 				if destSvc != nil {
-// 					sb.WriteString(destSvc.GetResource())
-// 				}
-// 				target := e.GetService().GetTarget()
-// 				if target != nil {
-// 					sb.WriteString(target.GetName())
-// 					sb.WriteString(target.GetType())
-// 				}
-// 				sb.WriteString(e.GetEvent().GetOutcome())
-// 				return sb.String()
-// 			}
-// 			sort.Slice(expectedEvents, func(i, j int) bool {
-// 				return sortKey(expectedEvents[i]) < sortKey(expectedEvents[j])
-// 			})
-// 			sort.Slice(actualEvents, func(i, j int) bool {
-// 				return sortKey(actualEvents[i]) < sortKey(actualEvents[j])
-// 			})
-// 			assert.Empty(t, cmp.Diff(
-// 				expectedEvents, actualEvents,
-// 				cmpopts.EquateEmpty(),
-// 				cmpopts.IgnoreTypes(netip.Addr{}),
-// 				protocmp.Transform(),
-// 			))
-// 		})
-// 	}
-// }
+	cmID := EncodeToCombinedMetricsKeyID(t, "ab01")
+	eventDuration := 100 * time.Millisecond
+	dssDuration := 10 * time.Millisecond
+	uniqueEventCount := 100 // for each of txns and spans
+	uniqueServices := 10
+	repCount := 5
+	ts := time.Date(2022, 12, 31, 0, 0, 0, 0, time.UTC)
+	batch := make(modelpb.Batch, 0, uniqueEventCount*repCount*2)
+	// Distribute the total unique transaction count amongst the total
+	// unique services uniformly.
+	for i := 0; i < uniqueEventCount*repCount; i++ {
+		batch = append(batch, &modelpb.APMEvent{
+			Event: &modelpb.Event{
+				Outcome:  "success",
+				Duration: durationpb.New(eventDuration),
+				Received: timestamppb.New(ts),
+			},
+			Transaction: &modelpb.Transaction{
+				Name:                fmt.Sprintf("foo%d", i%uniqueEventCount),
+				Type:                fmt.Sprintf("txtype%d", i%uniqueEventCount),
+				RepresentativeCount: 1,
+				DroppedSpansStats: []*modelpb.DroppedSpanStats{
+					{
+						DestinationServiceResource: fmt.Sprintf("dropped_dest_resource%d", i%uniqueEventCount),
+						Outcome:                    "success",
+						Duration: &modelpb.AggregatedDuration{
+							Count: 1,
+							Sum:   durationpb.New(dssDuration),
+						},
+					},
+				},
+			},
+			Service: &modelpb.Service{Name: fmt.Sprintf("svc%d", i%uniqueServices)},
+		})
+		batch = append(batch, &modelpb.APMEvent{
+			Event: &modelpb.Event{
+				Duration: durationpb.New(eventDuration),
+				Received: timestamppb.New(ts),
+			},
+			Span: &modelpb.Span{
+				Name:                fmt.Sprintf("bar%d", i%uniqueEventCount),
+				Type:                "type",
+				RepresentativeCount: 1,
+				DestinationService: &modelpb.DestinationService{
+					Resource: "test_dest",
+				},
+			},
+			Service: &modelpb.Service{Name: fmt.Sprintf("svc%d", i%uniqueServices)},
+		})
+	}
+
+	out := make(chan CombinedMetrics, 1)
+	aggIvl := time.Minute
+	agg, err := New(
+		WithDataDir(t.TempDir()),
+		WithLimits(Limits{
+			MaxSpanGroups:                         1000,
+			MaxSpanGroupsPerService:               100,
+			MaxTransactionGroups:                  100,
+			MaxTransactionGroupsPerService:        10,
+			MaxServiceTransactionGroups:           100,
+			MaxServiceTransactionGroupsPerService: 10,
+			MaxServices:                           10,
+			MaxServiceInstanceGroupsPerService:    10,
+		}),
+		WithProcessor(combinedMetricsProcessor(out)),
+		WithAggregationIntervals([]time.Duration{aggIvl}),
+		WithHarvestDelay(time.Hour), // disable auto harvest
+		WithTracer(tp.Tracer("test")),
+		WithMeter(mp.Meter("test")),
+		WithCombinedMetricsIDToKVs(func(id [16]byte) []attribute.KeyValue {
+			return []attribute.KeyValue{attribute.String("id_key", string(id[:]))}
+		}),
+	)
+	require.NoError(t, err)
+
+	require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
+	require.NoError(t, agg.Stop(context.Background()))
+	var cm CombinedMetrics
+	select {
+	case cm = <-out:
+	default:
+		t.Error("failed to get aggregated metrics")
+		t.FailNow()
+	}
+
+	var span tracetest.SpanStub
+	for _, s := range exp.GetSpans() {
+		if s.Name == "AggregateBatch" {
+			span = s
+		}
+	}
+	assert.NotNil(t, span)
+
+	expectedCombinedMetrics := NewTestCombinedMetrics(
+		WithEventsTotal(float64(len(batch))),
+		WithYoungestEventTimestamp(ts),
+	)
+	expectedMeasurements := []apmmodel.Metrics{
+		{
+			Samples: map[string]apmmodel.Metric{
+				"aggregator.requests.total": {Value: 1},
+				"aggregator.bytes.ingested": {Value: 138250},
+			},
+			Labels: apmmodel.StringMap{
+				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
+			},
+		},
+		{
+			Samples: map[string]apmmodel.Metric{
+				"aggregator.events.total":     {Value: float64(len(batch))},
+				"aggregator.events.processed": {Value: float64(len(batch))},
+				"events.processing-delay":     {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
+				"events.queued-delay":         {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
+			},
+			Labels: apmmodel.StringMap{
+				apmmodel.StringMapItem{Key: aggregationIvlKey, Value: formatDuration(aggIvl)},
+				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
+			},
+		},
+	}
+	sik := ServiceInstanceAggregationKey{GlobalLabelsStr: ""}
+	for i := 0; i < uniqueEventCount*repCount; i++ {
+		svcKey := ServiceAggregationKey{
+			Timestamp:   time.Unix(0, 0).UTC(),
+			ServiceName: fmt.Sprintf("svc%d", i%uniqueServices),
+		}
+		txKey := TransactionAggregationKey{
+			TraceRoot:       true,
+			TransactionName: fmt.Sprintf("foo%d", i%uniqueEventCount),
+			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
+			EventOutcome:    "success",
+		}
+		stxKey := ServiceTransactionAggregationKey{
+			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
+		}
+		spanKey := SpanAggregationKey{
+			SpanName: fmt.Sprintf("bar%d", i%uniqueEventCount),
+			Resource: "test_dest",
+		}
+		dssKey := SpanAggregationKey{
+			SpanName: "",
+			Resource: fmt.Sprintf("dropped_dest_resource%d", i%uniqueEventCount),
+			Outcome:  "success",
+		}
+		expectedCombinedMetrics.
+			AddServiceMetrics(svcKey).
+			AddServiceInstanceMetrics(sik).
+			AddTransaction(txKey, WithTransactionDuration(eventDuration)).
+			AddServiceTransaction(stxKey, WithTransactionDuration(eventDuration)).
+			AddSpan(spanKey, WithSpanDuration(eventDuration)).
+			AddSpan(dssKey, WithSpanDuration(dssDuration))
+	}
+	assert.Empty(t, cmp.Diff(
+		expectedCombinedMetrics.Get(), cm,
+		cmpopts.EquateEmpty(),
+		cmpopts.EquateApprox(0, 0.01),
+		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+			return a.Equal(&b)
+		}),
+		protocmp.Transform(),
+	))
+	assert.Empty(t, cmp.Diff(
+		expectedMeasurements,
+		gatherMetrics(
+			gatherer,
+			withIgnoreMetricPrefix("pebble."),
+			withZeroHistogramValues(true),
+		),
+		cmpopts.IgnoreUnexported(apmmodel.Time{}),
+		cmpopts.EquateApprox(0, 0.01),
+	))
+}
+
+func TestAggregateSpanMetrics(t *testing.T) {
+	type input struct {
+		serviceName         string
+		agentName           string
+		destination         string
+		targetType          string
+		targetName          string
+		outcome             string
+		representativeCount float64
+	}
+
+	destinationX := "destination-X"
+	destinationZ := "destination-Z"
+	trgTypeX := "trg-type-X"
+	trgNameX := "trg-name-X"
+	trgTypeZ := "trg-type-Z"
+	trgNameZ := "trg-name-Z"
+	defaultLabels := modelpb.Labels{
+		"department_name": &modelpb.LabelValue{Global: true, Value: "apm"},
+		"organization":    &modelpb.LabelValue{Global: true, Value: "observability"},
+		"company":         &modelpb.LabelValue{Global: true, Value: "elastic"},
+	}
+	defaultNumericLabels := modelpb.NumericLabels{
+		"user_id":     &modelpb.NumericLabelValue{Global: true, Value: 100},
+		"cost_center": &modelpb.NumericLabelValue{Global: true, Value: 10},
+	}
+
+	for _, tt := range []struct {
+		name              string
+		inputs            []input
+		getExpectedEvents func(time.Time, time.Duration, time.Duration, int) []*modelpb.APMEvent
+	}{
+		{
+			name: "with destination and service targets",
+			inputs: []input{
+				{serviceName: "service-A", agentName: "java", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 2},
+				{serviceName: "service-A", agentName: "java", destination: destinationX, targetType: trgTypeX, targetName: trgNameX, outcome: "success", representativeCount: 1},
+				{serviceName: "service-B", agentName: "python", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 1},
+				{serviceName: "service-A", agentName: "java", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 1},
+				{serviceName: "service-A", agentName: "java", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 0},
+				{serviceName: "service-A", agentName: "java", destination: destinationZ, targetType: trgTypeZ, targetName: trgNameZ, outcome: "failure", representativeCount: 1},
+			},
+			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
+				return []*modelpb.APMEvent{
+					{
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+						},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_summary",
+							Interval: formatDuration(ivl),
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					}, {
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "python"},
+						Service: &modelpb.Service{
+							Name: "service-B",
+						},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_summary",
+							Interval: formatDuration(ivl),
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					}, {
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+							Target: &modelpb.ServiceTarget{
+								Type: trgTypeX,
+								Name: trgNameX,
+							},
+						},
+						Event: &modelpb.Event{Outcome: "success"},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_destination",
+							Interval: formatDuration(ivl),
+							DocCount: int64(count),
+						},
+						Span: &modelpb.Span{
+							Name: "service-A:" + destinationX,
+							DestinationService: &modelpb.DestinationService{
+								Resource: destinationX,
+								ResponseTime: &modelpb.AggregatedDuration{
+									Count: int64(count),
+									Sum:   durationpb.New(time.Duration(count) * duration),
+								},
+							},
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					}, {
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+							Target: &modelpb.ServiceTarget{
+								Type: trgTypeZ,
+								Name: trgNameZ,
+							},
+						},
+						Event: &modelpb.Event{Outcome: "failure"},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_destination",
+							Interval: formatDuration(ivl),
+							DocCount: int64(count),
+						},
+						Span: &modelpb.Span{
+							Name: "service-A:" + destinationZ,
+							DestinationService: &modelpb.DestinationService{
+								Resource: destinationZ,
+								ResponseTime: &modelpb.AggregatedDuration{
+									Count: int64(count),
+									Sum:   durationpb.New(time.Duration(count) * duration),
+								},
+							},
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					}, {
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+							Target: &modelpb.ServiceTarget{
+								Type: trgTypeZ,
+								Name: trgNameZ,
+							},
+						},
+						Event: &modelpb.Event{Outcome: "success"},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_destination",
+							Interval: formatDuration(ivl),
+							DocCount: int64(3 * count),
+						},
+						Span: &modelpb.Span{
+							Name: "service-A:" + destinationZ,
+							DestinationService: &modelpb.DestinationService{
+								Resource: destinationZ,
+								ResponseTime: &modelpb.AggregatedDuration{
+									Count: int64(3 * count),
+									Sum:   durationpb.New(time.Duration(3*count) * duration),
+								},
+							},
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					}, {
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "python"},
+						Service: &modelpb.Service{
+							Name: "service-B",
+							Target: &modelpb.ServiceTarget{
+								Type: trgTypeZ,
+								Name: trgNameZ,
+							},
+						},
+						Event: &modelpb.Event{Outcome: "success"},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_destination",
+							Interval: formatDuration(ivl),
+							DocCount: int64(count),
+						},
+						Span: &modelpb.Span{
+							Name: "service-B:" + destinationZ,
+							DestinationService: &modelpb.DestinationService{
+								Resource: destinationZ,
+								ResponseTime: &modelpb.AggregatedDuration{
+									Count: int64(count),
+									Sum:   durationpb.New(time.Duration(count) * duration),
+								},
+							},
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					},
+				}
+			},
+		}, {
+			name: "with_no_destination_and_no_service_target",
+			inputs: []input{
+				{serviceName: "service-A", agentName: "java", outcome: "success", representativeCount: 1},
+			},
+			getExpectedEvents: func(_ time.Time, _, _ time.Duration, _ int) []*modelpb.APMEvent {
+				return nil
+			},
+		}, {
+			name: "with no destination and a service target",
+			inputs: []input{
+				{serviceName: "service-A", agentName: "java", targetType: trgTypeZ, targetName: trgNameZ, outcome: "success", representativeCount: 1},
+			},
+			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
+				return []*modelpb.APMEvent{
+					{
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+						},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_summary",
+							Interval: formatDuration(ivl),
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					}, {
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+							Target: &modelpb.ServiceTarget{
+								Type: trgTypeZ,
+								Name: trgNameZ,
+							},
+						},
+						Event: &modelpb.Event{Outcome: "success"},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_destination",
+							Interval: formatDuration(ivl),
+							DocCount: int64(count),
+						},
+						Span: &modelpb.Span{
+							Name: "service-A:",
+							DestinationService: &modelpb.DestinationService{
+								ResponseTime: &modelpb.AggregatedDuration{
+									Count: int64(count),
+									Sum:   durationpb.New(time.Duration(count) * duration),
+								},
+							},
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					},
+				}
+			},
+		}, {
+			name: "with a destination and no service target",
+			inputs: []input{
+				{serviceName: "service-A", agentName: "java", destination: destinationZ, outcome: "success", representativeCount: 1},
+			},
+			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
+				return []*modelpb.APMEvent{
+					{
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+						},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_summary",
+							Interval: formatDuration(ivl),
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					}, {
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+						},
+						Event: &modelpb.Event{Outcome: "success"},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_destination",
+							Interval: formatDuration(ivl),
+							DocCount: int64(count),
+						},
+						Span: &modelpb.Span{
+							Name: "service-A:" + destinationZ,
+							DestinationService: &modelpb.DestinationService{
+								Resource: destinationZ,
+								ResponseTime: &modelpb.AggregatedDuration{
+									Count: int64(count),
+									Sum:   durationpb.New(time.Duration(count) * duration),
+								},
+							},
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					},
+				}
+			},
+		},
+	} {
+		t.Run(tt.name, func(t *testing.T) {
+			var actualEvents []*modelpb.APMEvent
+			aggregationIvls := []time.Duration{time.Minute, 10 * time.Minute, time.Hour}
+			agg, err := New(
+				WithLimits(Limits{
+					MaxSpanGroups:                         1000,
+					MaxSpanGroupsPerService:               100,
+					MaxTransactionGroups:                  100,
+					MaxTransactionGroupsPerService:        10,
+					MaxServiceTransactionGroups:           100,
+					MaxServiceTransactionGroupsPerService: 10,
+					MaxServices:                           10,
+					MaxServiceInstanceGroupsPerService:    10,
+				}),
+				WithAggregationIntervals(aggregationIvls),
+				WithProcessor(sliceProcessor(&actualEvents)),
+				WithDataDir(t.TempDir()),
+			)
+			require.NoError(t, err)
+
+			count := 100
+			now := time.Now()
+			duration := 100 * time.Millisecond
+			for _, in := range tt.inputs {
+				span := makeSpan(
+					now,
+					in.serviceName,
+					in.agentName,
+					in.destination,
+					in.targetType,
+					in.targetName,
+					in.outcome,
+					duration,
+					in.representativeCount,
+					defaultLabels,
+					defaultNumericLabels,
+				)
+				for i := 0; i < count; i++ {
+					err := agg.AggregateBatch(
+						context.Background(),
+						EncodeToCombinedMetricsKeyID(t, "ab01"),
+						&modelpb.Batch{span},
+					)
+					require.NoError(t, err)
+				}
+			}
+			require.NoError(t, agg.Stop(context.Background()))
+			var expectedEvents []*modelpb.APMEvent
+			for _, ivl := range aggregationIvls {
+				expectedEvents = append(expectedEvents, tt.getExpectedEvents(now, duration, ivl, count)...)
+			}
+			sortKey := func(e *modelpb.APMEvent) string {
+				var sb strings.Builder
+				sb.WriteString(e.GetService().GetName())
+				sb.WriteString(e.GetAgent().GetName())
+				sb.WriteString(e.GetMetricset().GetName())
+				sb.WriteString(e.GetMetricset().GetInterval())
+				destSvc := e.GetSpan().GetDestinationService()
+				if destSvc != nil {
+					sb.WriteString(destSvc.GetResource())
+				}
+				target := e.GetService().GetTarget()
+				if target != nil {
+					sb.WriteString(target.GetName())
+					sb.WriteString(target.GetType())
+				}
+				sb.WriteString(e.GetEvent().GetOutcome())
+				return sb.String()
+			}
+			sort.Slice(expectedEvents, func(i, j int) bool {
+				return sortKey(expectedEvents[i]) < sortKey(expectedEvents[j])
+			})
+			sort.Slice(actualEvents, func(i, j int) bool {
+				return sortKey(actualEvents[i]) < sortKey(actualEvents[j])
+			})
+			assert.Empty(t, cmp.Diff(
+				expectedEvents, actualEvents,
+				cmpopts.EquateEmpty(),
+				cmpopts.IgnoreTypes(netip.Addr{}),
+				protocmp.Transform(),
+			))
+		})
+	}
+}
 
 func TestCombinedMetricsKeyOrdered(t *testing.T) {
 	// To Allow for retrieving combined metrics by time range, the metrics should

@@ -4,247 +4,263 @@
 
 package aggregators
 
-// func TestEventToCombinedMetrics(t *testing.T) {
-// 	ts := time.Now().UTC()
-// 	receivedTS := ts.Add(time.Second)
-// 	baseEvent := &modelpb.APMEvent{
-// 		Timestamp: timestamppb.New(ts),
-// 		ParentId:  "nonroot",
-// 		Service:   &modelpb.Service{Name: "test"},
-// 		Event: &modelpb.Event{
-// 			Duration: durationpb.New(time.Second),
-// 			Outcome:  "success",
-// 			Received: timestamppb.New(receivedTS),
-// 		},
-// 	}
-// 	for _, tc := range []struct {
-// 		name        string
-// 		input       func() *modelpb.APMEvent
-// 		partitioner Partitioner
-// 		expected    func() []*aggregationpb.CombinedMetrics
-// 	}{
-// 		{
-// 			name: "with-zero-rep-count-txn",
-// 			input: func() *modelpb.APMEvent {
-// 				event := baseEvent.CloneVT()
-// 				event.Transaction = &modelpb.Transaction{
-// 					Name:                "testtxn",
-// 					Type:                "testtyp",
-// 					RepresentativeCount: 0,
-// 				}
-// 				return event
-// 			},
-// 			partitioner: NewHashPartitioner(1),
-// 			expected: func() []*aggregationpb.CombinedMetrics {
-// 				return nil
-// 			},
-// 		},
-// 		{
-// 			name: "with-good-txn",
-// 			input: func() *modelpb.APMEvent {
-// 				event := baseEvent.CloneVT()
-// 				event.Transaction = &modelpb.Transaction{
-// 					Name:                "testtxn",
-// 					Type:                "testtyp",
-// 					RepresentativeCount: 1,
-// 				}
-// 				return event
-// 			},
-// 			partitioner: NewHashPartitioner(1),
-// 			expected: func() []*aggregationpb.CombinedMetrics {
-// 				return []*aggregationpb.CombinedMetrics{
-// 					(*CombinedMetrics)(createTestCombinedMetrics(
-// 						withEventsTotal(1),
-// 						withYoungestEventTimestamp(receivedTS),
-// 					).addTransaction(
-// 						ts.Truncate(time.Minute), "test", "",
-// 						testTransaction{
-// 							txnName:      "testtxn",
-// 							txnType:      "testtyp",
-// 							eventOutcome: "success",
-// 							count:        1,
-// 						},
-// 					).addServiceTransaction(
-// 						ts.Truncate(time.Minute), "test", "",
-// 						testServiceTransaction{
-// 							txnType: "testtyp",
-// 							count:   1,
-// 						},
-// 					)).ToProto(),
-// 				}
-// 			},
-// 		},
-// 		{
-// 			name: "with-zero-rep-count-span",
-// 			input: func() *modelpb.APMEvent {
-// 				event := baseEvent.CloneVT()
-// 				event.Span = &modelpb.Span{
-// 					Name:                "testspan",
-// 					Type:                "testtyp",
-// 					RepresentativeCount: 0,
-// 				}
-// 				return event
-// 			},
-// 			partitioner: NewHashPartitioner(1),
-// 			expected: func() []*aggregationpb.CombinedMetrics {
-// 				return nil
-// 			},
-// 		},
-// 		{
-// 			name: "with-no-exit-span",
-// 			input: func() *modelpb.APMEvent {
-// 				event := baseEvent.CloneVT()
-// 				event.Span = &modelpb.Span{
-// 					Name:                "testspan",
-// 					Type:                "testtyp",
-// 					RepresentativeCount: 1,
-// 				}
-// 				return event
-// 			},
-// 			partitioner: NewHashPartitioner(1),
-// 			expected: func() []*aggregationpb.CombinedMetrics {
-// 				return nil
-// 			},
-// 		},
-// 		{
-// 			name: "with-good-span-dest-svc",
-// 			input: func() *modelpb.APMEvent {
-// 				event := baseEvent.CloneVT()
-// 				event.Span = &modelpb.Span{
-// 					Name:                "testspan",
-// 					Type:                "testtyp",
-// 					RepresentativeCount: 1,
-// 				}
-// 				event.Service.Target = &modelpb.ServiceTarget{
-// 					Name: "psql",
-// 					Type: "db",
-// 				}
-// 				// Current test structs are hardcoded to use 1ns for spans
-// 				event.Event.Duration = durationpb.New(time.Nanosecond)
-// 				return event
-// 			},
-// 			partitioner: NewHashPartitioner(1),
-// 			expected: func() []*aggregationpb.CombinedMetrics {
-// 				return []*aggregationpb.CombinedMetrics{
-// 					(*CombinedMetrics)(createTestCombinedMetrics(
-// 						withEventsTotal(1),
-// 						withYoungestEventTimestamp(receivedTS),
-// 					).addSpan(
-// 						ts.Truncate(time.Minute), "test", "",
-// 						testSpan{
-// 							spanName:   "testspan",
-// 							targetName: "psql",
-// 							targetType: "db",
-// 							outcome:    "success",
-// 							count:      1,
-// 						},
-// 					)).ToProto(),
-// 				}
-// 			},
-// 		},
-// 		{
-// 			name: "with-good-span-svc-target",
-// 			input: func() *modelpb.APMEvent {
-// 				event := baseEvent.CloneVT()
-// 				event.Span = &modelpb.Span{
-// 					Name:                "testspan",
-// 					Type:                "testtyp",
-// 					RepresentativeCount: 1,
-// 					DestinationService: &modelpb.DestinationService{
-// 						Resource: "db",
-// 					},
-// 				}
-// 				// Current test structs are hardcoded to use 1ns for spans
-// 				event.Event.Duration = durationpb.New(time.Nanosecond)
-// 				return event
-// 			},
-// 			partitioner: NewHashPartitioner(1),
-// 			expected: func() []*aggregationpb.CombinedMetrics {
-// 				return []*aggregationpb.CombinedMetrics{
-// 					(*CombinedMetrics)(createTestCombinedMetrics(
-// 						withEventsTotal(1),
-// 						withYoungestEventTimestamp(receivedTS),
-// 					).addSpan(
-// 						ts.Truncate(time.Minute), "test", "",
-// 						testSpan{
-// 							spanName:            "testspan",
-// 							destinationResource: "db",
-// 							outcome:             "success",
-// 							count:               1,
-// 						},
-// 					)).ToProto(),
-// 				}
-// 			},
-// 		},
-// 		{
-// 			name: "with-metricset",
-// 			input: func() *modelpb.APMEvent {
-// 				event := baseEvent.CloneVT()
-// 				event.Metricset = &modelpb.Metricset{
-// 					Name:     "testmetricset",
-// 					Interval: "1m",
-// 				}
-// 				return event
-// 			},
-// 			partitioner: NewHashPartitioner(1),
-// 			expected: func() []*aggregationpb.CombinedMetrics {
-// 				return []*aggregationpb.CombinedMetrics{
-// 					(*CombinedMetrics)(createTestCombinedMetrics(
-// 						withEventsTotal(1),
-// 						withYoungestEventTimestamp(receivedTS),
-// 					).addServiceInstance(
-// 						ts.Truncate(time.Minute), "test", "",
-// 					)).ToProto(),
-// 				}
-// 			},
-// 		},
-// 		{
-// 			name: "with-log",
-// 			input: func() *modelpb.APMEvent {
-// 				event := baseEvent.CloneVT()
-// 				event.Log = &modelpb.Log{}
-// 				return event
-// 			},
-// 			partitioner: NewHashPartitioner(1),
-// 			expected: func() []*aggregationpb.CombinedMetrics {
-// 				return []*aggregationpb.CombinedMetrics{
-// 					(*CombinedMetrics)(createTestCombinedMetrics(
-// 						withEventsTotal(1),
-// 						withYoungestEventTimestamp(receivedTS),
-// 					).addServiceInstance(
-// 						ts.Truncate(time.Minute), "test", "",
-// 					)).ToProto(),
-// 				}
-// 			},
-// 		},
-// 	} {
-// 		t.Run(tc.name, func(t *testing.T) {
-// 			cmk := CombinedMetricsKey{
-// 				Interval:       time.Minute,
-// 				ProcessingTime: time.Now().Truncate(time.Minute),
-// 				ID:             EncodeToCombinedMetricsKeyID(t, "ab01"),
-// 			}
-// 			var actual []*aggregationpb.CombinedMetrics
-// 			collector := func(
-// 				_ CombinedMetricsKey,
-// 				m *aggregationpb.CombinedMetrics,
-// 			) error {
-// 				actual = append(actual, m.CloneVT())
-// 				return nil
-// 			}
-// 			err := EventToCombinedMetrics(tc.input(), cmk, tc.partitioner, collector)
-// 			require.NoError(t, err)
-// 			assert.Empty(t, cmp.Diff(
-// 				tc.expected(), actual,
-// 				cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
-// 					return a.Equal(&b)
-// 				}),
-// 				protocmp.Transform(),
-// 				protocmp.IgnoreEmptyMessages(),
-// 			))
-// 		})
-// 	}
-// }
+import (
+	"testing"
+	"time"
+
+	"github.com/elastic/apm-aggregation/aggregationpb"
+	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
+	"github.com/elastic/apm-data/model/modelpb"
+	"github.com/google/go-cmp/cmp"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"google.golang.org/protobuf/testing/protocmp"
+	"google.golang.org/protobuf/types/known/durationpb"
+	"google.golang.org/protobuf/types/known/timestamppb"
+)
+
+func TestEventToCombinedMetrics(t *testing.T) {
+	ts := time.Now().UTC()
+	receivedTS := ts.Add(time.Second)
+	baseEvent := &modelpb.APMEvent{
+		Timestamp: timestamppb.New(ts),
+		ParentId:  "nonroot",
+		Service:   &modelpb.Service{Name: "test"},
+		Event: &modelpb.Event{
+			Duration: durationpb.New(time.Second),
+			Outcome:  "success",
+			Received: timestamppb.New(receivedTS),
+		},
+	}
+	for _, tc := range []struct {
+		name        string
+		input       func() *modelpb.APMEvent
+		partitioner Partitioner
+		expected    func() []*aggregationpb.CombinedMetrics
+	}{
+		{
+			name: "with-zero-rep-count-txn",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Transaction = &modelpb.Transaction{
+					Name:                "testtxn",
+					Type:                "testtyp",
+					RepresentativeCount: 0,
+				}
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return nil
+			},
+		},
+		{
+			name: "with-good-txn",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Transaction = &modelpb.Transaction{
+					Name:                "testtxn",
+					Type:                "testtyp",
+					RepresentativeCount: 1,
+				}
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(ServiceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						AddTransaction(TransactionAggregationKey{
+							TransactionName: "testtxn",
+							TransactionType: "testtyp",
+							EventOutcome:    "success",
+						}).
+						AddServiceTransaction(ServiceTransactionAggregationKey{
+							TransactionType: "testtyp",
+						}).GetProto(),
+				}
+			},
+		},
+		{
+			name: "with-zero-rep-count-span",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Span = &modelpb.Span{
+					Name:                "testspan",
+					Type:                "testtyp",
+					RepresentativeCount: 0,
+				}
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return nil
+			},
+		},
+		{
+			name: "with-no-exit-span",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Span = &modelpb.Span{
+					Name:                "testspan",
+					Type:                "testtyp",
+					RepresentativeCount: 1,
+				}
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return nil
+			},
+		},
+		{
+			name: "with-good-span-svc-target",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Span = &modelpb.Span{
+					Name:                "testspan",
+					Type:                "testtyp",
+					RepresentativeCount: 1,
+				}
+				event.Service.Target = &modelpb.ServiceTarget{
+					Name: "psql",
+					Type: "db",
+				}
+				// Current test structs are hardcoded to use 1ns for spans
+				event.Event.Duration = durationpb.New(time.Nanosecond)
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(ServiceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						AddSpan(SpanAggregationKey{
+							SpanName:   "testspan",
+							TargetName: "psql",
+							TargetType: "db",
+							Outcome:    "success",
+						}).GetProto(),
+				}
+			},
+		},
+		{
+			name: "with-good-span-dest-svc",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Span = &modelpb.Span{
+					Name:                "testspan",
+					Type:                "testtyp",
+					RepresentativeCount: 1,
+					DestinationService: &modelpb.DestinationService{
+						Resource: "db",
+					},
+				}
+				// Current test structs are hardcoded to use 1ns for spans
+				event.Event.Duration = durationpb.New(time.Nanosecond)
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(ServiceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						AddSpan(SpanAggregationKey{
+							SpanName: "testspan",
+							Resource: "db",
+							Outcome:  "success",
+						}).GetProto(),
+				}
+			},
+		},
+		{
+			name: "with-metricset",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Metricset = &modelpb.Metricset{
+					Name:     "testmetricset",
+					Interval: "1m",
+				}
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(ServiceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						GetProto(),
+				}
+			},
+		},
+		{
+			name: "with-log",
+			input: func() *modelpb.APMEvent {
+				event := baseEvent.CloneVT()
+				event.Log = &modelpb.Log{}
+				return event
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(ServiceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						GetProto(),
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			cmk := CombinedMetricsKey{
+				Interval:       time.Minute,
+				ProcessingTime: time.Now().Truncate(time.Minute),
+				ID:             EncodeToCombinedMetricsKeyID(t, "ab01"),
+			}
+			var actual []*aggregationpb.CombinedMetrics
+			collector := func(
+				_ CombinedMetricsKey,
+				m *aggregationpb.CombinedMetrics,
+			) error {
+				actual = append(actual, m.CloneVT())
+				return nil
+			}
+			err := EventToCombinedMetrics(tc.input(), cmk, tc.partitioner, collector)
+			require.NoError(t, err)
+			assert.Empty(t, cmp.Diff(
+				tc.expected(), actual,
+				cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+					return a.Equal(&b)
+				}),
+				protocmp.Transform(),
+				protocmp.IgnoreEmptyMessages(),
+			))
+		})
+	}
+}
 
 // func TestCombinedMetricsToBatch(t *testing.T) {
 // 	ts := time.Now()
