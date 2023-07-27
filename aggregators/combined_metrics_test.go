@@ -212,8 +212,9 @@ func (tcm *TestCombinedMetrics) Get() CombinedMetrics {
 }
 
 type TestServiceMetrics struct {
-	sk  ServiceAggregationKey
-	tcm *TestCombinedMetrics
+	sk       ServiceAggregationKey
+	tcm      *TestCombinedMetrics
+	overflow bool // indicates if the service has overflowed to global
 }
 
 func (tcm *TestCombinedMetrics) AddServiceMetrics(
@@ -225,10 +226,21 @@ func (tcm *TestCombinedMetrics) AddServiceMetrics(
 	return &TestServiceMetrics{sk: sk, tcm: tcm}
 }
 
+func (tcm *TestCombinedMetrics) AddServiceMetricsOverflow(
+	sk ServiceAggregationKey,
+) *TestServiceMetrics {
+	if _, ok := tcm.Services[sk]; ok {
+		panic("service already added as non overflow")
+	}
+	// Does not save to a map, any service instance added to this will
+	// automatically be overflowed to the global overflow bucket.
+	return &TestServiceMetrics{sk: sk, tcm: tcm, overflow: true}
+}
+
 type TestServiceInstanceMetrics struct {
-	sk  ServiceAggregationKey
-	sik ServiceInstanceAggregationKey
-	tcm *TestCombinedMetrics
+	sik      ServiceInstanceAggregationKey
+	tsm      *TestServiceMetrics
+	overflow bool // indicates if the service instance has overflowed to global
 }
 
 func (tsm *TestServiceMetrics) AddServiceInstanceMetrics(
@@ -240,23 +252,49 @@ func (tsm *TestServiceMetrics) AddServiceInstanceMetrics(
 	}
 	return &TestServiceInstanceMetrics{
 		sik: sik,
-		sk:  tsm.sk,
-		tcm: tsm.tcm,
+		tsm: tsm,
+	}
+}
+
+func (tsm *TestServiceMetrics) AddServiceInstanceMetricsOverflow(
+	sik ServiceInstanceAggregationKey,
+) *TestServiceInstanceMetrics {
+	if !tsm.overflow {
+		svc := tsm.tcm.Services[tsm.sk]
+		if _, ok := svc.ServiceInstanceGroups[sik]; ok {
+			panic("service instance already added as non overflow")
+		}
+	}
+	// All service instance overflows to global bucket.
+	hash := Hasher{}.
+		Chain(tsm.sk.ToProto()).
+		Chain(sik.ToProto()).
+		Sum()
+	insertHash(&tsm.tcm.OverflowServiceInstancesEstimator, hash)
+	// Does not save to a map, children of service instance will automatically
+	// overflow to the global overflow bucket.
+	return &TestServiceInstanceMetrics{
+		sik:      sik,
+		tsm:      tsm,
+		overflow: true,
 	}
 }
 
 func (tsim *TestServiceInstanceMetrics) GetProto() *aggregationpb.CombinedMetrics {
-	return tsim.tcm.GetProto()
+	return tsim.tsm.tcm.GetProto()
 }
 
 func (tsim *TestServiceInstanceMetrics) Get() CombinedMetrics {
-	return tsim.tcm.Get()
+	return tsim.tsm.tcm.Get()
 }
 
 func (tsim *TestServiceInstanceMetrics) AddTransaction(
 	tk TransactionAggregationKey,
 	opts ...TestTransactionOpt,
 ) *TestServiceInstanceMetrics {
+	if tsim.overflow {
+		panic("cannot add transaction to overflowed service transaction")
+	}
 	cfg := defaultTestTransactionCfg
 	for _, opt := range opts {
 		cfg = opt(cfg)
@@ -269,7 +307,7 @@ func (tsim *TestServiceInstanceMetrics) AddTransaction(
 	ktm.Metrics = aggregationpb.TransactionMetricsFromVTPool()
 	ktm.Metrics.Histogram = HistogramToProto(hdr)
 
-	svc := tsim.tcm.Services[tsim.sk]
+	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
 	svcIns := svc.ServiceInstanceGroups[tsim.sik]
 	if oldKtm, ok := svcIns.TransactionGroups[tk]; ok {
 		mergeKeyedTransactionMetrics(oldKtm, ktm)
@@ -293,14 +331,21 @@ func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
 	from := aggregationpb.TransactionMetricsFromVTPool()
 	from.Histogram = HistogramToProto(hdr)
 
-	svc := tsim.tcm.Services[tsim.sk]
-	hash := Hasher{}.
-		Chain(tsim.sk.ToProto()).
-		Chain(tsim.sik.ToProto()).
+	sikHasher := Hasher{}.
+		Chain(tsim.tsm.sk.ToProto()).
+		Chain(tsim.sik.ToProto())
+	hash := sikHasher.
 		Chain(tk.ToProto()).
 		Sum()
-	svc.OverflowGroups.OverflowTransaction.Merge(from, hash)
-	tsim.tcm.Services[tsim.sk] = svc
+	if tsim.tsm.overflow {
+		// Global overflow
+		tsim.tsm.tcm.OverflowServices.OverflowTransaction.Merge(from, sikHasher.Sum())
+	} else {
+		// Per service overflow
+		svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
+		svc.OverflowGroups.OverflowTransaction.Merge(from, hash)
+		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
+	}
 	return tsim
 }
 
@@ -321,7 +366,7 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
 	kstm.Metrics.Histogram = HistogramToProto(hdr)
 	kstm.Metrics.SuccessCount += float64(cfg.count)
 
-	svc := tsim.tcm.Services[tsim.sk]
+	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
 	svcIns := svc.ServiceInstanceGroups[tsim.sik]
 	if oldKstm, ok := svcIns.ServiceTransactionGroups[stk]; ok {
 		mergeKeyedServiceTransactionMetrics(oldKstm, kstm)
@@ -346,14 +391,21 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransactionOverflow(
 	from.Histogram = HistogramToProto(hdr)
 	from.SuccessCount += float64(cfg.count)
 
-	svc := tsim.tcm.Services[tsim.sk]
-	hash := Hasher{}.
-		Chain(tsim.sk.ToProto()).
-		Chain(tsim.sik.ToProto()).
+	sikHasher := Hasher{}.
+		Chain(tsim.tsm.sk.ToProto()).
+		Chain(tsim.sik.ToProto())
+	hash := sikHasher.
 		Chain(stk.ToProto()).
 		Sum()
-	svc.OverflowGroups.OverflowServiceTransaction.Merge(from, hash)
-	tsim.tcm.Services[tsim.sk] = svc
+	if tsim.tsm.overflow {
+		// Global overflow
+		tsim.tsm.tcm.OverflowServices.OverflowServiceTransaction.Merge(from, hash)
+	} else {
+		// Per service overflow
+		svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
+		svc.OverflowGroups.OverflowServiceTransaction.Merge(from, hash)
+		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
+	}
 	return tsim
 }
 
@@ -372,7 +424,7 @@ func (tsim *TestServiceInstanceMetrics) AddSpan(
 	ksm.Metrics.Sum += float64(cfg.duration * time.Duration(cfg.count))
 	ksm.Metrics.Count += float64(cfg.count)
 
-	svc := tsim.tcm.Services[tsim.sk]
+	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
 	svcIns := svc.ServiceInstanceGroups[tsim.sik]
 	if oldKsm, ok := svcIns.SpanGroups[spk]; ok {
 		mergeKeyedSpanMetrics(oldKsm, ksm)
@@ -395,13 +447,20 @@ func (tsim *TestServiceInstanceMetrics) AddSpanOverflow(
 	from.Sum += float64(cfg.duration * time.Duration(cfg.count))
 	from.Count += float64(cfg.count)
 
-	svc := tsim.tcm.Services[tsim.sk]
-	hash := Hasher{}.
-		Chain(tsim.sk.ToProto()).
-		Chain(tsim.sik.ToProto()).
+	sikHasher := Hasher{}.
+		Chain(tsim.tsm.sk.ToProto()).
+		Chain(tsim.sik.ToProto())
+	hash := sikHasher.
 		Chain(spk.ToProto()).
 		Sum()
-	svc.OverflowGroups.OverflowSpan.Merge(from, hash)
-	tsim.tcm.Services[tsim.sk] = svc
+	if tsim.tsm.overflow {
+		// Global overflow
+		tsim.tsm.tcm.OverflowServices.OverflowSpan.Merge(from, hash)
+	} else {
+		// Per service overflow
+		svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
+		svc.OverflowGroups.OverflowSpan.Merge(from, hash)
+		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
+	}
 	return tsim
 }
