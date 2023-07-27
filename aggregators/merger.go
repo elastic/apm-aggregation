@@ -401,7 +401,6 @@ func mergeSpanMetrics(to, from *aggregationpb.SpanMetrics) {
 	to.Sum += from.Sum
 }
 
-// TODO: Add tests for merge histograms
 func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 	// Assume both histograms are created with same arguments
 	m := make(map[int32]int64)

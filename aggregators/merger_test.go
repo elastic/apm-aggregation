@@ -5,6 +5,7 @@
 package aggregators
 
 import (
+	"math/rand"
 	"reflect"
 	"testing"
 	"time"
@@ -14,6 +15,7 @@ import (
 	"google.golang.org/protobuf/testing/protocmp"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
+	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 )
 
 func TestMerge(t *testing.T) {
@@ -994,4 +996,29 @@ func TestCardinalityEstimationOnSubKeyCollision(t *testing.T) {
 	assert.Equal(t, uint64(2), cmm.metrics.OverflowServices.OverflowTransaction.Estimator.Estimate())
 	assert.Equal(t, uint64(2), cmm.metrics.OverflowServices.OverflowServiceTransaction.Estimator.Estimate())
 	assert.Equal(t, uint64(2), cmm.metrics.OverflowServices.OverflowSpan.Estimator.Estimate())
+}
+
+func TestMergeHistogram(t *testing.T) {
+	// Test assumes histogram representation Merge is correct
+	hist1, hist2 := hdrhistogram.New(), hdrhistogram.New()
+
+	for i := 0; i < 1_000_000; i++ {
+		v1, v2 := rand.Int63n(3_600_000_000), rand.Int63n(3_600_000_000)
+		c1, c2 := rand.Int63n(1_000), rand.Int63n(1_000)
+		hist1.RecordValues(v1, c1)
+		hist2.RecordValues(v2, c2)
+	}
+
+	histproto1, histproto2 := HistogramToProto(hist1), HistogramToProto(hist2)
+	hist1.Merge(hist2)
+	mergeHistogram(histproto1, histproto2)
+	histActual := hdrhistogram.New()
+	HistogramFromProto(histActual, histproto1)
+
+	assert.Empty(t, cmp.Diff(
+		hist1,
+		histActual,
+		cmp.AllowUnexported(hdrhistogram.HistogramRepresentation{}),
+		cmp.AllowUnexported(hdrhistogram.HybridCountsRep{}),
+	))
 }
