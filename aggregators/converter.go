@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	spanMetricsetName    = "service_destination"
-	txnMetricsetName     = "transaction"
-	svcTxnMetricsetName  = "service_transaction"
-	summaryMetricsetName = "service_summary"
+	spanMetricsetName       = "service_destination"
+	txnMetricsetName        = "transaction"
+	svcInstTxnMetricsetName = "service_instance_transaction"
+	svcTxnMetricsetName     = "service_transaction"
+	summaryMetricsetName    = "service_summary"
 
 	overflowBucketName = "_other"
 )
@@ -149,6 +150,7 @@ func CombinedMetricsToBatch(
 	for _, sm := range cm.Services {
 		for _, sim := range sm.ServiceInstanceGroups {
 			batchSize += len(sim.TransactionGroups)
+			batchSize += len(sim.ServiceInstanceTransactionGroups)
 			batchSize += len(sim.ServiceTransactionGroups)
 			batchSize += len(sim.SpanGroups)
 
@@ -157,6 +159,9 @@ func CombinedMetricsToBatch(
 		}
 
 		if !sm.OverflowGroups.OverflowTransaction.Empty() {
+			batchSize++
+		}
+		if !sm.OverflowGroups.OverflowServiceInstanceTransaction.Empty() {
 			batchSize++
 		}
 		if !sm.OverflowGroups.OverflowServiceTransaction.Empty() {
@@ -189,6 +194,12 @@ func CombinedMetricsToBatch(
 				txnMetricsToAPMEvent(tk, ktm.Metrics, event, aggIntervalStr)
 				b = append(b, event)
 			}
+			// service instance transaction metrics
+			for sitk, ksitm := range sim.ServiceInstanceTransactionGroups {
+				event := getBaseEventWithLabels()
+				svcInstTxnMetricsToAPMEvent(sitk, ksitm.Metrics, event, aggIntervalStr)
+				b = append(b, event)
+			}
 			// service transaction metrics
 			for stk, kstm := range sim.ServiceTransactionGroups {
 				event := getBaseEventWithLabels()
@@ -213,6 +224,16 @@ func CombinedMetricsToBatch(
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowTransaction,
+				event,
+				aggIntervalStr,
+			)
+			b = append(b, event)
+		}
+		if !sm.OverflowGroups.OverflowServiceInstanceTransaction.Empty() {
+			event := getBaseEvent(sk)
+			overflowSvcInstTxnMetricsToAPMEvent(
+				processingTime,
+				sm.OverflowGroups.OverflowServiceInstanceTransaction,
 				event,
 				aggIntervalStr,
 			)
@@ -261,6 +282,16 @@ func CombinedMetricsToBatch(
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				cm.OverflowServices.OverflowTransaction,
+				event,
+				aggIntervalStr,
+			)
+			b = append(b, event)
+		}
+		if !cm.OverflowServices.OverflowServiceInstanceTransaction.Empty() {
+			event := getOverflowBaseEvent()
+			overflowSvcInstTxnMetricsToAPMEvent(
+				processingTime,
+				cm.OverflowServices.OverflowServiceInstanceTransaction,
 				event,
 				aggIntervalStr,
 			)
@@ -483,6 +514,77 @@ func txnMetricsToAPMEvent(
 	baseEvent.Event.Outcome = key.EventOutcome
 	baseEvent.Event.SuccessCount = &eventSuccessCount
 
+	if key.ServiceVersion != "" {
+		baseEvent.Service = populateNil(baseEvent.Service)
+		baseEvent.Service.Version = key.ServiceVersion
+	}
+
+	if key.ServiceRuntimeName != "" ||
+		key.ServiceRuntimeVersion != "" {
+
+		baseEvent.Service = populateNil(baseEvent.Service)
+		baseEvent.Service.Runtime = populateNil(baseEvent.Service.Runtime)
+		baseEvent.Service.Runtime.Name = key.ServiceRuntimeName
+		baseEvent.Service.Runtime.Version = key.ServiceRuntimeVersion
+	}
+
+	if key.ServiceLanguageVersion != "" {
+		baseEvent.Service = populateNil(baseEvent.Service)
+		baseEvent.Service.Language = populateNil(baseEvent.Service.Language)
+		baseEvent.Service.Language.Version = key.ServiceLanguageVersion
+	}
+
+	if key.FAASColdstart != nullable.Nil ||
+		key.FAASID != "" ||
+		key.FAASName != "" ||
+		key.FAASVersion != "" ||
+		key.FAASTriggerType != "" {
+
+		baseEvent.Faas = populateNil(baseEvent.Faas)
+		baseEvent.Faas.ColdStart = key.FAASColdstart.ToBoolPtr()
+		baseEvent.Faas.Id = key.FAASID
+		baseEvent.Faas.Name = key.FAASName
+		baseEvent.Faas.Version = key.FAASVersion
+		baseEvent.Faas.TriggerType = key.FAASTriggerType
+	}
+}
+
+func svcInstTxnMetricsToAPMEvent(
+	key ServiceInstanceTransactionAggregationKey,
+	metrics *aggregationpb.ServiceInstanceTransactionMetrics,
+	baseEvent *modelpb.APMEvent,
+	intervalStr string,
+) {
+	histogram := hdrhistogram.New()
+	HistogramFromProto(histogram, metrics.Histogram)
+	totalCount, counts, values := histogram.Buckets()
+	transactionDurationSummary := modelpb.SummaryMetric{
+		Count: totalCount,
+	}
+	for i, v := range values {
+		transactionDurationSummary.Sum += v * float64(counts[i])
+	}
+
+	baseEvent.Transaction = populateNil(baseEvent.Transaction)
+	baseEvent.Transaction.Type = key.TransactionType
+	baseEvent.Transaction.DurationSummary = &transactionDurationSummary
+	baseEvent.Transaction.DurationHistogram = &modelpb.Histogram{
+		Counts: counts,
+		Values: values,
+	}
+
+	baseEvent.Metricset = populateNil(baseEvent.Metricset)
+	baseEvent.Metricset.Name = svcInstTxnMetricsetName
+	baseEvent.Metricset.DocCount = totalCount
+	baseEvent.Metricset.Interval = intervalStr
+
+	baseEvent.Event = populateNil(baseEvent.Event)
+	baseEvent.Event = populateNil(baseEvent.Event)
+	baseEvent.Event.SuccessCount = &modelpb.SummaryMetric{
+		Count: int64(math.Round(metrics.SuccessCount + metrics.FailureCount)),
+		Sum:   math.Round(metrics.SuccessCount),
+	}
+
 	if key.ContainerID != "" {
 		baseEvent.Container = populateNil(baseEvent.Container)
 		baseEvent.Container.Id = key.ContainerID
@@ -531,20 +633,6 @@ func txnMetricsToAPMEvent(
 		baseEvent.Host = populateNil(baseEvent.Host)
 		baseEvent.Host.Os = populateNil(baseEvent.Host.Os)
 		baseEvent.Host.Os.Platform = key.HostOSPlatform
-	}
-
-	if key.FAASColdstart != nullable.Nil ||
-		key.FAASID != "" ||
-		key.FAASName != "" ||
-		key.FAASVersion != "" ||
-		key.FAASTriggerType != "" {
-
-		baseEvent.Faas = populateNil(baseEvent.Faas)
-		baseEvent.Faas.ColdStart = key.FAASColdstart.ToBoolPtr()
-		baseEvent.Faas.Id = key.FAASID
-		baseEvent.Faas.Name = key.FAASName
-		baseEvent.Faas.Version = key.FAASVersion
-		baseEvent.Faas.TriggerType = key.FAASTriggerType
 	}
 
 	if key.CloudProvider != "" ||
@@ -695,6 +783,34 @@ func overflowTxnMetricsToAPMEvent(
 	samples := baseEvent.GetMetricset().GetSamples()
 	samples = append(samples, &modelpb.MetricsetSample{
 		Name:  "transaction.aggregation.overflow_count",
+		Value: float64(overflowCount),
+	})
+	if baseEvent.Metricset == nil {
+		baseEvent.Metricset = &modelpb.Metricset{}
+	}
+	baseEvent.Metricset.Samples = samples
+}
+
+// overflowSvcInstTxnMetricsToAPMEvent TODO
+func overflowSvcInstTxnMetricsToAPMEvent(
+	processingTime time.Time,
+	overflow OverflowServiceInstanceTransaction,
+	baseEvent *modelpb.APMEvent,
+	intervalStr string,
+) {
+	// Overflow metrics use the processing time as their timestamp rather than
+	// the event time. This makes sure that they can be associated with the
+	// appropriate time when the event volume caused them to overflow.
+	baseEvent.Timestamp = timestamppb.New(processingTime)
+	overflowCount := int64(overflow.Estimator.Estimate())
+	overflowKey := ServiceInstanceTransactionAggregationKey{
+		TransactionType: overflowBucketName, // TODO(carsonip): define overflow key
+	}
+	svcInstTxnMetricsToAPMEvent(overflowKey, overflow.Metrics, baseEvent, intervalStr)
+
+	samples := baseEvent.GetMetricset().GetSamples()
+	samples = append(samples, &modelpb.MetricsetSample{
+		Name:  "service_instance_transaction.aggregation.overflow_count",
 		Value: float64(overflowCount),
 	})
 	if baseEvent.Metricset == nil {
@@ -977,12 +1093,16 @@ func (c combinedMetricsCollector) add(
 	to.TransactionMetrics = mergeSlices[aggregationpb.KeyedTransactionMetrics](
 		to.TransactionMetrics, from.TransactionMetrics,
 	)
+	to.ServiceInstanceTransactionMetrics = mergeSlices[aggregationpb.KeyedServiceInstanceTransactionMetrics](
+		to.ServiceInstanceTransactionMetrics, from.ServiceInstanceTransactionMetrics,
+	)
 	to.SpanMetrics = mergeSlices[aggregationpb.KeyedSpanMetrics](
 		to.SpanMetrics, from.SpanMetrics,
 	)
 	// nil out the slices to avoid ReturnToVTPool from releasing the underlying metrics in the slices
 	nilSlice(from.ServiceTransactionMetrics)
 	nilSlice(from.TransactionMetrics)
+	nilSlice(from.ServiceInstanceTransactionMetrics)
 	nilSlice(from.SpanMetrics)
 	from.ReturnToVTPool()
 }
