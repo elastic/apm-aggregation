@@ -55,7 +55,8 @@ func TestAggregateBatch(t *testing.T) {
 	mp := metric.NewMeterProvider(metric.WithReader(gatherer))
 
 	cmID := EncodeToCombinedMetricsKeyID(t, "ab01")
-	txnDuration := 100 * time.Millisecond
+	eventDuration := 100 * time.Millisecond
+	dssDuration := 10 * time.Millisecond
 	uniqueEventCount := 100 // for each of txns and spans
 	uniqueServices := 10
 	repCount := 5
@@ -67,7 +68,7 @@ func TestAggregateBatch(t *testing.T) {
 		batch = append(batch, &modelpb.APMEvent{
 			Event: &modelpb.Event{
 				Outcome:  "success",
-				Duration: durationpb.New(txnDuration),
+				Duration: durationpb.New(eventDuration),
 				Received: timestamppb.New(ts),
 			},
 			Transaction: &modelpb.Transaction{
@@ -80,7 +81,7 @@ func TestAggregateBatch(t *testing.T) {
 						Outcome:                    "success",
 						Duration: &modelpb.AggregatedDuration{
 							Count: 1,
-							Sum:   durationpb.New(10 * time.Millisecond),
+							Sum:   durationpb.New(dssDuration),
 						},
 					},
 				},
@@ -89,6 +90,7 @@ func TestAggregateBatch(t *testing.T) {
 		})
 		batch = append(batch, &modelpb.APMEvent{
 			Event: &modelpb.Event{
+				Duration: durationpb.New(eventDuration),
 				Received: timestamppb.New(ts),
 			},
 			Span: &modelpb.Span{
@@ -146,16 +148,15 @@ func TestAggregateBatch(t *testing.T) {
 	}
 	assert.NotNil(t, span)
 
-	expectedCombinedMetrics := CombinedMetrics{
-		Services:               make(map[ServiceAggregationKey]ServiceMetrics),
-		eventsTotal:            float64(len(batch)),
-		youngestEventTimestamp: ts,
-	}
+	expectedCombinedMetrics := NewTestCombinedMetrics(
+		WithEventsTotal(float64(len(batch))),
+		WithYoungestEventTimestamp(ts),
+	)
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 133750},
+				"aggregator.bytes.ingested": {Value: 138250},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -193,48 +194,27 @@ func TestAggregateBatch(t *testing.T) {
 			SpanName: fmt.Sprintf("bar%d", i%uniqueEventCount),
 			Resource: "test_dest",
 		}
-		if _, ok := expectedCombinedMetrics.Services[svcKey]; !ok {
-			expectedCombinedMetrics.Services[svcKey] = newServiceMetrics()
-		}
-		if _, ok := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik]; !ok {
-			expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik] = newServiceInstanceMetrics()
-		}
-		var ok bool
-		var tm TransactionMetrics
-		if tm, ok = expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].TransactionGroups[txKey]; !ok {
-			tm = newTransactionMetrics()
-		}
-		tm.Histogram.RecordDuration(txnDuration, 1)
-		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].TransactionGroups[txKey] = tm
-		var stm ServiceTransactionMetrics
-		if stm, ok = expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].ServiceTransactionGroups[stxKey]; !ok {
-			stm = newServiceTransactionMetrics()
-		}
-		stm.Histogram.RecordDuration(txnDuration, 1)
-		stm.SuccessCount++
-		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].ServiceTransactionGroups[stxKey] = stm
-		sm := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[spanKey]
-		sm.Count++
-		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[spanKey] = sm
-
-		droppedSpanStatsKey := SpanAggregationKey{
+		dssKey := SpanAggregationKey{
 			SpanName: "",
 			Resource: fmt.Sprintf("dropped_dest_resource%d", i%uniqueEventCount),
 			Outcome:  "success",
 		}
-		dssm := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[droppedSpanStatsKey]
-		dssm.Count++
-		dssm.Sum += float64(10 * time.Millisecond)
-		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[droppedSpanStatsKey] = dssm
+		expectedCombinedMetrics.
+			AddServiceMetrics(svcKey).
+			AddServiceInstanceMetrics(sik).
+			AddTransaction(txKey, WithTransactionDuration(eventDuration)).
+			AddServiceTransaction(stxKey, WithTransactionDuration(eventDuration)).
+			AddSpan(spanKey, WithSpanDuration(eventDuration)).
+			AddSpan(dssKey, WithSpanDuration(dssDuration))
 	}
 	assert.Empty(t, cmp.Diff(
-		expectedCombinedMetrics, cm,
+		expectedCombinedMetrics.Get(), cm,
 		cmpopts.EquateEmpty(),
 		cmpopts.EquateApprox(0, 0.01),
 		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
 			return a.Equal(&b)
 		}),
-		cmp.AllowUnexported(CombinedMetrics{}),
+		protocmp.Transform(),
 	))
 	assert.Empty(t, cmp.Diff(
 		expectedMeasurements,
@@ -1116,20 +1096,20 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 		ProcessingTime: time.Now().Truncate(aggIvl),
 		ID:             EncodeToCombinedMetricsKeyID(b, "ab01"),
 	}
-	cm := (*CombinedMetrics)(createTestCombinedMetrics(withEventsTotal(1)).
-		addServiceTransaction(
-			time.Now(),
-			"test-svc",
-			"",
-			testServiceTransaction{txnType: "txntype", count: 1},
-		).
-		addTransaction(
-			time.Now(),
-			"test-svc",
-			"",
-			testTransaction{txnName: "txntest", txnType: "txntype", count: 1},
-		),
-	).ToProto()
+	cm := NewTestCombinedMetrics(WithEventsTotal(1)).
+		AddServiceMetrics(ServiceAggregationKey{
+			Timestamp:   time.Now(),
+			ServiceName: "test-svc",
+		}).
+		AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+		AddTransaction(TransactionAggregationKey{
+			TransactionName: "txntest",
+			TransactionType: "txntype",
+		}).
+		AddServiceTransaction(ServiceTransactionAggregationKey{
+			TransactionType: "txntype",
+		}).
+		GetProto()
 	b.Cleanup(func() { cm.ReturnToVTPool() })
 	ctx, cancel := context.WithCancel(context.Background())
 	b.Cleanup(func() { cancel() })
