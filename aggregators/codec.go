@@ -316,7 +316,6 @@ func (k *TransactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggre
 	k.TraceRoot = pb.TraceRoot
 
 	k.ServiceVersion = pb.ServiceVersion
-	k.ServiceNodeName = pb.ServiceNodeName
 
 	k.ServiceRuntimeName = pb.ServiceRuntimeName
 	k.ServiceRuntimeVersion = pb.ServiceRuntimeVersion

@@ -51,7 +51,6 @@ func (k *TransactionAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
 	}
 
 	h.WriteString(k.ServiceVersion)
-	h.WriteString(k.ServiceNodeName)
 
 	h.WriteString(k.ServiceRuntimeName)
 	h.WriteString(k.ServiceRuntimeVersion)

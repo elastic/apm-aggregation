@@ -286,8 +286,7 @@ type Overflow struct {
 type TransactionAggregationKey struct {
 	TraceRoot bool
 
-	ServiceVersion  string
-	ServiceNodeName string
+	ServiceVersion string
 
 	ServiceRuntimeName     string
 	ServiceRuntimeVersion  string
