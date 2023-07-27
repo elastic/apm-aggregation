@@ -10,7 +10,6 @@ import (
 	"errors"
 	"fmt"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cockroachdb/pebble"
@@ -32,12 +31,9 @@ const (
 )
 
 var (
-	// ErrAggregatorStopped means that aggregator was stopped when the
+	// ErrAggregatorClosed means that aggregator was closed when the
 	// method was called and thus cannot be processed further.
-	ErrAggregatorStopped = errors.New("aggregator is stopping or stopped")
-	// ErrAggregatorAlreadyRunning means that aggregator Run method is
-	// called while the aggregator is already running.
-	ErrAggregatorAlreadyRunning = errors.New("aggregator is already running")
+	ErrAggregatorClosed = errors.New("aggregator is closed")
 )
 
 // Aggregator represents a LSM based aggregator instance to generate
@@ -58,14 +54,15 @@ type Aggregator struct {
 	batch          *pebble.Batch
 	cachedEvents   cachedEventsMap
 
-	stopping   chan struct{}
-	runStarted atomic.Bool
+	closed     chan struct{}
 	runStopped chan struct{}
 
 	metrics *telemetry.Metrics
 }
 
 // New returns a new aggregator instance.
+//
+// Close must be called when the the aggregator is no longer needed.
 func New(opts ...Option) (*Aggregator, error) {
 	cfg, err := NewConfig(opts...)
 	if err != nil {
@@ -110,8 +107,7 @@ func New(opts ...Option) (*Aggregator, error) {
 		writeOptions:   writeOptions,
 		cfg:            cfg,
 		processingTime: time.Now().Truncate(cfg.AggregationIntervals[0]),
-		stopping:       make(chan struct{}),
-		runStopped:     make(chan struct{}),
+		closed:         make(chan struct{}),
 		metrics:        metrics,
 	}, nil
 }
@@ -132,8 +128,8 @@ func (a *Aggregator) AggregateBatch(
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-a.stopping:
-		return ErrAggregatorStopped
+	case <-a.closed:
+		return ErrAggregatorClosed
 	default:
 	}
 
@@ -185,8 +181,8 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-a.stopping:
-		return ErrAggregatorStopped
+	case <-a.closed:
+		return ErrAggregatorClosed
 	default:
 	}
 
@@ -205,12 +201,16 @@ func (a *Aggregator) AggregateCombinedMetrics(
 
 // Run harvests the aggregated results periodically. For an aggregator,
 // Run must be called at-most once.
-// - Running more than once will return ErrAggregatorAlreadyRunning.
-// - Running after aggregator is stopped will return ErrAggregatorStopped.
+// - Running more than once will return an error
+// - Running after aggregator is stopped will return ErrAggregatorClosed.
 func (a *Aggregator) Run(ctx context.Context) error {
-	if !a.runStarted.CompareAndSwap(false, true) {
-		return ErrAggregatorAlreadyRunning
+	a.mu.Lock()
+	if a.runStopped != nil {
+		a.mu.Unlock()
+		return errors.New("aggregator is already running")
 	}
+	a.runStopped = make(chan struct{})
+	a.mu.Unlock()
 	defer close(a.runStopped)
 
 	to := a.processingTime.Add(a.cfg.AggregationIntervals[0])
@@ -220,8 +220,8 @@ func (a *Aggregator) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-a.stopping:
-			return ErrAggregatorStopped
+		case <-a.closed:
+			return ErrAggregatorClosed
 		case <-timer.C:
 		}
 
@@ -240,31 +240,31 @@ func (a *Aggregator) Run(ctx context.Context) error {
 	}
 }
 
-// Stop stops the aggregator. Aggregations performed after calling Stop
-// will return an error. Stop can be called multiple times but concurrent
-// calls to stop will block.
-func (a *Aggregator) Stop(ctx context.Context) error {
-	ctx, span := a.cfg.Tracer.Start(ctx, "Aggregator.Stop")
+// Close commits and closes any buffered writes, stops any running harvester,
+// performs a final harvest, and closes the underlying database.
+//
+// No further writes may be performed after Close is called, and no further
+// harvests will be performed once Close returns.
+func (a *Aggregator) Close(ctx context.Context) error {
+	ctx, span := a.cfg.Tracer.Start(ctx, "Aggregator.Close")
 	defer span.End()
 
 	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	select {
-	case <-a.stopping:
+	case <-a.closed:
 	default:
-		close(a.stopping)
+		a.cfg.Logger.Info("stopping aggregator")
+		close(a.closed)
 	}
-	a.mu.Unlock()
-	if a.runStarted.Load() {
+	if a.runStopped != nil {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("context cancelled while waiting for run to complete: %w", ctx.Err())
 		case <-a.runStopped:
 		}
 	}
-
-	a.cfg.Logger.Info("stopping aggregator")
-	a.mu.Lock()
-	defer a.mu.Unlock()
 
 	if a.db != nil {
 		a.cfg.Logger.Info("running final aggregation")

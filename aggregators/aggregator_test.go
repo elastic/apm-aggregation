@@ -132,7 +132,7 @@ func TestAggregateBatch(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
-	require.NoError(t, agg.Stop(context.Background()))
+	require.NoError(t, agg.Close(context.Background()))
 	var cm *aggregationpb.CombinedMetrics
 	select {
 	case cm = <-out:
@@ -565,7 +565,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
-			require.NoError(t, agg.Stop(context.Background()))
+			require.NoError(t, agg.Close(context.Background()))
 			var expectedEvents []*modelpb.APMEvent
 			for _, ivl := range aggregationIvls {
 				expectedEvents = append(expectedEvents, tt.getExpectedEvents(now, duration, ivl, count)...)
@@ -753,7 +753,7 @@ func TestHarvest(t *testing.T) {
 		agg.Run(context.Background())
 	}()
 	t.Cleanup(func() {
-		agg.Stop(context.Background())
+		agg.Close(context.Background())
 	})
 
 	var batch modelpb.Batch
@@ -876,7 +876,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 		EncodeToCombinedMetricsKeyID(t, "ab01"),
 		&batch,
 	))
-	require.NoError(t, agg.Stop(context.Background()))
+	require.NoError(t, agg.Close(context.Background()))
 
 	expected := []*modelpb.APMEvent{
 		{
@@ -1022,7 +1022,7 @@ func TestRunStopOrchestration(t *testing.T) {
 		)
 	}
 
-	t.Run("run_before_stop", func(t *testing.T) {
+	t.Run("run_before_close", func(t *testing.T) {
 		agg := newAggregator()
 		// Should aggregate even without running
 		assert.NoError(t, callAggregateBatch(agg))
@@ -1031,33 +1031,35 @@ func TestRunStopOrchestration(t *testing.T) {
 			return firstHarvestDone.Load()
 		}, 10*time.Second, 10*time.Millisecond, "failed while waiting for first harvest")
 		assert.NoError(t, callAggregateBatch(agg))
-		assert.NoError(t, agg.Stop(ctx))
-		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorStopped)
+		assert.NoError(t, agg.Close(ctx))
+		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorClosed)
 	})
-	t.Run("stop_before_run", func(t *testing.T) {
+	t.Run("close_before_run", func(t *testing.T) {
 		agg := newAggregator()
-		assert.NoError(t, agg.Stop(ctx))
-		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorStopped)
-		assert.ErrorIs(t, agg.Run(ctx), ErrAggregatorStopped)
+		assert.NoError(t, agg.Close(ctx))
+		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorClosed)
+		assert.ErrorIs(t, agg.Run(ctx), ErrAggregatorClosed)
 	})
 	t.Run("multiple_run", func(t *testing.T) {
 		agg := newAggregator()
-		defer agg.Stop(ctx)
+		defer agg.Close(ctx)
 
 		g, ctx := errgroup.WithContext(ctx)
 		g.Go(func() error { return agg.Run(ctx) })
 		g.Go(func() error { return agg.Run(ctx) })
-		assert.ErrorIs(t, g.Wait(), ErrAggregatorAlreadyRunning)
+		err := g.Wait()
+		assert.Error(t, err)
+		assert.EqualError(t, err, "aggregator is already running")
 	})
-	t.Run("multiple_stop", func(t *testing.T) {
+	t.Run("multiple_close", func(t *testing.T) {
 		agg := newAggregator()
-		defer agg.Stop(ctx)
+		defer agg.Close(ctx)
 		go func() { agg.Run(ctx) }()
 		time.Sleep(time.Second)
 
 		g, ctx := errgroup.WithContext(ctx)
-		g.Go(func() error { return agg.Stop(ctx) })
-		g.Go(func() error { return agg.Stop(ctx) })
+		g.Go(func() error { return agg.Close(ctx) })
+		g.Go(func() error { return agg.Close(ctx) })
 		assert.NoError(t, g.Wait())
 	})
 }
@@ -1092,7 +1094,7 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 		agg.Run(context.Background())
 	}()
 	b.Cleanup(func() {
-		agg.Stop(context.Background())
+		agg.Close(context.Background())
 	})
 	cmk := CombinedMetricsKey{
 		Interval:       aggIvl,
@@ -1137,7 +1139,6 @@ func BenchmarkAggregateBatchSerial(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	flushTestAggregator(b, agg)
 }
 
 func BenchmarkAggregateBatchParallel(b *testing.B) {
@@ -1154,7 +1155,6 @@ func BenchmarkAggregateBatchParallel(b *testing.B) {
 			}
 		}
 	})
-	flushTestAggregator(b, agg)
 }
 
 func newTestAggregator(tb testing.TB) *Aggregator {
@@ -1177,22 +1177,12 @@ func newTestAggregator(tb testing.TB) *Aggregator {
 	if err != nil {
 		tb.Fatal(err)
 	}
+	tb.Cleanup(func() {
+		if err := agg.Close(context.Background()); err != nil {
+			tb.Fatal(err)
+		}
+	})
 	return agg
-}
-
-func flushTestAggregator(tb testing.TB, agg *Aggregator) {
-	if agg.batch != nil {
-		if err := agg.batch.Commit(agg.writeOptions); err != nil {
-			tb.Fatal(err)
-		}
-		if err := agg.batch.Close(); err != nil {
-			tb.Fatal(err)
-		}
-		agg.batch = nil
-	}
-	if err := agg.db.Close(); err != nil {
-		tb.Fatal(err)
-	}
 }
 
 func newTestBatchForBenchmark() *modelpb.Batch {
