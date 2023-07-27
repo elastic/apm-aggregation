@@ -480,6 +480,10 @@ func (o *Overflow) ToProto() *aggregationpb.Overflow {
 		pb.OverflowTransactions = o.OverflowTransaction.Metrics
 		pb.OverflowTransactionsEstimator = hllBytes(o.OverflowTransaction.Estimator)
 	}
+	if !o.OverflowServiceInstanceTransaction.Empty() {
+		pb.OverflowServiceInstanceTransactions = o.OverflowServiceInstanceTransaction.Metrics
+		pb.OverflowServiceInstanceTransactionsEstimator = hllBytes(o.OverflowServiceInstanceTransaction.Estimator)
+	}
 	if !o.OverflowServiceTransaction.Empty() {
 		pb.OverflowServiceTransactions = o.OverflowServiceTransaction.Metrics
 		pb.OverflowServiceTransactionsEstimator = hllBytes(o.OverflowServiceTransaction.Estimator)
@@ -497,6 +501,11 @@ func (o *Overflow) FromProto(pb *aggregationpb.Overflow) {
 		o.OverflowTransaction.Estimator = hllSketch(pb.OverflowTransactionsEstimator)
 		o.OverflowTransaction.Metrics = pb.OverflowTransactions
 		pb.OverflowTransactions = nil
+	}
+	if pb.OverflowServiceInstanceTransactions != nil {
+		o.OverflowServiceInstanceTransaction.Estimator = hllSketch(pb.OverflowServiceInstanceTransactionsEstimator)
+		o.OverflowServiceInstanceTransaction.Metrics = pb.OverflowServiceInstanceTransactions
+		pb.OverflowServiceInstanceTransactions = nil
 	}
 	if pb.OverflowServiceTransactions != nil {
 		o.OverflowServiceTransaction.Estimator = hllSketch(pb.OverflowServiceTransactionsEstimator)

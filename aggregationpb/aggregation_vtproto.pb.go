@@ -529,14 +529,20 @@ func (m *Overflow) CloneVT() *Overflow {
 		return (*Overflow)(nil)
 	}
 	r := &Overflow{
-		OverflowTransactions:        m.OverflowTransactions.CloneVT(),
-		OverflowServiceTransactions: m.OverflowServiceTransactions.CloneVT(),
-		OverflowSpans:               m.OverflowSpans.CloneVT(),
+		OverflowTransactions:                m.OverflowTransactions.CloneVT(),
+		OverflowServiceInstanceTransactions: m.OverflowServiceInstanceTransactions.CloneVT(),
+		OverflowServiceTransactions:         m.OverflowServiceTransactions.CloneVT(),
+		OverflowSpans:                       m.OverflowSpans.CloneVT(),
 	}
 	if rhs := m.OverflowTransactionsEstimator; rhs != nil {
 		tmpBytes := make([]byte, len(rhs))
 		copy(tmpBytes, rhs)
 		r.OverflowTransactionsEstimator = tmpBytes
+	}
+	if rhs := m.OverflowServiceInstanceTransactionsEstimator; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.OverflowServiceInstanceTransactionsEstimator = tmpBytes
 	}
 	if rhs := m.OverflowServiceTransactionsEstimator; rhs != nil {
 		tmpBytes := make([]byte, len(rhs))
@@ -1988,21 +1994,28 @@ func (m *Overflow) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		copy(dAtA[i:], m.OverflowSpansEstimator)
 		i = encodeVarint(dAtA, i, uint64(len(m.OverflowSpansEstimator)))
 		i--
-		dAtA[i] = 0x32
+		dAtA[i] = 0x42
 	}
 	if len(m.OverflowServiceTransactionsEstimator) > 0 {
 		i -= len(m.OverflowServiceTransactionsEstimator)
 		copy(dAtA[i:], m.OverflowServiceTransactionsEstimator)
 		i = encodeVarint(dAtA, i, uint64(len(m.OverflowServiceTransactionsEstimator)))
 		i--
-		dAtA[i] = 0x2a
+		dAtA[i] = 0x3a
+	}
+	if len(m.OverflowServiceInstanceTransactionsEstimator) > 0 {
+		i -= len(m.OverflowServiceInstanceTransactionsEstimator)
+		copy(dAtA[i:], m.OverflowServiceInstanceTransactionsEstimator)
+		i = encodeVarint(dAtA, i, uint64(len(m.OverflowServiceInstanceTransactionsEstimator)))
+		i--
+		dAtA[i] = 0x32
 	}
 	if len(m.OverflowTransactionsEstimator) > 0 {
 		i -= len(m.OverflowTransactionsEstimator)
 		copy(dAtA[i:], m.OverflowTransactionsEstimator)
 		i = encodeVarint(dAtA, i, uint64(len(m.OverflowTransactionsEstimator)))
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x2a
 	}
 	if m.OverflowSpans != nil {
 		size, err := m.OverflowSpans.MarshalToSizedBufferVT(dAtA[:i])
@@ -2012,10 +2025,20 @@ func (m *Overflow) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= size
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
-		dAtA[i] = 0x1a
+		dAtA[i] = 0x22
 	}
 	if m.OverflowServiceTransactions != nil {
 		size, err := m.OverflowServiceTransactions.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.OverflowServiceInstanceTransactions != nil {
+		size, err := m.OverflowServiceInstanceTransactions.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -2519,15 +2542,18 @@ var vtprotoPool_Overflow = sync.Pool{
 
 func (m *Overflow) ResetVT() {
 	m.OverflowTransactions.ReturnToVTPool()
+	m.OverflowServiceInstanceTransactions.ReturnToVTPool()
 	m.OverflowServiceTransactions.ReturnToVTPool()
 	m.OverflowSpans.ReturnToVTPool()
 	f0 := m.OverflowTransactionsEstimator[:0]
-	f1 := m.OverflowServiceTransactionsEstimator[:0]
-	f2 := m.OverflowSpansEstimator[:0]
+	f1 := m.OverflowServiceInstanceTransactionsEstimator[:0]
+	f2 := m.OverflowServiceTransactionsEstimator[:0]
+	f3 := m.OverflowSpansEstimator[:0]
 	m.Reset()
 	m.OverflowTransactionsEstimator = f0
-	m.OverflowServiceTransactionsEstimator = f1
-	m.OverflowSpansEstimator = f2
+	m.OverflowServiceInstanceTransactionsEstimator = f1
+	m.OverflowServiceTransactionsEstimator = f2
+	m.OverflowSpansEstimator = f3
 }
 func (m *Overflow) ReturnToVTPool() {
 	if m != nil {
@@ -3104,6 +3130,10 @@ func (m *Overflow) SizeVT() (n int) {
 		l = m.OverflowTransactions.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
+	if m.OverflowServiceInstanceTransactions != nil {
+		l = m.OverflowServiceInstanceTransactions.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
 	if m.OverflowServiceTransactions != nil {
 		l = m.OverflowServiceTransactions.SizeVT()
 		n += 1 + l + sov(uint64(l))
@@ -3113,6 +3143,10 @@ func (m *Overflow) SizeVT() (n int) {
 		n += 1 + l + sov(uint64(l))
 	}
 	l = len(m.OverflowTransactionsEstimator)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.OverflowServiceInstanceTransactionsEstimator)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -6977,6 +7011,42 @@ func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceInstanceTransactions", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.OverflowServiceInstanceTransactions == nil {
+				m.OverflowServiceInstanceTransactions = ServiceInstanceTransactionMetricsFromVTPool()
+			}
+			if err := m.OverflowServiceInstanceTransactions.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceTransactions", wireType)
 			}
 			var msglen int
@@ -7011,7 +7081,7 @@ func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field OverflowSpans", wireType)
 			}
@@ -7047,7 +7117,7 @@ func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 4:
+		case 5:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field OverflowTransactionsEstimator", wireType)
 			}
@@ -7081,7 +7151,41 @@ func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 				m.OverflowTransactionsEstimator = []byte{}
 			}
 			iNdEx = postIndex
-		case 5:
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceInstanceTransactionsEstimator", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.OverflowServiceInstanceTransactionsEstimator = append(m.OverflowServiceInstanceTransactionsEstimator[:0], dAtA[iNdEx:postIndex]...)
+			if m.OverflowServiceInstanceTransactionsEstimator == nil {
+				m.OverflowServiceInstanceTransactionsEstimator = []byte{}
+			}
+			iNdEx = postIndex
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceTransactionsEstimator", wireType)
 			}
@@ -7115,7 +7219,7 @@ func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 				m.OverflowServiceTransactionsEstimator = []byte{}
 			}
 			iNdEx = postIndex
-		case 6:
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field OverflowSpansEstimator", wireType)
 			}

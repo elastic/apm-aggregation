@@ -167,9 +167,11 @@ message HDRHistogram {
 
 message Overflow {
   TransactionMetrics overflow_transactions = 1;
-  ServiceTransactionMetrics overflow_service_transactions = 2;
-  SpanMetrics overflow_spans = 3;
-  bytes overflow_transactions_estimator = 4;
-  bytes overflow_service_transactions_estimator = 5;
-  bytes overflow_spans_estimator = 6;
+  ServiceInstanceTransactionMetrics overflow_service_instance_transactions = 2;
+  ServiceTransactionMetrics overflow_service_transactions = 3;
+  SpanMetrics overflow_spans = 4;
+  bytes overflow_transactions_estimator = 5;
+  bytes overflow_service_instance_transactions_estimator = 6;
+  bytes overflow_service_transactions_estimator = 7;
+  bytes overflow_spans_estimator = 8;
 }
