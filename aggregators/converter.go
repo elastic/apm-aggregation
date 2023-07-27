@@ -127,8 +127,6 @@ func EventToCombinedMetrics(
 }
 
 // CombinedMetricsToBatch converts CombinedMetrics to a batch of APMEvents.
-// CombinedMetrics must not be used or referenced after CombinedMetricsToBatch
-// returns.
 func CombinedMetricsToBatch(
 	cm *aggregationpb.CombinedMetrics,
 	processingTime time.Time,
