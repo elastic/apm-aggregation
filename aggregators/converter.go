@@ -10,7 +10,6 @@ import (
 	"math"
 	"time"
 
-	"github.com/axiomhq/hyperloglog"
 	"golang.org/x/exp/slices"
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
@@ -129,11 +128,11 @@ func EventToCombinedMetrics(
 
 // CombinedMetricsToBatch converts CombinedMetrics to a batch of APMEvents.
 func CombinedMetricsToBatch(
-	cm CombinedMetrics,
+	cm *aggregationpb.CombinedMetrics,
 	processingTime time.Time,
 	aggInterval time.Duration,
 ) (*modelpb.Batch, error) {
-	if len(cm.Services) == 0 {
+	if cm == nil || len(cm.ServiceMetrics) == 0 {
 		return nil, nil
 	}
 
@@ -143,33 +142,39 @@ func CombinedMetricsToBatch(
 		batchSize++
 	}
 
-	for _, sm := range cm.Services {
-		for _, sim := range sm.ServiceInstanceGroups {
-			batchSize += len(sim.TransactionGroups)
-			batchSize += len(sim.ServiceTransactionGroups)
-			batchSize += len(sim.SpanGroups)
+	for _, ksm := range cm.ServiceMetrics {
+		sm := ksm.Metrics
+		for _, ksim := range sm.ServiceInstanceMetrics {
+			sim := ksim.Metrics
+			batchSize += len(sim.TransactionMetrics)
+			batchSize += len(sim.ServiceTransactionMetrics)
+			batchSize += len(sim.SpanMetrics)
 
 			// Each service instance will create a service summary metric
 			batchSize++
 		}
-
-		if !sm.OverflowGroups.OverflowTransaction.Empty() {
+		if sm.OverflowGroups == nil {
+			continue
+		}
+		if sm.OverflowGroups.OverflowTransactionsEstimator != nil {
 			batchSize++
 		}
-		if !sm.OverflowGroups.OverflowServiceTransaction.Empty() {
+		if sm.OverflowGroups.OverflowServiceTransactionsEstimator != nil {
 			batchSize++
 		}
-		if !sm.OverflowGroups.OverflowSpan.Empty() {
+		if sm.OverflowGroups.OverflowSpansEstimator != nil {
 			batchSize++
 		}
 	}
 
 	b := make(modelpb.Batch, 0, batchSize)
 	aggIntervalStr := formatDuration(aggInterval)
-	for sk, sm := range cm.Services {
-		for sik, sim := range sm.ServiceInstanceGroups {
+	for _, ksm := range cm.ServiceMetrics {
+		sk, sm := ksm.Key, ksm.Metrics
+		for _, ksim := range sm.ServiceInstanceMetrics {
+			sik, sim := ksim.Key, ksim.Metrics
 			var gl GlobalLabels
-			err := gl.UnmarshalString(sik.GlobalLabelsStr)
+			err := gl.UnmarshalBinary(sik.GlobalLabelsStr)
 			if err != nil {
 				return nil, err
 			}
@@ -181,21 +186,21 @@ func CombinedMetricsToBatch(
 			}
 
 			// transaction metrics
-			for tk, ktm := range sim.TransactionGroups {
+			for _, ktm := range sim.TransactionMetrics {
 				event := getBaseEventWithLabels()
-				txnMetricsToAPMEvent(tk, ktm.Metrics, event, aggIntervalStr)
+				txnMetricsToAPMEvent(ktm.Key, ktm.Metrics, event, aggIntervalStr)
 				b = append(b, event)
 			}
 			// service transaction metrics
-			for stk, kstm := range sim.ServiceTransactionGroups {
+			for _, kstm := range sim.ServiceTransactionMetrics {
 				event := getBaseEventWithLabels()
-				svcTxnMetricsToAPMEvent(stk, kstm.Metrics, event, aggIntervalStr)
+				svcTxnMetricsToAPMEvent(kstm.Key, kstm.Metrics, event, aggIntervalStr)
 				b = append(b, event)
 			}
 			// service destination metrics
-			for spk, kspm := range sim.SpanGroups {
+			for _, kspm := range sim.SpanMetrics {
 				event := getBaseEventWithLabels()
-				spanMetricsToAPMEvent(spk, kspm.Metrics, event, aggIntervalStr)
+				spanMetricsToAPMEvent(kspm.Key, kspm.Metrics, event, aggIntervalStr)
 				b = append(b, event)
 			}
 
@@ -205,31 +210,42 @@ func CombinedMetricsToBatch(
 			b = append(b, event)
 		}
 
-		if !sm.OverflowGroups.OverflowTransaction.Empty() {
+		if sm.OverflowGroups == nil {
+			continue
+		}
+		if sm.OverflowGroups.OverflowTransactionsEstimator != nil {
+			estimator := hllSketch(sm.OverflowGroups.OverflowTransactionsEstimator)
 			event := getBaseEvent(sk)
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
-				sm.OverflowGroups.OverflowTransaction,
+				sm.OverflowGroups.OverflowTransactions,
+				estimator.Estimate(),
 				event,
 				aggIntervalStr,
 			)
 			b = append(b, event)
 		}
-		if !sm.OverflowGroups.OverflowServiceTransaction.Empty() {
+		if sm.OverflowGroups.OverflowServiceTransactionsEstimator != nil {
+			estimator := hllSketch(
+				sm.OverflowGroups.OverflowServiceTransactionsEstimator,
+			)
 			event := getBaseEvent(sk)
 			overflowSvcTxnMetricsToAPMEvent(
 				processingTime,
-				sm.OverflowGroups.OverflowServiceTransaction,
+				sm.OverflowGroups.OverflowServiceTransactions,
+				estimator.Estimate(),
 				event,
 				aggIntervalStr,
 			)
 			b = append(b, event)
 		}
-		if !sm.OverflowGroups.OverflowSpan.Empty() {
+		if sm.OverflowGroups.OverflowSpansEstimator != nil {
+			estimator := hllSketch(sm.OverflowGroups.OverflowSpansEstimator)
 			event := getBaseEvent(sk)
 			overflowSpanMetricsToAPMEvent(
 				processingTime,
-				sm.OverflowGroups.OverflowSpan,
+				sm.OverflowGroups.OverflowSpans,
+				estimator.Estimate(),
 				event,
 				aggIntervalStr,
 			)
@@ -237,6 +253,7 @@ func CombinedMetricsToBatch(
 		}
 	}
 	if cm.OverflowServiceInstancesEstimator != nil {
+		estimator := hllSketch(cm.OverflowServiceInstancesEstimator)
 		getOverflowBaseEvent := func() *modelpb.APMEvent {
 			return &modelpb.APMEvent{
 				Metricset: &modelpb.Metricset{},
@@ -248,36 +265,45 @@ func CombinedMetricsToBatch(
 		event := getOverflowBaseEvent()
 		overflowServiceMetricsToAPMEvent(
 			processingTime,
-			cm.OverflowServiceInstancesEstimator,
+			estimator.Estimate(),
 			event,
 			aggIntervalStr,
 		)
 		b = append(b, event)
-		if !cm.OverflowServices.OverflowTransaction.Empty() {
+		if cm.OverflowServices.OverflowTransactionsEstimator != nil {
+			estimator := hllSketch(cm.OverflowServices.OverflowTransactionsEstimator)
 			event := getOverflowBaseEvent()
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
-				cm.OverflowServices.OverflowTransaction,
+				cm.OverflowServices.OverflowTransactions,
+				estimator.Estimate(),
 				event,
 				aggIntervalStr,
 			)
 			b = append(b, event)
+
 		}
-		if !cm.OverflowServices.OverflowServiceTransaction.Empty() {
+		if cm.OverflowServices.OverflowServiceTransactionsEstimator != nil {
+			estimator := hllSketch(
+				cm.OverflowServices.OverflowServiceTransactionsEstimator,
+			)
 			event := getOverflowBaseEvent()
 			overflowSvcTxnMetricsToAPMEvent(
 				processingTime,
-				cm.OverflowServices.OverflowServiceTransaction,
+				cm.OverflowServices.OverflowServiceTransactions,
+				estimator.Estimate(),
 				event,
 				aggIntervalStr,
 			)
 			b = append(b, event)
 		}
-		if !cm.OverflowServices.OverflowSpan.Empty() {
+		if cm.OverflowServices.OverflowSpansEstimator != nil {
+			estimator := hllSketch(cm.OverflowServices.OverflowSpansEstimator)
 			event := getOverflowBaseEvent()
 			overflowSpanMetricsToAPMEvent(
 				processingTime,
-				cm.OverflowServices.OverflowSpan,
+				cm.OverflowServices.OverflowSpans,
+				estimator.Estimate(),
 				event,
 				aggIntervalStr,
 			)
@@ -377,9 +403,9 @@ func eventToDSSMetrics(
 	return dssKey, sim
 }
 
-func getBaseEvent(key ServiceAggregationKey) *modelpb.APMEvent {
+func getBaseEvent(key *aggregationpb.ServiceAggregationKey) *modelpb.APMEvent {
 	event := &modelpb.APMEvent{
-		Timestamp: timestamppb.New(key.Timestamp),
+		Timestamp: timestamppb.New(tspb.PBTimestampToTime(key.Timestamp)),
 		Metricset: &modelpb.Metricset{},
 		Service: &modelpb.Service{
 			Name:        key.ServiceName,
@@ -413,7 +439,7 @@ func serviceMetricsToAPMEvent(
 }
 
 func txnMetricsToAPMEvent(
-	key TransactionAggregationKey,
+	key *aggregationpb.TransactionAggregationKey,
 	metrics *aggregationpb.TransactionMetrics,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
@@ -458,9 +484,9 @@ func txnMetricsToAPMEvent(
 	baseEvent.Event.Outcome = key.EventOutcome
 	baseEvent.Event.SuccessCount = &eventSuccessCount
 
-	if key.ContainerID != "" {
+	if key.ContainerId != "" {
 		baseEvent.Container = populateNil(baseEvent.Container)
-		baseEvent.Container.Id = key.ContainerID
+		baseEvent.Container.Id = key.ContainerId
 	}
 
 	if key.KubernetesPodName != "" {
@@ -502,34 +528,35 @@ func txnMetricsToAPMEvent(
 		baseEvent.Host.Name = key.HostName
 	}
 
-	if key.HostOSPlatform != "" {
+	if key.HostOsPlatform != "" {
 		baseEvent.Host = populateNil(baseEvent.Host)
 		baseEvent.Host.Os = populateNil(baseEvent.Host.Os)
-		baseEvent.Host.Os.Platform = key.HostOSPlatform
+		baseEvent.Host.Os.Platform = key.HostOsPlatform
 	}
 
-	if key.FAASColdstart != nullable.Nil ||
-		key.FAASID != "" ||
-		key.FAASName != "" ||
-		key.FAASVersion != "" ||
-		key.FAASTriggerType != "" {
+	faasColdstart := nullable.Bool(key.FaasColdstart)
+	if faasColdstart != nullable.Nil ||
+		key.FaasId != "" ||
+		key.FaasName != "" ||
+		key.FaasVersion != "" ||
+		key.FaasTriggerType != "" {
 
 		baseEvent.Faas = populateNil(baseEvent.Faas)
-		baseEvent.Faas.ColdStart = key.FAASColdstart.ToBoolPtr()
-		baseEvent.Faas.Id = key.FAASID
-		baseEvent.Faas.Name = key.FAASName
-		baseEvent.Faas.Version = key.FAASVersion
-		baseEvent.Faas.TriggerType = key.FAASTriggerType
+		baseEvent.Faas.ColdStart = faasColdstart.ToBoolPtr()
+		baseEvent.Faas.Id = key.FaasId
+		baseEvent.Faas.Name = key.FaasName
+		baseEvent.Faas.Version = key.FaasVersion
+		baseEvent.Faas.TriggerType = key.FaasTriggerType
 	}
 
 	if key.CloudProvider != "" ||
 		key.CloudRegion != "" ||
 		key.CloudAvailabilityZone != "" ||
 		key.CloudServiceName != "" ||
-		key.CloudAccountID != "" ||
+		key.CloudAccountId != "" ||
 		key.CloudAccountName != "" ||
 		key.CloudMachineType != "" ||
-		key.CloudProjectID != "" ||
+		key.CloudProjectId != "" ||
 		key.CloudProjectName != "" {
 
 		baseEvent.Cloud = populateNil(baseEvent.Cloud)
@@ -537,16 +564,16 @@ func txnMetricsToAPMEvent(
 		baseEvent.Cloud.Region = key.CloudRegion
 		baseEvent.Cloud.AvailabilityZone = key.CloudAvailabilityZone
 		baseEvent.Cloud.ServiceName = key.CloudServiceName
-		baseEvent.Cloud.AccountId = key.CloudAccountID
+		baseEvent.Cloud.AccountId = key.CloudAccountId
 		baseEvent.Cloud.AccountName = key.CloudAccountName
 		baseEvent.Cloud.MachineType = key.CloudMachineType
-		baseEvent.Cloud.ProjectId = key.CloudProjectID
+		baseEvent.Cloud.ProjectId = key.CloudProjectId
 		baseEvent.Cloud.ProjectName = key.CloudProjectName
 	}
 }
 
 func svcTxnMetricsToAPMEvent(
-	key ServiceTransactionAggregationKey,
+	key *aggregationpb.ServiceTransactionAggregationKey,
 	metrics *aggregationpb.ServiceTransactionMetrics,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
@@ -582,7 +609,7 @@ func svcTxnMetricsToAPMEvent(
 }
 
 func spanMetricsToAPMEvent(
-	key SpanAggregationKey,
+	key *aggregationpb.SpanAggregationKey,
 	metrics *aggregationpb.SpanMetrics,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
@@ -620,7 +647,7 @@ func spanMetricsToAPMEvent(
 
 func overflowServiceMetricsToAPMEvent(
 	processingTime time.Time,
-	overflowEstimator *hyperloglog.Sketch,
+	overflowCount uint64,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
 ) {
@@ -628,7 +655,6 @@ func overflowServiceMetricsToAPMEvent(
 	// the event time. This makes sure that they can be associated with the
 	// appropriate time when the event volume caused them to overflow.
 	baseEvent.Timestamp = timestamppb.New(processingTime)
-	overflowCount := overflowEstimator.Estimate()
 	serviceMetricsToAPMEvent(baseEvent, intervalStr)
 
 	samples := baseEvent.GetMetricset().GetSamples()
@@ -653,7 +679,8 @@ func overflowServiceMetricsToAPMEvent(
 // overflow estimate and the histogram.
 func overflowTxnMetricsToAPMEvent(
 	processingTime time.Time,
-	overflow OverflowTransaction,
+	overflowTxn *aggregationpb.TransactionMetrics,
+	overflowCount uint64,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
 ) {
@@ -661,11 +688,10 @@ func overflowTxnMetricsToAPMEvent(
 	// the event time. This makes sure that they can be associated with the
 	// appropriate time when the event volume caused them to overflow.
 	baseEvent.Timestamp = timestamppb.New(processingTime)
-	overflowCount := int64(overflow.Estimator.Estimate())
-	overflowKey := TransactionAggregationKey{
+	overflowKey := &aggregationpb.TransactionAggregationKey{
 		TransactionName: overflowBucketName,
 	}
-	txnMetricsToAPMEvent(overflowKey, overflow.Metrics, baseEvent, intervalStr)
+	txnMetricsToAPMEvent(overflowKey, overflowTxn, baseEvent, intervalStr)
 
 	samples := baseEvent.GetMetricset().GetSamples()
 	samples = append(samples, &modelpb.MetricsetSample{
@@ -680,7 +706,8 @@ func overflowTxnMetricsToAPMEvent(
 
 func overflowSvcTxnMetricsToAPMEvent(
 	processingTime time.Time,
-	overflow OverflowServiceTransaction,
+	overflowSvcTxn *aggregationpb.ServiceTransactionMetrics,
+	overflowCount uint64,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
 ) {
@@ -688,11 +715,10 @@ func overflowSvcTxnMetricsToAPMEvent(
 	// the event time. This makes sure that they can be associated with the
 	// appropriate time when the event volume caused them to overflow.
 	baseEvent.Timestamp = timestamppb.New(processingTime)
-	overflowCount := int64(overflow.Estimator.Estimate())
-	overflowKey := ServiceTransactionAggregationKey{
+	overflowKey := &aggregationpb.ServiceTransactionAggregationKey{
 		TransactionType: overflowBucketName,
 	}
-	svcTxnMetricsToAPMEvent(overflowKey, overflow.Metrics, baseEvent, intervalStr)
+	svcTxnMetricsToAPMEvent(overflowKey, overflowSvcTxn, baseEvent, intervalStr)
 
 	samples := baseEvent.GetMetricset().GetSamples()
 	samples = append(samples, &modelpb.MetricsetSample{
@@ -707,7 +733,8 @@ func overflowSvcTxnMetricsToAPMEvent(
 
 func overflowSpanMetricsToAPMEvent(
 	processingTime time.Time,
-	overflow OverflowSpan,
+	overflowSpan *aggregationpb.SpanMetrics,
+	overflowCount uint64,
 	baseEvent *modelpb.APMEvent,
 	intervalStr string,
 ) {
@@ -715,11 +742,10 @@ func overflowSpanMetricsToAPMEvent(
 	// the event time. This makes sure that they can be associated with the
 	// appropriate time when the event volume caused them to overflow.
 	baseEvent.Timestamp = timestamppb.New(processingTime)
-	overflowCount := int64(overflow.Estimator.Estimate())
-	overflowKey := SpanAggregationKey{
+	overflowKey := &aggregationpb.SpanAggregationKey{
 		TargetName: overflowBucketName,
 	}
-	spanMetricsToAPMEvent(overflowKey, overflow.Metrics, baseEvent, intervalStr)
+	spanMetricsToAPMEvent(overflowKey, overflowSpan, baseEvent, intervalStr)
 
 	samples := baseEvent.GetMetricset().GetSamples()
 	samples = append(samples, &modelpb.MetricsetSample{
