@@ -317,21 +317,20 @@ func eventToServiceInstanceTxnMetrics(
 	e *modelpb.APMEvent,
 	hdr *hdrhistogram.HistogramRepresentation,
 ) (
-	*aggregationpb.TransactionAggregationKey,
+	*aggregationpb.ServiceInstanceTransactionAggregationKey,
 	*aggregationpb.ServiceInstanceMetrics,
 ) {
-	tm := aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
-	tm.Histogram = HistogramToProto(hdr)
-	tm.FailureCount
-	tm.SuccessCount
+	sitm := aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+	sitm.Histogram = HistogramToProto(hdr)
+	setSvcInstTxnMetricsMetricCountBasedOnOutcome(sitm, e)
 
-	txnKey := serviceInstanceTransactionKey(e)
+	key := serviceInstanceTransactionKey(e)
 	ktm := aggregationpb.KeyedServiceInstanceTransactionMetricsFromVTPool()
-	ktm.Key, ktm.Metrics = txnKey, tm
+	ktm.Key, ktm.Metrics = key, sitm
 
 	sim := aggregationpb.ServiceInstanceMetricsFromVTPool()
 	sim.ServiceInstanceTransactionMetrics = append(sim.ServiceInstanceTransactionMetrics, ktm)
-	return txnKey, sim
+	return key, sim
 }
 
 // eventToServiceTxnMetrics converts an APMEvent to a transaction metrics. It
@@ -345,7 +344,7 @@ func eventToServiceTxnMetrics(
 ) {
 	stm := aggregationpb.ServiceTransactionMetricsFromVTPool()
 	stm.Histogram = HistogramToProto(hdr)
-	setMetricCountBasedOnOutcome(stm, e)
+	setSvcTxnMetricsMetricCountBasedOnOutcome(stm, e)
 
 	svcTxnKey := serviceTransactionKey(e)
 	kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
@@ -813,6 +812,36 @@ func transactionKey(e *modelpb.APMEvent) *aggregationpb.TransactionAggregationKe
 	key := aggregationpb.TransactionAggregationKeyFromVTPool()
 	key.TraceRoot = e.GetParentId() == ""
 
+	key.ServiceVersion = e.GetService().GetVersion()
+
+	key.ServiceRuntimeName = e.GetService().GetRuntime().GetName()
+	key.ServiceRuntimeVersion = e.GetService().GetRuntime().GetVersion()
+	key.ServiceLanguageVersion = e.GetService().GetLanguage().GetVersion()
+
+	key.EventOutcome = e.GetEvent().GetOutcome()
+
+	key.TransactionName = e.GetTransaction().GetName()
+	key.TransactionType = e.GetTransaction().GetType()
+	key.TransactionResult = e.GetTransaction().GetResult()
+
+	key.FaasColdstart = uint32(faasColdstart)
+	key.FaasId = faas.GetId()
+	key.FaasName = faas.GetName()
+	key.FaasVersion = faas.GetVersion()
+	key.FaasTriggerType = faas.GetTriggerType()
+
+	return key
+}
+
+func serviceInstanceTransactionKey(e *modelpb.APMEvent) *aggregationpb.ServiceInstanceTransactionAggregationKey {
+	var faasColdstart nullable.Bool
+	faas := e.GetFaas()
+	if faas != nil {
+		faasColdstart.ParseBoolPtr(faas.ColdStart)
+	}
+
+	key := aggregationpb.ServiceInstanceTransactionAggregationKeyFromVTPool()
+
 	key.ContainerId = e.GetContainer().GetId()
 	key.KubernetesPodName = e.GetKubernetes().GetPodName()
 
@@ -827,17 +856,7 @@ func transactionKey(e *modelpb.APMEvent) *aggregationpb.TransactionAggregationKe
 	key.HostName = e.GetHost().GetName()
 	key.HostOsPlatform = e.GetHost().GetOs().GetPlatform()
 
-	key.EventOutcome = e.GetEvent().GetOutcome()
-
-	key.TransactionName = e.GetTransaction().GetName()
 	key.TransactionType = e.GetTransaction().GetType()
-	key.TransactionResult = e.GetTransaction().GetResult()
-
-	key.FaasColdstart = uint32(faasColdstart)
-	key.FaasId = faas.GetId()
-	key.FaasName = faas.GetName()
-	key.FaasVersion = faas.GetVersion()
-	key.FaasTriggerType = faas.GetTriggerType()
 
 	key.CloudProvider = e.GetCloud().GetProvider()
 	key.CloudRegion = e.GetCloud().GetRegion()
@@ -898,7 +917,7 @@ func droppedSpanStatsKey(dss *modelpb.DroppedSpanStats) *aggregationpb.SpanAggre
 	return key
 }
 
-func setMetricCountBasedOnOutcome(
+func setSvcTxnMetricsMetricCountBasedOnOutcome(
 	stm *aggregationpb.ServiceTransactionMetrics,
 	from *modelpb.APMEvent,
 ) {
@@ -908,6 +927,19 @@ func setMetricCountBasedOnOutcome(
 		stm.FailureCount = txn.GetRepresentativeCount()
 	case "success":
 		stm.SuccessCount = txn.GetRepresentativeCount()
+	}
+}
+
+func setSvcInstTxnMetricsMetricCountBasedOnOutcome(
+	sitm *aggregationpb.ServiceInstanceTransactionMetrics,
+	from *modelpb.APMEvent,
+) {
+	txn := from.GetTransaction()
+	switch from.GetEvent().GetOutcome() {
+	case "failure":
+		sitm.FailureCount = txn.GetRepresentativeCount()
+	case "success":
+		sitm.SuccessCount = txn.GetRepresentativeCount()
 	}
 }
 
