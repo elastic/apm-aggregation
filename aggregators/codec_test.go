@@ -105,42 +105,6 @@ func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 	}
 }
 
-func BenchmarkCombinedMetricsDecoding(b *testing.B) {
-	b.ReportAllocs()
-	ts := time.Now()
-	cardinality := 10
-	tcm := NewTestCombinedMetrics()
-	sim := tcm.AddServiceMetrics(ServiceAggregationKey{
-		Timestamp:   ts,
-		ServiceName: "bench",
-	}).AddServiceInstanceMetrics(ServiceInstanceAggregationKey{})
-	for i := 0; i < cardinality; i++ {
-		txnName := fmt.Sprintf("txn%d", i)
-		txnType := fmt.Sprintf("typ%d", i)
-		spanName := fmt.Sprintf("spn%d", i)
-
-		sim.AddTransaction(TransactionAggregationKey{
-			TransactionName: txnName,
-			TransactionType: txnType,
-		}, WithTransactionCount(200))
-		sim.AddServiceTransaction(ServiceTransactionAggregationKey{
-			TransactionType: txnType,
-		}, WithTransactionCount(200))
-		sim.AddSpan(SpanAggregationKey{
-			SpanName: spanName,
-		})
-	}
-	cmproto := tcm.GetProto()
-	b.Cleanup(func() {
-		cmproto.ReturnToVTPool()
-	})
-	b.ResetTimer()
-	var expected CombinedMetrics
-	for i := 0; i < b.N; i++ {
-		expected.FromProto(cmproto)
-	}
-}
-
 func EncodeToCombinedMetricsKeyID(tb testing.TB, s string) [16]byte {
 	var b [16]byte
 	if len(s) > len(b) {

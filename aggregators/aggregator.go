@@ -76,9 +76,12 @@ func New(opts ...Option) (*Aggregator, error) {
 				merger := combinedMetricsMerger{
 					limits: cfg.Limits,
 				}
-				if err := merger.metrics.UnmarshalBinary(value); err != nil {
-					return nil, err
+				pb := aggregationpb.CombinedMetricsFromVTPool()
+				defer pb.ReturnToVTPool()
+				if err := pb.UnmarshalVT(value); err != nil {
+					return nil, fmt.Errorf("failed to unmarshal metrics: %w", err)
 				}
+				merger.merge(pb)
 				return &merger, nil
 			},
 		},

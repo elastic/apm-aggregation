@@ -63,6 +63,9 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 	if len(from.ServiceMetrics) == 0 {
 		return
 	}
+	if m.metrics.Services == nil {
+		m.metrics.Services = make(map[ServiceAggregationKey]ServiceMetrics)
+	}
 
 	// Calculate the current capacity of the transaction, service transaction,
 	// and span groups in the _to_ combined metrics.

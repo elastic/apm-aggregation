@@ -100,24 +100,6 @@ func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 	return pb
 }
 
-// FromProto converts protobuf representation to CombinedMetrics.
-func (m *CombinedMetrics) FromProto(pb *aggregationpb.CombinedMetrics) {
-	m.Services = make(map[ServiceAggregationKey]ServiceMetrics, len(pb.ServiceMetrics))
-	for _, ksm := range pb.ServiceMetrics {
-		var k ServiceAggregationKey
-		var v ServiceMetrics
-		k.FromProto(ksm.Key)
-		v.FromProto(ksm.Metrics)
-		m.Services[k] = v
-	}
-	if pb.OverflowServices != nil {
-		m.OverflowServices.FromProto(pb.OverflowServices)
-		m.OverflowServiceInstancesEstimator = hllSketch(pb.OverflowServiceInstancesEstimator)
-	}
-	m.EventsTotal = pb.EventsTotal
-	m.YoungestEventTimestamp = pb.YoungestEventTimestamp
-}
-
 // MarshalBinary marshals CombinedMetrics to binary using protobuf.
 // This should be the last call for the CombinedMetrics and all
 // proto resources of CombinedMetrics will be released in this call.
@@ -125,17 +107,6 @@ func (m *CombinedMetrics) MarshalBinary() ([]byte, error) {
 	pb := m.ToProto()
 	defer pb.ReturnToVTPool()
 	return pb.MarshalVT()
-}
-
-// UnmarshalBinary unmarshals binary protobuf to CombinedMetrics.
-func (m *CombinedMetrics) UnmarshalBinary(data []byte) error {
-	pb := aggregationpb.CombinedMetricsFromVTPool()
-	defer pb.ReturnToVTPool()
-	if err := pb.UnmarshalVT(data); err != nil {
-		return err
-	}
-	m.FromProto(pb)
-	return nil
 }
 
 // ToProto converts ServiceAggregationKey to its protobuf representation.
@@ -174,21 +145,6 @@ func (m *ServiceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 	return pb
 }
 
-// FromProto converts protobuf representation to ServiceMetrics.
-func (m *ServiceMetrics) FromProto(pb *aggregationpb.ServiceMetrics) {
-	m.ServiceInstanceGroups = make(map[ServiceInstanceAggregationKey]ServiceInstanceMetrics, len(pb.ServiceInstanceMetrics))
-	for _, ksim := range pb.ServiceInstanceMetrics {
-		var k ServiceInstanceAggregationKey
-		var v ServiceInstanceMetrics
-		k.FromProto(ksim.Key)
-		v.FromProto(ksim.Metrics)
-		m.ServiceInstanceGroups[k] = v
-	}
-	if pb.OverflowGroups != nil {
-		m.OverflowGroups.FromProto(pb.OverflowGroups)
-	}
-}
-
 // ToProto converts ServiceInstanceAggregationKey to its protobuf representation.
 func (k *ServiceInstanceAggregationKey) ToProto() *aggregationpb.ServiceInstanceAggregationKey {
 	pb := aggregationpb.ServiceInstanceAggregationKeyFromVTPool()
@@ -223,51 +179,6 @@ func (m *ServiceInstanceMetrics) ToProto() *aggregationpb.ServiceInstanceMetrics
 		pb.SpanMetrics = append(pb.SpanMetrics, m)
 	}
 	return pb
-}
-
-// FromProto converts protobuf representation to ServiceInstanceMetrics.
-func (m *ServiceInstanceMetrics) FromProto(pb *aggregationpb.ServiceInstanceMetrics) {
-	m.TransactionGroups = make(
-		map[TransactionAggregationKey]*aggregationpb.KeyedTransactionMetrics,
-		len(pb.TransactionMetrics),
-	)
-	for i := range pb.TransactionMetrics {
-		ktm := pb.TransactionMetrics[i]
-		var k TransactionAggregationKey
-		k.FromProto(ktm.Key)
-		m.TransactionGroups[k] = ktm
-		// TODO: Either clone proto or add a comment that we change the input
-		pb.TransactionMetrics[i] = nil
-	}
-	pb.TransactionMetrics = pb.TransactionMetrics[:0]
-
-	m.ServiceTransactionGroups = make(
-		map[ServiceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics,
-		len(pb.ServiceTransactionMetrics),
-	)
-	for i := range pb.ServiceTransactionMetrics {
-		kstm := pb.ServiceTransactionMetrics[i]
-		var k ServiceTransactionAggregationKey
-		k.FromProto(kstm.Key)
-		m.ServiceTransactionGroups[k] = kstm
-		// TODO: Either clone proto or add a comment that we change the input
-		pb.ServiceTransactionMetrics[i] = nil
-	}
-	pb.ServiceTransactionMetrics = pb.ServiceTransactionMetrics[:0]
-
-	m.SpanGroups = make(
-		map[SpanAggregationKey]*aggregationpb.KeyedSpanMetrics,
-		len(pb.SpanMetrics),
-	)
-	for i := range pb.SpanMetrics {
-		ksm := pb.SpanMetrics[i]
-		var k SpanAggregationKey
-		k.FromProto(ksm.Key)
-		m.SpanGroups[k] = ksm
-		// TODO: Either clone proto or add a comment that we change the input
-		pb.SpanMetrics[i] = nil
-	}
-	pb.SpanMetrics = pb.SpanMetrics[:0]
 }
 
 // ToProto converts TransactionAggregationKey to its protobuf representation.
