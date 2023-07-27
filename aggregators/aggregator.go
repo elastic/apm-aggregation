@@ -599,11 +599,10 @@ func (a *Aggregator) processHarvest(
 	cmb []byte,
 	aggIvl time.Duration,
 ) (harvestStats, error) {
-	var (
-		cm CombinedMetrics
-		hs harvestStats
-	)
-	if err := cm.UnmarshalBinary(cmb); err != nil {
+	var hs harvestStats
+	cm := aggregationpb.CombinedMetricsFromVTPool()
+	defer cm.ReturnToVTPool()
+	if err := cm.UnmarshalVT(cmb); err != nil {
 		return hs, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
 	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {

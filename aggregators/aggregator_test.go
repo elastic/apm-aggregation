@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-data/model/modelpb"
 )
@@ -105,7 +106,7 @@ func TestAggregateBatch(t *testing.T) {
 		})
 	}
 
-	out := make(chan CombinedMetrics, 1)
+	out := make(chan *aggregationpb.CombinedMetrics, 1)
 	aggIvl := time.Minute
 	agg, err := New(
 		WithDataDir(t.TempDir()),
@@ -132,7 +133,7 @@ func TestAggregateBatch(t *testing.T) {
 
 	require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
 	require.NoError(t, agg.Stop(context.Background()))
-	var cm CombinedMetrics
+	var cm *aggregationpb.CombinedMetrics
 	select {
 	case cm = <-out:
 	default:
@@ -208,13 +209,15 @@ func TestAggregateBatch(t *testing.T) {
 			AddSpan(dssKey, WithSpanDuration(dssDuration))
 	}
 	assert.Empty(t, cmp.Diff(
-		expectedCombinedMetrics.Get(), cm,
-		cmpopts.EquateEmpty(),
-		cmpopts.EquateApprox(0, 0.01),
-		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
-			return a.Equal(&b)
-		}),
-		protocmp.Transform(),
+		expectedCombinedMetrics.GetProto(), cm,
+		append(combinedMetricsSliceSorters,
+			cmpopts.EquateEmpty(),
+			cmpopts.EquateApprox(0, 0.01),
+			cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+				return a.Equal(&b)
+			}),
+			protocmp.Transform(),
+		)...,
 	))
 	assert.Empty(t, cmp.Diff(
 		expectedMeasurements,
@@ -696,7 +699,7 @@ func TestHarvest(t *testing.T) {
 	processor := func(
 		_ context.Context,
 		cmk CombinedMetricsKey,
-		cm CombinedMetrics,
+		_ *aggregationpb.CombinedMetrics,
 		ivl time.Duration,
 	) error {
 		cmMap, ok := m[ivl]
@@ -991,7 +994,7 @@ func TestRunStopOrchestration(t *testing.T) {
 	newAggregator := func() *Aggregator {
 		agg, err := New(
 			WithDataDir(t.TempDir()),
-			WithProcessor(func(_ context.Context, _ CombinedMetricsKey, _ CombinedMetrics, _ time.Duration) error {
+			WithProcessor(func(_ context.Context, _ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics, _ time.Duration) error {
 				firstHarvestDone.Swap(true)
 				return nil
 			}),
@@ -1206,19 +1209,19 @@ func newTestBatchForBenchmark() *modelpb.Batch {
 }
 
 func noOpProcessor() Processor {
-	return func(_ context.Context, _ CombinedMetricsKey, _ CombinedMetrics, _ time.Duration) error {
+	return func(_ context.Context, _ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics, _ time.Duration) error {
 		return nil
 	}
 }
 
-func combinedMetricsProcessor(out chan<- CombinedMetrics) Processor {
+func combinedMetricsProcessor(out chan<- *aggregationpb.CombinedMetrics) Processor {
 	return func(
 		_ context.Context,
 		_ CombinedMetricsKey,
-		cm CombinedMetrics,
+		cm *aggregationpb.CombinedMetrics,
 		_ time.Duration,
 	) error {
-		out <- cm
+		out <- cm.CloneVT()
 		return nil
 	}
 }
@@ -1227,7 +1230,7 @@ func sliceProcessor(slice *[]*modelpb.APMEvent) Processor {
 	return func(
 		ctx context.Context,
 		cmk CombinedMetricsKey,
-		cm CombinedMetrics,
+		cm *aggregationpb.CombinedMetrics,
 		aggregationIvl time.Duration,
 	) error {
 		batch, err := CombinedMetricsToBatch(cm, cmk.ProcessingTime, aggregationIvl)

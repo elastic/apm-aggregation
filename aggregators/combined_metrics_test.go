@@ -10,6 +10,8 @@ import (
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
+	"github.com/google/go-cmp/cmp"
+	"google.golang.org/protobuf/testing/protocmp"
 )
 
 type TestCombinedMetricsCfg struct {
@@ -367,4 +369,24 @@ func (tsim *TestServiceInstanceMetrics) AddSpanOverflow(
 		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
 	}
 	return tsim
+}
+
+// Set of cmp options to sort combined metrics based on key hash. Hash collisions
+// are not considered.
+var combinedMetricsSliceSorters = []cmp.Option{
+	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedServiceMetrics) bool {
+		return Hasher{}.Chain(a.Key).Sum() < Hasher{}.Chain(b.Key).Sum()
+	}),
+	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedServiceInstanceMetrics) bool {
+		return Hasher{}.Chain(a.Key).Sum() < Hasher{}.Chain(b.Key).Sum()
+	}),
+	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedTransactionMetrics) bool {
+		return Hasher{}.Chain(a.Key).Sum() < Hasher{}.Chain(b.Key).Sum()
+	}),
+	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedServiceTransactionMetrics) bool {
+		return Hasher{}.Chain(a.Key).Sum() < Hasher{}.Chain(b.Key).Sum()
+	}),
+	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedSpanMetrics) bool {
+		return Hasher{}.Chain(a.Key).Sum() < Hasher{}.Chain(b.Key).Sum()
+	}),
 }
