@@ -119,6 +119,8 @@ func (m *CombinedMetrics) FromProto(pb *aggregationpb.CombinedMetrics) {
 }
 
 // MarshalBinary marshals CombinedMetrics to binary using protobuf.
+// This should be the last call for the CombinedMetrics and all
+// proto resources of CombinedMetrics will be released in this call.
 func (m *CombinedMetrics) MarshalBinary() ([]byte, error) {
 	pb := m.ToProto()
 	defer pb.ReturnToVTPool()

@@ -38,7 +38,7 @@ func WithYoungestEventTimestamp(ts time.Time) TestCombinedMetricsOpt {
 
 var defaultTestCombinedMetricsCfg = TestCombinedMetricsCfg{
 	eventsTotal:            1,
-	youngestEventTimestamp: time.Time{},
+	youngestEventTimestamp: time.Unix(0, 0).UTC(),
 }
 
 type TestTransactionCfg struct {
@@ -188,14 +188,6 @@ func (tsm *TestServiceMetrics) AddServiceInstanceMetricsOverflow(
 		tsm:      tsm,
 		overflow: true,
 	}
-}
-
-func (tsim *TestServiceInstanceMetrics) GetProto() *aggregationpb.CombinedMetrics {
-	return tsim.tsm.tcm.GetProto()
-}
-
-func (tsim *TestServiceInstanceMetrics) Get() CombinedMetrics {
-	return tsim.tsm.tcm.Get()
 }
 
 func (tsim *TestServiceInstanceMetrics) AddTransaction(
@@ -370,6 +362,14 @@ func (tsim *TestServiceInstanceMetrics) AddSpanOverflow(
 		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
 	}
 	return tsim
+}
+
+func (tsim *TestServiceInstanceMetrics) GetProto() *aggregationpb.CombinedMetrics {
+	return tsim.tsm.tcm.GetProto()
+}
+
+func (tsim *TestServiceInstanceMetrics) Get() CombinedMetrics {
+	return tsim.tsm.tcm.Get()
 }
 
 // Set of cmp options to sort combined metrics based on key hash. Hash collisions
