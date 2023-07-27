@@ -1130,6 +1130,7 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 func BenchmarkAggregateBatchSerial(b *testing.B) {
 	b.ReportAllocs()
 	agg := newTestAggregator(b)
+	defer agg.Close(context.Background())
 	batch := newTestBatchForBenchmark()
 	cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
 	b.ResetTimer()
@@ -1144,6 +1145,7 @@ func BenchmarkAggregateBatchSerial(b *testing.B) {
 func BenchmarkAggregateBatchParallel(b *testing.B) {
 	b.ReportAllocs()
 	agg := newTestAggregator(b)
+	defer agg.Close(context.Background())
 	batch := newTestBatchForBenchmark()
 	cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
 	b.ResetTimer()
