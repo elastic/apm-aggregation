@@ -30,14 +30,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "no_overflow_with_count_values",
 			limits: Limits{
-				MaxSpanGroups:                         2,
-				MaxSpanGroupsPerService:               2,
-				MaxTransactionGroups:                  2,
-				MaxTransactionGroupsPerService:        2,
-				MaxServiceTransactionGroups:           2,
-				MaxServiceTransactionGroupsPerService: 2,
-				MaxServices:                           2,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 2,
+				MaxSpanGroupsPerService:                       2,
+				MaxTransactionGroups:                          2,
+				MaxTransactionGroupsPerService:                2,
+				MaxServiceInstanceTransactionGroups:           2,
+				MaxServiceInstanceTransactionGroupsPerService: 2,
+				MaxServiceTransactionGroups:                   2,
+				MaxServiceTransactionGroupsPerService:         2,
+				MaxServices:                                   2,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(10)).
@@ -82,14 +84,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "no_overflow_with_histograms_in_to",
 			limits: Limits{
-				MaxSpanGroups:                         2,
-				MaxSpanGroupsPerService:               2,
-				MaxTransactionGroups:                  2,
-				MaxTransactionGroupsPerService:        2,
-				MaxServiceTransactionGroups:           2,
-				MaxServiceTransactionGroupsPerService: 2,
-				MaxServices:                           2,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 2,
+				MaxSpanGroupsPerService:                       2,
+				MaxTransactionGroups:                          2,
+				MaxTransactionGroupsPerService:                2,
+				MaxServiceInstanceTransactionGroups:           2,
+				MaxServiceInstanceTransactionGroupsPerService: 2,
+				MaxServiceTransactionGroups:                   2,
+				MaxServiceTransactionGroupsPerService:         2,
+				MaxServices:                                   2,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1000)).
@@ -134,14 +138,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "no_overflow_with_histogram_in_from",
 			limits: Limits{
-				MaxSpanGroups:                         2,
-				MaxSpanGroupsPerService:               2,
-				MaxTransactionGroups:                  2,
-				MaxTransactionGroupsPerService:        2,
-				MaxServiceTransactionGroups:           2,
-				MaxServiceTransactionGroupsPerService: 2,
-				MaxServices:                           2,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 2,
+				MaxSpanGroupsPerService:                       2,
+				MaxTransactionGroups:                          2,
+				MaxTransactionGroupsPerService:                2,
+				MaxServiceInstanceTransactionGroups:           2,
+				MaxServiceInstanceTransactionGroupsPerService: 2,
+				MaxServiceTransactionGroups:                   2,
+				MaxServiceTransactionGroupsPerService:         2,
+				MaxServices:                                   2,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(4)).
@@ -186,14 +192,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "no_overflow_with_histogram_in_both",
 			limits: Limits{
-				MaxSpanGroups:                         2,
-				MaxSpanGroupsPerService:               2,
-				MaxTransactionGroups:                  2,
-				MaxTransactionGroupsPerService:        2,
-				MaxServiceTransactionGroups:           2,
-				MaxServiceTransactionGroupsPerService: 2,
-				MaxServices:                           2,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 2,
+				MaxSpanGroupsPerService:                       2,
+				MaxTransactionGroups:                          2,
+				MaxTransactionGroupsPerService:                2,
+				MaxServiceInstanceTransactionGroups:           2,
+				MaxServiceInstanceTransactionGroupsPerService: 2,
+				MaxServiceTransactionGroups:                   2,
+				MaxServiceTransactionGroupsPerService:         2,
+				MaxServices:                                   2,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1400)).
@@ -238,14 +246,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "overflow_due_to_merge",
 			limits: Limits{
-				MaxSpanGroups:                         1,
-				MaxSpanGroupsPerService:               1,
-				MaxTransactionGroups:                  1,
-				MaxTransactionGroupsPerService:        1,
-				MaxServiceTransactionGroups:           1,
-				MaxServiceTransactionGroupsPerService: 1,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 1,
+				MaxSpanGroupsPerService:                       1,
+				MaxTransactionGroups:                          1,
+				MaxTransactionGroupsPerService:                1,
+				MaxServiceInstanceTransactionGroups:           1,
+				MaxServiceInstanceTransactionGroupsPerService: 1,
+				MaxServiceTransactionGroups:                   1,
+				MaxServiceTransactionGroupsPerService:         1,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
@@ -299,14 +309,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "to_overflowed_before_merge",
 			limits: Limits{
-				MaxSpanGroups:                         1,
-				MaxSpanGroupsPerService:               1,
-				MaxTransactionGroups:                  1,
-				MaxTransactionGroupsPerService:        1,
-				MaxServiceTransactionGroups:           1,
-				MaxServiceTransactionGroupsPerService: 1,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 1,
+				MaxSpanGroupsPerService:                       1,
+				MaxTransactionGroups:                          1,
+				MaxTransactionGroupsPerService:                1,
+				MaxServiceInstanceTransactionGroups:           1,
+				MaxServiceInstanceTransactionGroupsPerService: 1,
+				MaxServiceTransactionGroups:                   1,
+				MaxServiceTransactionGroupsPerService:         1,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(34)).
@@ -367,14 +379,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "from_overflowed_before_merge",
 			limits: Limits{
-				MaxSpanGroups:                         1,
-				MaxSpanGroupsPerService:               1,
-				MaxTransactionGroups:                  1,
-				MaxTransactionGroupsPerService:        1,
-				MaxServiceTransactionGroups:           1,
-				MaxServiceTransactionGroupsPerService: 1,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 1,
+				MaxSpanGroupsPerService:                       1,
+				MaxTransactionGroups:                          1,
+				MaxTransactionGroupsPerService:                1,
+				MaxServiceInstanceTransactionGroups:           1,
+				MaxServiceInstanceTransactionGroupsPerService: 1,
+				MaxServiceTransactionGroups:                   1,
+				MaxServiceTransactionGroupsPerService:         1,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
@@ -439,14 +453,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "svc_overflow",
 			limits: Limits{
-				MaxSpanGroups:                         1,
-				MaxSpanGroupsPerService:               1,
-				MaxTransactionGroups:                  1,
-				MaxTransactionGroupsPerService:        1,
-				MaxServiceTransactionGroups:           1,
-				MaxServiceTransactionGroupsPerService: 1,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 1,
+				MaxSpanGroupsPerService:                       1,
+				MaxTransactionGroups:                          1,
+				MaxTransactionGroupsPerService:                1,
+				MaxServiceInstanceTransactionGroups:           1,
+				MaxServiceInstanceTransactionGroupsPerService: 1,
+				MaxServiceTransactionGroups:                   1,
+				MaxServiceTransactionGroupsPerService:         1,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
@@ -516,14 +532,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "svc_overflow_only",
 			limits: Limits{
-				MaxSpanGroups:                         1,
-				MaxSpanGroupsPerService:               1,
-				MaxTransactionGroups:                  1,
-				MaxTransactionGroupsPerService:        1,
-				MaxServiceTransactionGroups:           1,
-				MaxServiceTransactionGroupsPerService: 1,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 1,
+				MaxSpanGroupsPerService:                       1,
+				MaxTransactionGroups:                          1,
+				MaxTransactionGroupsPerService:                1,
+				MaxServiceInstanceTransactionGroups:           1,
+				MaxServiceInstanceTransactionGroupsPerService: 1,
+				MaxServiceTransactionGroups:                   1,
+				MaxServiceTransactionGroupsPerService:         1,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(111)).
@@ -555,14 +573,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "per_svc_overflow_known_svc",
 			limits: Limits{
-				MaxSpanGroups:                         100,
-				MaxSpanGroupsPerService:               1,
-				MaxTransactionGroups:                  100,
-				MaxTransactionGroupsPerService:        1,
-				MaxServiceTransactionGroups:           100,
-				MaxServiceTransactionGroupsPerService: 1,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 100,
+				MaxSpanGroupsPerService:                       1,
+				MaxTransactionGroups:                          100,
+				MaxTransactionGroupsPerService:                1,
+				MaxServiceInstanceTransactionGroups:           100,
+				MaxServiceInstanceTransactionGroupsPerService: 1,
+				MaxServiceTransactionGroups:                   100,
+				MaxServiceTransactionGroupsPerService:         1,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
@@ -614,14 +634,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "service_instance_no_overflow",
 			limits: Limits{
-				MaxSpanGroups:                         0,
-				MaxSpanGroupsPerService:               0,
-				MaxTransactionGroups:                  0,
-				MaxTransactionGroupsPerService:        0,
-				MaxServiceTransactionGroups:           0,
-				MaxServiceTransactionGroupsPerService: 0,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    2,
+				MaxSpanGroups:                                 0,
+				MaxSpanGroupsPerService:                       0,
+				MaxTransactionGroups:                          0,
+				MaxTransactionGroupsPerService:                0,
+				MaxServiceInstanceTransactionGroups:           0,
+				MaxServiceInstanceTransactionGroupsPerService: 0,
+				MaxServiceTransactionGroups:                   0,
+				MaxServiceTransactionGroupsPerService:         0,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            2,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).
@@ -646,14 +668,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "service_instance_overflow_per_svc",
 			limits: Limits{
-				MaxSpanGroups:                         0,
-				MaxSpanGroupsPerService:               0,
-				MaxTransactionGroups:                  0,
-				MaxTransactionGroupsPerService:        0,
-				MaxServiceTransactionGroups:           0,
-				MaxServiceTransactionGroupsPerService: 0,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 0,
+				MaxSpanGroupsPerService:                       0,
+				MaxTransactionGroups:                          0,
+				MaxTransactionGroupsPerService:                0,
+				MaxServiceInstanceTransactionGroups:           0,
+				MaxServiceInstanceTransactionGroupsPerService: 0,
+				MaxServiceTransactionGroups:                   0,
+				MaxServiceTransactionGroupsPerService:         0,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).
@@ -689,14 +713,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "service_instance_overflow_global",
 			limits: Limits{
-				MaxSpanGroups:                         0,
-				MaxSpanGroupsPerService:               0,
-				MaxTransactionGroups:                  0,
-				MaxTransactionGroupsPerService:        0,
-				MaxServiceTransactionGroups:           0,
-				MaxServiceTransactionGroupsPerService: 0,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 0,
+				MaxSpanGroupsPerService:                       0,
+				MaxTransactionGroups:                          0,
+				MaxTransactionGroupsPerService:                0,
+				MaxServiceInstanceTransactionGroups:           0,
+				MaxServiceInstanceTransactionGroupsPerService: 0,
+				MaxServiceTransactionGroups:                   0,
+				MaxServiceTransactionGroupsPerService:         0,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).
@@ -732,14 +758,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "service_instance_overflow_per_svc_on_metrics",
 			limits: Limits{
-				MaxSpanGroups:                         100,
-				MaxSpanGroupsPerService:               100,
-				MaxTransactionGroups:                  100,
-				MaxTransactionGroupsPerService:        100,
-				MaxServiceTransactionGroups:           100,
-				MaxServiceTransactionGroupsPerService: 100,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 100,
+				MaxSpanGroupsPerService:                       100,
+				MaxTransactionGroups:                          100,
+				MaxTransactionGroupsPerService:                100,
+				MaxServiceInstanceTransactionGroups:           100,
+				MaxServiceInstanceTransactionGroupsPerService: 100,
+				MaxServiceTransactionGroups:                   100,
+				MaxServiceTransactionGroupsPerService:         100,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).
@@ -785,14 +813,16 @@ func TestMerge(t *testing.T) {
 		{
 			name: "service_instance_overflow_global_merge",
 			limits: Limits{
-				MaxSpanGroups:                         100,
-				MaxSpanGroupsPerService:               100,
-				MaxTransactionGroups:                  100,
-				MaxTransactionGroupsPerService:        100,
-				MaxServiceTransactionGroups:           100,
-				MaxServiceTransactionGroupsPerService: 100,
-				MaxServices:                           1,
-				MaxServiceInstanceGroupsPerService:    1,
+				MaxSpanGroups:                                 100,
+				MaxSpanGroupsPerService:                       100,
+				MaxTransactionGroups:                          100,
+				MaxTransactionGroupsPerService:                100,
+				MaxServiceInstanceTransactionGroups:           100,
+				MaxServiceInstanceTransactionGroupsPerService: 100,
+				MaxServiceTransactionGroups:                   100,
+				MaxServiceTransactionGroupsPerService:         100,
+				MaxServices:                                   1,
+				MaxServiceInstanceGroupsPerService:            1,
 			},
 			to: func() CombinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(1))
@@ -890,13 +920,15 @@ func TestMerge(t *testing.T) {
 		{
 			name: "merge_with_empty_combined_metrics",
 			limits: Limits{
-				MaxSpanGroups:                         100,
-				MaxSpanGroupsPerService:               10,
-				MaxTransactionGroups:                  100,
-				MaxTransactionGroupsPerService:        1,
-				MaxServiceTransactionGroups:           100,
-				MaxServiceTransactionGroupsPerService: 1,
-				MaxServices:                           1,
+				MaxSpanGroups:                                 100,
+				MaxSpanGroupsPerService:                       10,
+				MaxTransactionGroups:                          100,
+				MaxTransactionGroupsPerService:                1,
+				MaxServiceInstanceTransactionGroups:           100,
+				MaxServiceInstanceTransactionGroupsPerService: 1,
+				MaxServiceTransactionGroups:                   100,
+				MaxServiceTransactionGroupsPerService:         1,
+				MaxServices:                                   1,
 			},
 			to: func() CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(7)).
@@ -950,13 +982,15 @@ func TestMerge(t *testing.T) {
 
 func TestCardinalityEstimationOnSubKeyCollision(t *testing.T) {
 	limits := Limits{
-		MaxSpanGroups:                         100,
-		MaxSpanGroupsPerService:               100,
-		MaxTransactionGroups:                  100,
-		MaxTransactionGroupsPerService:        100,
-		MaxServiceTransactionGroups:           100,
-		MaxServiceTransactionGroupsPerService: 100,
-		MaxServices:                           1,
+		MaxSpanGroups:                                 100,
+		MaxSpanGroupsPerService:                       100,
+		MaxTransactionGroups:                          100,
+		MaxTransactionGroupsPerService:                100,
+		MaxServiceInstanceTransactionGroups:           100,
+		MaxServiceInstanceTransactionGroupsPerService: 100,
+		MaxServiceTransactionGroups:                   100,
+		MaxServiceTransactionGroupsPerService:         100,
+		MaxServices:                                   1,
 	}
 	ts := time.Time{}
 	to := NewTestCombinedMetrics(WithEventsTotal(0)).

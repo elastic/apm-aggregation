@@ -67,11 +67,13 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 	// Calculate the current capacity of the transaction, service transaction,
 	// and span groups in the _to_ combined metrics.
 	totalTransactionGroupsConstraint := newConstraint(0, m.limits.MaxTransactionGroups)
+	totalServiceInstanceTransactionGroupsConstraint := newConstraint(0, m.limits.MaxServiceInstanceTransactionGroups)
 	totalServiceTransactionGroupsConstraint := newConstraint(0, m.limits.MaxServiceTransactionGroups)
 	totalSpanGroupsConstraint := newConstraint(0, m.limits.MaxSpanGroups)
 	for _, svc := range m.metrics.Services {
 		for _, si := range svc.ServiceInstanceGroups {
 			totalTransactionGroupsConstraint.add(len(si.TransactionGroups))
+			totalServiceInstanceTransactionGroupsConstraint.add(len(si.ServiceInstanceTransactionGroups))
 			totalServiceTransactionGroupsConstraint.add(len(si.ServiceTransactionGroups))
 			totalSpanGroupsConstraint.add(len(si.SpanGroups))
 		}
@@ -108,6 +110,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 				&toSvc,
 				fromSvc.Metrics.ServiceInstanceMetrics,
 				totalTransactionGroupsConstraint,
+				totalServiceInstanceTransactionGroupsConstraint,
 				totalServiceTransactionGroupsConstraint,
 				totalSpanGroupsConstraint,
 				m.limits,
@@ -122,7 +125,8 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 func mergeServiceInstanceGroups(
 	to *ServiceMetrics,
 	from []*aggregationpb.KeyedServiceInstanceMetrics,
-	totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *constraint,
+	totalTransactionGroupsConstraint, totalServiceInstanceTransactionGroupsConstraint,
+	totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *constraint,
 	limits Limits,
 	hash Hasher,
 	overflowServiceInstancesEstimator **hyperloglog.Sketch,
@@ -162,7 +166,7 @@ func mergeServiceInstanceGroups(
 			fromSvcIns.Metrics.ServiceInstanceTransactionMetrics,
 			newConstraint(
 				len(toSvcIns.ServiceInstanceTransactionGroups),
-				limits.MaxServiceInstaceTransactionGroupsPerService,
+				limits.MaxServiceInstanceTransactionGroupsPerService,
 			),
 			totalServiceInstanceTransactionGroupsConstraint,
 			hash,

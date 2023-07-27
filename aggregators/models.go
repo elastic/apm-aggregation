@@ -52,6 +52,18 @@ type Limits struct {
 	// TransactionAggregationKey.
 	MaxTransactionGroupsPerService int
 
+	// MaxServiceInstanceTransactionGroups is the limit on total number of unique
+	// service instance transaction groups across all services.
+	// A unique service instance transaction group is identified by a unique
+	// ServiceAggregationKey + ServiceInstanceAggregationKey + ServiceInstanceTransactionAggregationKey.
+	MaxServiceInstanceTransactionGroups int
+
+	// MaxServiceInstanceTransactionGroupsPerService is the limit on the number of unique
+	// service instance transaction groups within a service.
+	// A unique service instance transaction group within a service is identified by a unique
+	// ServiceInstanceTransactionAggregationKey.
+	MaxServiceInstanceTransactionGroupsPerService int
+
 	// MaxServiceTransactionGroups is the limit on total number of unique
 	// service transaction groups across all services.
 	// A unique service transaction group is identified by a unique
