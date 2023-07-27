@@ -157,6 +157,17 @@ func mergeServiceInstanceGroups(
 			hash,
 			&to.OverflowGroups.OverflowTransaction,
 		)
+		mergeServiceInstanceTransactionGroups(
+			toSvcIns.ServiceInstanceTransactionGroups,
+			fromSvcIns.Metrics.ServiceInstanceTransactionMetrics,
+			newConstraint(
+				len(toSvcIns.ServiceInstanceTransactionGroups),
+				limits.MaxServiceInstaceTransactionGroupsPerService,
+			),
+			totalServiceInstanceTransactionGroupsConstraint,
+			hash,
+			&to.OverflowGroups.OverflowServiceInstanceTransaction,
+		)
 		mergeServiceTransactionGroups(
 			toSvcIns.ServiceTransactionGroups,
 			fromSvcIns.Metrics.ServiceTransactionMetrics,
@@ -178,17 +189,6 @@ func mergeServiceInstanceGroups(
 			totalSpanGroupsConstraint,
 			hash,
 			&to.OverflowGroups.OverflowSpan,
-		)
-		mergeServiceInstanceTransactionGroups(
-			toSvcIns.ServiceInstanceTransactionGroups,
-			fromSvcIns.Metrics.ServiceInstanceTransactionMetrics,
-			newConstraint(
-				len(toSvcIns.ServiceInstanceTransactionGroups),
-				limits.MaxServiceInstaceTransactionGroupsPerService,
-			),
-			totalServiceInstanceTransactionGroupsConstraint,
-			hash,
-			&to.OverflowGroups.OverflowServiceInstanceTransaction,
 		)
 		to.ServiceInstanceGroups[sik] = toSvcIns
 	}
@@ -355,6 +355,12 @@ func mergeToOverflowFromSIM(
 			hash.Chain(ktm.Key).Sum(),
 		)
 	}
+	for _, ksitm := range from.Metrics.ServiceInstanceTransactionMetrics {
+		to.OverflowServiceInstanceTransaction.Merge(
+			ksitm.Metrics,
+			hash.Chain(ksitm.Key).Sum(),
+		)
+	}
 	for _, kstm := range from.Metrics.ServiceTransactionMetrics {
 		to.OverflowServiceTransaction.Merge(
 			kstm.Metrics,
@@ -379,6 +385,7 @@ func mergeOverflow(
 	var from Overflow
 	from.FromProto(fromproto)
 	to.OverflowTransaction.MergeOverflow(&from.OverflowTransaction)
+	to.OverflowServiceInstanceTransaction.MergeOverflow(&from.OverflowServiceInstanceTransaction)
 	to.OverflowServiceTransaction.MergeOverflow(&from.OverflowServiceTransaction)
 	to.OverflowSpan.MergeOverflow(&from.OverflowSpan)
 }
