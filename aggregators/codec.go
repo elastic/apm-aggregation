@@ -91,7 +91,7 @@ func (m *CombinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 		ksm.Metrics = m.ToProto()
 		pb.ServiceMetrics = append(pb.ServiceMetrics, ksm)
 	}
-	if pb.OverflowServiceInstancesEstimator != nil {
+	if m.OverflowServiceInstancesEstimator != nil {
 		pb.OverflowServices = m.OverflowServices.ToProto()
 		pb.OverflowServiceInstancesEstimator = hllBytes(m.OverflowServiceInstancesEstimator)
 	}

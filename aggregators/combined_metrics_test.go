@@ -107,99 +107,6 @@ func NewTestCombinedMetrics(opts ...TestCombinedMetricsOpt) *TestCombinedMetrics
 	return (*TestCombinedMetrics)(&cm)
 }
 
-func (tcm *TestCombinedMetrics) AddGlobalTransactionOverflow(
-	sk ServiceAggregationKey,
-	sik ServiceInstanceAggregationKey,
-	tk TransactionAggregationKey,
-	opts ...TestTransactionOpt,
-) *TestCombinedMetrics {
-	cfg := defaultTestTransactionCfg
-	for _, opt := range opts {
-		cfg = opt(cfg)
-	}
-
-	hdr := hdrhistogram.New()
-	hdr.RecordDuration(cfg.duration, float64(cfg.count))
-	from := aggregationpb.TransactionMetricsFromVTPool()
-	from.Histogram = HistogramToProto(hdr)
-
-	sikHasher := Hasher{}.
-		Chain(sk.ToProto()).
-		Chain(sik.ToProto())
-	hash := sikHasher.
-		Chain(tk.ToProto()).
-		Sum()
-	tcm.OverflowServices.OverflowTransaction.Merge(from, hash)
-	insertHash(&tcm.OverflowServiceInstancesEstimator, sikHasher.Sum())
-	return tcm
-}
-
-func (tcm *TestCombinedMetrics) AddGlobalServiceTransactionOverflow(
-	sk ServiceAggregationKey,
-	sik ServiceInstanceAggregationKey,
-	stk ServiceTransactionAggregationKey,
-	opts ...TestTransactionOpt,
-) *TestCombinedMetrics {
-	cfg := defaultTestTransactionCfg
-	for _, opt := range opts {
-		cfg = opt(cfg)
-	}
-
-	hdr := hdrhistogram.New()
-	hdr.RecordDuration(cfg.duration, float64(cfg.count))
-	from := aggregationpb.ServiceTransactionMetricsFromVTPool()
-	from.Histogram = HistogramToProto(hdr)
-	from.SuccessCount += float64(cfg.count)
-
-	sikHasher := Hasher{}.
-		Chain(sk.ToProto()).
-		Chain(sik.ToProto())
-	hash := sikHasher.
-		Chain(stk.ToProto()).
-		Sum()
-	tcm.OverflowServices.OverflowServiceTransaction.Merge(from, hash)
-	insertHash(&tcm.OverflowServiceInstancesEstimator, sikHasher.Sum())
-	return tcm
-}
-
-func (tcm *TestCombinedMetrics) AddGlobalSpanOverflow(
-	sk ServiceAggregationKey,
-	sik ServiceInstanceAggregationKey,
-	spk SpanAggregationKey,
-	opts ...TestSpanOpt,
-) *TestCombinedMetrics {
-	cfg := defaultTestSpanCfg
-	for _, opt := range opts {
-		cfg = opt(cfg)
-	}
-
-	from := aggregationpb.SpanMetricsFromVTPool()
-	from.Sum += float64(cfg.duration * time.Duration(cfg.count))
-	from.Count += float64(cfg.count)
-
-	sikHasher := Hasher{}.
-		Chain(sk.ToProto()).
-		Chain(sik.ToProto())
-	hash := sikHasher.
-		Chain(spk.ToProto()).
-		Sum()
-	tcm.OverflowServices.OverflowSpan.Merge(from, hash)
-	insertHash(&tcm.OverflowServiceInstancesEstimator, sikHasher.Sum())
-	return tcm
-}
-
-func (tcm *TestCombinedMetrics) AddGlobalServiceInstanceOverflow(
-	sk ServiceAggregationKey,
-	sik ServiceInstanceAggregationKey,
-) *TestCombinedMetrics {
-	hash := Hasher{}.
-		Chain(sk.ToProto()).
-		Chain(sik.ToProto()).
-		Sum()
-	insertHash(&tcm.OverflowServiceInstancesEstimator, hash)
-	return tcm
-}
-
 func (tcm *TestCombinedMetrics) GetProto() *aggregationpb.CombinedMetrics {
 	cm := (*CombinedMetrics)(tcm)
 	cmproto := cm.ToProto()
@@ -331,15 +238,14 @@ func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
 	from := aggregationpb.TransactionMetricsFromVTPool()
 	from.Histogram = HistogramToProto(hdr)
 
-	sikHasher := Hasher{}.
+	hash := Hasher{}.
 		Chain(tsim.tsm.sk.ToProto()).
-		Chain(tsim.sik.ToProto())
-	hash := sikHasher.
+		Chain(tsim.sik.ToProto()).
 		Chain(tk.ToProto()).
 		Sum()
 	if tsim.tsm.overflow {
 		// Global overflow
-		tsim.tsm.tcm.OverflowServices.OverflowTransaction.Merge(from, sikHasher.Sum())
+		tsim.tsm.tcm.OverflowServices.OverflowTransaction.Merge(from, hash)
 	} else {
 		// Per service overflow
 		svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
@@ -391,10 +297,9 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransactionOverflow(
 	from.Histogram = HistogramToProto(hdr)
 	from.SuccessCount += float64(cfg.count)
 
-	sikHasher := Hasher{}.
+	hash := Hasher{}.
 		Chain(tsim.tsm.sk.ToProto()).
-		Chain(tsim.sik.ToProto())
-	hash := sikHasher.
+		Chain(tsim.sik.ToProto()).
 		Chain(stk.ToProto()).
 		Sum()
 	if tsim.tsm.overflow {
@@ -447,10 +352,9 @@ func (tsim *TestServiceInstanceMetrics) AddSpanOverflow(
 	from.Sum += float64(cfg.duration * time.Duration(cfg.count))
 	from.Count += float64(cfg.count)
 
-	sikHasher := Hasher{}.
+	hash := Hasher{}.
 		Chain(tsim.tsm.sk.ToProto()).
-		Chain(tsim.sik.ToProto())
-	hash := sikHasher.
+		Chain(tsim.sik.ToProto()).
 		Chain(spk.ToProto()).
 		Sum()
 	if tsim.tsm.overflow {
