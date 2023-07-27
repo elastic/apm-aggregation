@@ -189,6 +189,9 @@ func TestAggregateBatch(t *testing.T) {
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 			EventOutcome:    "success",
 		}
+		sitxKey := ServiceInstanceTransactionAggregationKey{
+			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
+		}
 		stxKey := ServiceTransactionAggregationKey{
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 		}
@@ -205,6 +208,7 @@ func TestAggregateBatch(t *testing.T) {
 			AddServiceMetrics(svcKey).
 			AddServiceInstanceMetrics(sik).
 			AddTransaction(txKey, WithTransactionDuration(eventDuration)).
+			AddServiceInstanceTransaction(sitxKey, WithTransactionDuration(eventDuration)).
 			AddServiceTransaction(stxKey, WithTransactionDuration(eventDuration)).
 			AddSpan(spanKey, WithSpanDuration(eventDuration)).
 			AddSpan(dssKey, WithSpanDuration(dssDuration))
@@ -920,6 +924,43 @@ func TestAggregateAndHarvest(t *testing.T) {
 			},
 			Metricset: &modelpb.Metricset{
 				Name:     "transaction",
+				DocCount: 1,
+				Interval: "1s",
+			},
+		},
+		{
+			Timestamp: timestamppb.New(time.Unix(0, 0).UTC()),
+			Event: &modelpb.Event{
+				SuccessCount: &modelpb.SummaryMetric{
+					Count: 1,
+					Sum:   1,
+				},
+			},
+			Transaction: &modelpb.Transaction{
+				Type: "txtype",
+				DurationSummary: &modelpb.SummaryMetric{
+					Count: 1,
+					Sum:   100351, // Estimate from histogram
+				},
+				DurationHistogram: &modelpb.Histogram{
+					Values: []float64{100351},
+					Counts: []int64{1},
+				},
+			},
+			Service: &modelpb.Service{
+				Name: "svc",
+			},
+			Labels: modelpb.Labels{
+				"department_name": &modelpb.LabelValue{Global: true, Value: "apm"},
+				"organization":    &modelpb.LabelValue{Global: true, Value: "observability"},
+				"company":         &modelpb.LabelValue{Global: true, Value: "elastic"},
+			},
+			NumericLabels: modelpb.NumericLabels{
+				"user_id":     &modelpb.NumericLabelValue{Global: true, Value: 100},
+				"cost_center": &modelpb.NumericLabelValue{Global: true, Value: 10},
+			},
+			Metricset: &modelpb.Metricset{
+				Name:     "service_instance_transaction",
 				DocCount: 1,
 				Interval: "1s",
 			},

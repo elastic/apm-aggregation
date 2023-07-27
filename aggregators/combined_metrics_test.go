@@ -255,6 +255,68 @@ func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
 	return tsim
 }
 
+func (tsim *TestServiceInstanceMetrics) AddServiceInstanceTransaction(
+	sitk ServiceInstanceTransactionAggregationKey,
+	opts ...TestTransactionOpt,
+) *TestServiceInstanceMetrics {
+	if tsim.overflow {
+		panic("cannot add transaction to overflowed service transaction")
+	}
+	cfg := defaultTestTransactionCfg
+	for _, opt := range opts {
+		cfg = opt(cfg)
+	}
+
+	hdr := hdrhistogram.New()
+	hdr.RecordDuration(cfg.duration, float64(cfg.count))
+	ksitm := aggregationpb.KeyedServiceInstanceTransactionMetricsFromVTPool()
+	ksitm.Key = sitk.ToProto()
+	ksitm.Metrics = aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+	ksitm.Metrics.Histogram = HistogramToProto(hdr)
+	ksitm.Metrics.SuccessCount += float64(cfg.count)
+
+	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
+	svcIns := svc.ServiceInstanceGroups[tsim.sik]
+	if oldKtm, ok := svcIns.ServiceInstanceTransactionGroups[sitk]; ok {
+		mergeKeyedServiceInstanceTransactionMetrics(oldKtm, ksitm)
+		ksitm = oldKtm
+	}
+	svcIns.ServiceInstanceTransactionGroups[sitk] = ksitm
+	return tsim
+}
+
+func (tsim *TestServiceInstanceMetrics) AddServiceInstanceTransactionOverflow(
+	sitk ServiceInstanceTransactionAggregationKey,
+	opts ...TestTransactionOpt,
+) *TestServiceInstanceMetrics {
+	cfg := defaultTestTransactionCfg
+	for _, opt := range opts {
+		cfg = opt(cfg)
+	}
+
+	hdr := hdrhistogram.New()
+	hdr.RecordDuration(cfg.duration, float64(cfg.count))
+	from := aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+	from.Histogram = HistogramToProto(hdr)
+	from.SuccessCount += float64(cfg.count)
+
+	hash := Hasher{}.
+		Chain(tsim.tsm.sk.ToProto()).
+		Chain(tsim.sik.ToProto()).
+		Chain(sitk.ToProto()).
+		Sum()
+	if tsim.tsm.overflow {
+		// Global overflow
+		tsim.tsm.tcm.OverflowServices.OverflowServiceInstanceTransaction.Merge(from, hash)
+	} else {
+		// Per service overflow
+		svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
+		svc.OverflowGroups.OverflowServiceInstanceTransaction.Merge(from, hash)
+		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
+	}
+	return tsim
+}
+
 func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
 	stk ServiceTransactionAggregationKey,
 	opts ...TestTransactionOpt,
