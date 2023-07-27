@@ -11,12 +11,13 @@ import (
 	"sort"
 	"time"
 
-	"github.com/elastic/apm-aggregation/aggregationpb"
 	"go.opentelemetry.io/otel"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 	"go.opentelemetry.io/otel/trace"
 	"go.uber.org/zap"
+
+	"github.com/elastic/apm-aggregation/aggregationpb"
 )
 
 const instrumentationName = "aggregators"
