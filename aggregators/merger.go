@@ -54,7 +54,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 	}
 	// If there is overflow due to max services in either of the buckets being
 	// merged then we can merge the overflow buckets without considering any other scenarios.
-	if from.OverflowServiceInstancesEstimator != nil {
+	if len(from.OverflowServiceInstancesEstimator) > 0 {
 		mergeOverflow(&m.metrics.OverflowServices, from.OverflowServices)
 		mergeEstimator(
 			&m.metrics.OverflowServiceInstancesEstimator,
