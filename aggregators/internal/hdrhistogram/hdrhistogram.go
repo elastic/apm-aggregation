@@ -122,6 +122,8 @@ func (h *HistogramRepresentation) Buckets() (int64, []int64, []float64) {
 	var totalCount int64
 	var bucketsSeen int
 	iter := h.iterator()
+	// TODO @lahsivjar: Assuming sparse representation, we might be better off
+	// by sorting CountsRep rather than what we do now to avoid sorting.
 	for idx := 0; iter.next(); idx++ {
 		if bucketsSeen == h.CountsRep.Len() {
 			break

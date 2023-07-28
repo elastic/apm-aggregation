@@ -127,6 +127,8 @@ func EventToCombinedMetrics(
 }
 
 // CombinedMetricsToBatch converts CombinedMetrics to a batch of APMEvents.
+// Events in the batch are popualted using vtproto's sync pool and should be
+// released back to the pool using `APMEvent#ReturnToVTPool`.
 func CombinedMetricsToBatch(
 	cm *aggregationpb.CombinedMetrics,
 	processingTime time.Time,
@@ -136,7 +138,7 @@ func CombinedMetricsToBatch(
 		return nil, nil
 	}
 
-	batchSize := 0
+	var batchSize int
 	// service_summary overflow metric
 	if cm.OverflowServiceInstancesEstimator != nil {
 		batchSize++
@@ -255,12 +257,11 @@ func CombinedMetricsToBatch(
 	if cm.OverflowServiceInstancesEstimator != nil {
 		estimator := hllSketch(cm.OverflowServiceInstancesEstimator)
 		getOverflowBaseEvent := func() *modelpb.APMEvent {
-			return &modelpb.APMEvent{
-				Metricset: &modelpb.Metricset{},
-				Service: &modelpb.Service{
-					Name: overflowBucketName,
-				},
-			}
+			e := modelpb.APMEventFromVTPool()
+			e.Metricset = modelpb.MetricsetFromVTPool()
+			e.Service = modelpb.ServiceFromVTPool()
+			e.Service.Name = overflowBucketName
+			return e
 		}
 		event := getOverflowBaseEvent()
 		overflowServiceMetricsToAPMEvent(
@@ -404,25 +405,21 @@ func eventToDSSMetrics(
 }
 
 func getBaseEvent(key *aggregationpb.ServiceAggregationKey) *modelpb.APMEvent {
-	event := &modelpb.APMEvent{
-		Timestamp: timestamppb.New(tspb.PBTimestampToTime(key.Timestamp)),
-		Metricset: &modelpb.Metricset{},
-		Service: &modelpb.Service{
-			Name:        key.ServiceName,
-			Environment: key.ServiceEnvironment,
-		},
-	}
+	event := modelpb.APMEventFromVTPool()
+	event.Timestamp = timestamppb.New(tspb.PBTimestampToTime(key.Timestamp))
+	event.Metricset = modelpb.MetricsetFromVTPool()
+	event.Service = modelpb.ServiceFromVTPool()
+	event.Service.Name = key.ServiceName
+	event.Service.Environment = key.ServiceEnvironment
 
 	if key.ServiceLanguageName != "" {
-		event.Service.Language = &modelpb.Language{
-			Name: key.ServiceLanguageName,
-		}
+		event.Service.Language = modelpb.LanguageFromVTPool()
+		event.Service.Language.Name = key.ServiceLanguageName
 	}
 
 	if key.AgentName != "" {
-		event.Agent = &modelpb.Agent{
-			Name: key.AgentName,
-		}
+		event.Agent = modelpb.AgentFromVTPool()
+		event.Agent.Name = key.AgentName
 	}
 
 	return event
@@ -433,7 +430,9 @@ func serviceMetricsToAPMEvent(
 	intervalStr string,
 ) {
 	// Most service keys will already be present in the base event
-	baseEvent.Metricset = populateNil(baseEvent.Metricset)
+	if baseEvent.Metricset == nil {
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
+	}
 	baseEvent.Metricset.Name = summaryMetricsetName
 	baseEvent.Metricset.Interval = intervalStr
 }
@@ -447,7 +446,7 @@ func txnMetricsToAPMEvent(
 	histogram := hdrhistogram.New()
 	histogramFromProto(histogram, metrics.Histogram)
 	totalCount, counts, values := histogram.Buckets()
-	var eventSuccessCount modelpb.SummaryMetric
+	eventSuccessCount := modelpb.SummaryMetricFromVTPool()
 	switch key.EventOutcome {
 	case "success":
 		eventSuccessCount.Count = totalCount
@@ -457,80 +456,108 @@ func txnMetricsToAPMEvent(
 	case "unknown":
 		// Keep both Count and Sum as 0.
 	}
-	transactionDurationSummary := modelpb.SummaryMetric{
-		Count: totalCount,
-	}
+	transactionDurationSummary := modelpb.SummaryMetricFromVTPool()
+	transactionDurationSummary.Count = totalCount
 	for i, v := range values {
 		transactionDurationSummary.Sum += v * float64(counts[i])
 	}
 
-	baseEvent.Transaction = populateNil(baseEvent.Transaction)
+	if baseEvent.Transaction == nil {
+		baseEvent.Transaction = modelpb.TransactionFromVTPool()
+	}
 	baseEvent.Transaction.Name = key.TransactionName
 	baseEvent.Transaction.Type = key.TransactionType
 	baseEvent.Transaction.Result = key.TransactionResult
 	baseEvent.Transaction.Root = key.TraceRoot
-	baseEvent.Transaction.DurationSummary = &transactionDurationSummary
-	baseEvent.Transaction.DurationHistogram = &modelpb.Histogram{
-		Counts: counts,
-		Values: values,
-	}
+	baseEvent.Transaction.DurationSummary = transactionDurationSummary
+	baseEvent.Transaction.DurationHistogram = modelpb.HistogramFromVTPool()
+	baseEvent.Transaction.DurationHistogram.Counts = counts
+	baseEvent.Transaction.DurationHistogram.Values = values
 
-	baseEvent.Metricset = populateNil(baseEvent.Metricset)
+	if baseEvent.Metricset == nil {
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
+	}
 	baseEvent.Metricset.Name = txnMetricsetName
 	baseEvent.Metricset.DocCount = totalCount
 	baseEvent.Metricset.Interval = intervalStr
 
-	baseEvent.Event = populateNil(baseEvent.Event)
+	if baseEvent.Event == nil {
+		baseEvent.Event = modelpb.EventFromVTPool()
+	}
 	baseEvent.Event.Outcome = key.EventOutcome
-	baseEvent.Event.SuccessCount = &eventSuccessCount
+	baseEvent.Event.SuccessCount = eventSuccessCount
 
 	if key.ContainerId != "" {
-		baseEvent.Container = populateNil(baseEvent.Container)
+		if baseEvent.Container == nil {
+			baseEvent.Container = modelpb.ContainerFromVTPool()
+		}
 		baseEvent.Container.Id = key.ContainerId
 	}
 
 	if key.KubernetesPodName != "" {
-		baseEvent.Kubernetes = populateNil(baseEvent.Kubernetes)
+		if baseEvent.Kubernetes == nil {
+			baseEvent.Kubernetes = modelpb.KubernetesFromVTPool()
+		}
 		baseEvent.Kubernetes.PodName = key.KubernetesPodName
 	}
 
 	if key.ServiceVersion != "" {
-		baseEvent.Service = populateNil(baseEvent.Service)
+		if baseEvent.Service == nil {
+			baseEvent.Service = modelpb.ServiceFromVTPool()
+		}
 		baseEvent.Service.Version = key.ServiceVersion
 	}
 
 	if key.ServiceNodeName != "" {
-		baseEvent.Service = populateNil(baseEvent.Service)
-		baseEvent.Service.Node = populateNil(baseEvent.Service.Node)
+		if baseEvent.Service == nil {
+			baseEvent.Service = modelpb.ServiceFromVTPool()
+		}
+		if baseEvent.Service.Node == nil {
+			baseEvent.Service.Node = modelpb.ServiceNodeFromVTPool()
+		}
 		baseEvent.Service.Node.Name = key.ServiceNodeName
 	}
 
 	if key.ServiceRuntimeName != "" ||
 		key.ServiceRuntimeVersion != "" {
 
-		baseEvent.Service = populateNil(baseEvent.Service)
-		baseEvent.Service.Runtime = populateNil(baseEvent.Service.Runtime)
+		if baseEvent.Service == nil {
+			baseEvent.Service = modelpb.ServiceFromVTPool()
+		}
+		if baseEvent.Service.Runtime == nil {
+			baseEvent.Service.Runtime = modelpb.RuntimeFromVTPool()
+		}
 		baseEvent.Service.Runtime.Name = key.ServiceRuntimeName
 		baseEvent.Service.Runtime.Version = key.ServiceRuntimeVersion
 	}
 
 	if key.ServiceLanguageVersion != "" {
-		baseEvent.Service = populateNil(baseEvent.Service)
-		baseEvent.Service.Language = populateNil(baseEvent.Service.Language)
+		if baseEvent.Service == nil {
+			baseEvent.Service = modelpb.ServiceFromVTPool()
+		}
+		if baseEvent.Service.Language == nil {
+			baseEvent.Service.Language = modelpb.LanguageFromVTPool()
+		}
 		baseEvent.Service.Language.Version = key.ServiceLanguageVersion
 	}
 
 	if key.HostHostname != "" ||
 		key.HostName != "" {
 
-		baseEvent.Host = populateNil(baseEvent.Host)
+		if baseEvent.Host == nil {
+			baseEvent.Host = modelpb.HostFromVTPool()
+		}
 		baseEvent.Host.Hostname = key.HostHostname
 		baseEvent.Host.Name = key.HostName
 	}
 
 	if key.HostOsPlatform != "" {
-		baseEvent.Host = populateNil(baseEvent.Host)
-		baseEvent.Host.Os = populateNil(baseEvent.Host.Os)
+		if baseEvent.Host == nil {
+			baseEvent.Host = modelpb.HostFromVTPool()
+		}
+		if baseEvent.Host.Os == nil {
+			baseEvent.Host.Os = modelpb.OSFromVTPool()
+		}
 		baseEvent.Host.Os.Platform = key.HostOsPlatform
 	}
 
@@ -541,7 +568,9 @@ func txnMetricsToAPMEvent(
 		key.FaasVersion != "" ||
 		key.FaasTriggerType != "" {
 
-		baseEvent.Faas = populateNil(baseEvent.Faas)
+		if baseEvent.Faas == nil {
+			baseEvent.Faas = modelpb.FaasFromVTPool()
+		}
 		baseEvent.Faas.ColdStart = faasColdstart.ToBoolPtr()
 		baseEvent.Faas.Id = key.FaasId
 		baseEvent.Faas.Name = key.FaasName
@@ -559,7 +588,9 @@ func txnMetricsToAPMEvent(
 		key.CloudProjectId != "" ||
 		key.CloudProjectName != "" {
 
-		baseEvent.Cloud = populateNil(baseEvent.Cloud)
+		if baseEvent.Cloud == nil {
+			baseEvent.Cloud = modelpb.CloudFromVTPool()
+		}
 		baseEvent.Cloud.Provider = key.CloudProvider
 		baseEvent.Cloud.Region = key.CloudRegion
 		baseEvent.Cloud.AvailabilityZone = key.CloudAvailabilityZone
@@ -588,24 +619,33 @@ func svcTxnMetricsToAPMEvent(
 		transactionDurationSummary.Sum += v * float64(counts[i])
 	}
 
-	baseEvent.Metricset = populateNil(baseEvent.Metricset)
+	if baseEvent.Metricset == nil {
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
+	}
 	baseEvent.Metricset.Name = svcTxnMetricsetName
 	baseEvent.Metricset.DocCount = totalCount
 	baseEvent.Metricset.Interval = intervalStr
 
-	baseEvent.Transaction = populateNil(baseEvent.Transaction)
+	if baseEvent.Transaction == nil {
+		baseEvent.Transaction = modelpb.TransactionFromVTPool()
+	}
 	baseEvent.Transaction.Type = key.TransactionType
 	baseEvent.Transaction.DurationSummary = &transactionDurationSummary
-	baseEvent.Transaction.DurationHistogram = &modelpb.Histogram{
-		Counts: counts,
-		Values: values,
+	if baseEvent.Transaction.DurationHistogram == nil {
+		baseEvent.Transaction.DurationHistogram = modelpb.HistogramFromVTPool()
 	}
+	baseEvent.Transaction.DurationHistogram.Counts = counts
+	baseEvent.Transaction.DurationHistogram.Values = values
 
-	baseEvent.Event = populateNil(baseEvent.Event)
-	baseEvent.Event.SuccessCount = &modelpb.SummaryMetric{
-		Count: int64(math.Round(metrics.SuccessCount + metrics.FailureCount)),
-		Sum:   math.Round(metrics.SuccessCount),
+	if baseEvent.Event == nil {
+		baseEvent.Event = modelpb.EventFromVTPool()
 	}
+	if baseEvent.Event.SuccessCount == nil {
+		baseEvent.Event.SuccessCount = modelpb.SummaryMetricFromVTPool()
+	}
+	baseEvent.Event.SuccessCount.Count =
+		int64(math.Round(metrics.SuccessCount + metrics.FailureCount))
+	baseEvent.Event.SuccessCount.Sum = math.Round(metrics.SuccessCount)
 }
 
 func spanMetricsToAPMEvent(
@@ -616,31 +656,44 @@ func spanMetricsToAPMEvent(
 ) {
 	var target *modelpb.ServiceTarget
 	if key.TargetName != "" || key.TargetType != "" {
-		target = &modelpb.ServiceTarget{
-			Type: key.TargetType,
-			Name: key.TargetName,
-		}
+		target = modelpb.ServiceTargetFromVTPool()
+		target.Type = key.TargetType
+		target.Name = key.TargetName
 	}
-	baseEvent.Service = populateNil(baseEvent.Service)
+	if baseEvent.Service == nil {
+		baseEvent.Service = modelpb.ServiceFromVTPool()
+	}
 	baseEvent.Service.Target = target
 
-	baseEvent.Metricset = populateNil(baseEvent.Metricset)
+	if baseEvent.Metricset == nil {
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
+	}
 	baseEvent.Metricset.Name = spanMetricsetName
 	baseEvent.Metricset.DocCount = int64(math.Round(metrics.Count))
 	baseEvent.Metricset.Interval = intervalStr
 
-	baseEvent.Span = populateNil(baseEvent.Span)
+	if baseEvent.Span == nil {
+		baseEvent.Span = modelpb.SpanFromVTPool()
+	}
 	baseEvent.Span.Name = key.SpanName
 
-	baseEvent.Span.DestinationService = populateNil(baseEvent.Span.DestinationService)
-	baseEvent.Span.DestinationService.Resource = key.Resource
-	baseEvent.Span.DestinationService.ResponseTime = &modelpb.AggregatedDuration{
-		Count: int64(math.Round(metrics.Count)),
-		Sum:   durationpb.New(time.Duration(math.Round(metrics.Sum))),
+	if baseEvent.Span.DestinationService == nil {
+		baseEvent.Span.DestinationService = modelpb.DestinationServiceFromVTPool()
 	}
+	baseEvent.Span.DestinationService.Resource = key.Resource
+	if baseEvent.Span.DestinationService.ResponseTime == nil {
+		baseEvent.Span.DestinationService.ResponseTime =
+			modelpb.AggregatedDurationFromVTPool()
+	}
+	baseEvent.Span.DestinationService.ResponseTime.Count =
+		int64(math.Round(metrics.Count))
+	baseEvent.Span.DestinationService.ResponseTime.Sum =
+		durationpb.New(time.Duration(math.Round(metrics.Sum)))
 
 	if key.Outcome != "" {
-		baseEvent.Event = populateNil(baseEvent.Event)
+		if baseEvent.Event == nil {
+			baseEvent.Event = modelpb.EventFromVTPool()
+		}
 		baseEvent.Event.Outcome = key.Outcome
 	}
 }
@@ -657,15 +710,13 @@ func overflowServiceMetricsToAPMEvent(
 	baseEvent.Timestamp = timestamppb.New(processingTime)
 	serviceMetricsToAPMEvent(baseEvent, intervalStr)
 
-	samples := baseEvent.GetMetricset().GetSamples()
-	samples = append(samples, &modelpb.MetricsetSample{
-		Name:  "service_summary.aggregation.overflow_count",
-		Value: float64(overflowCount),
-	})
+	sample := modelpb.MetricsetSampleFromVTPool()
+	sample.Name = "service_summary.aggregation.overflow_count"
+	sample.Value = float64(overflowCount)
 	if baseEvent.Metricset == nil {
-		baseEvent.Metricset = &modelpb.Metricset{}
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
 	}
-	baseEvent.Metricset.Samples = samples
+	baseEvent.Metricset.Samples = append(baseEvent.Metricset.Samples, sample)
 }
 
 // overflowTxnMetricsToAPMEvent maps the fields of overflow
@@ -693,15 +744,13 @@ func overflowTxnMetricsToAPMEvent(
 	}
 	txnMetricsToAPMEvent(overflowKey, overflowTxn, baseEvent, intervalStr)
 
-	samples := baseEvent.GetMetricset().GetSamples()
-	samples = append(samples, &modelpb.MetricsetSample{
-		Name:  "transaction.aggregation.overflow_count",
-		Value: float64(overflowCount),
-	})
+	sample := modelpb.MetricsetSampleFromVTPool()
+	sample.Name = "transaction.aggregation.overflow_count"
+	sample.Value = float64(overflowCount)
 	if baseEvent.Metricset == nil {
-		baseEvent.Metricset = &modelpb.Metricset{}
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
 	}
-	baseEvent.Metricset.Samples = samples
+	baseEvent.Metricset.Samples = append(baseEvent.Metricset.Samples, sample)
 }
 
 func overflowSvcTxnMetricsToAPMEvent(
@@ -720,15 +769,13 @@ func overflowSvcTxnMetricsToAPMEvent(
 	}
 	svcTxnMetricsToAPMEvent(overflowKey, overflowSvcTxn, baseEvent, intervalStr)
 
-	samples := baseEvent.GetMetricset().GetSamples()
-	samples = append(samples, &modelpb.MetricsetSample{
-		Name:  "service_transaction.aggregation.overflow_count",
-		Value: float64(overflowCount),
-	})
+	sample := modelpb.MetricsetSampleFromVTPool()
+	sample.Name = "service_transaction.aggregation.overflow_count"
+	sample.Value = float64(overflowCount)
 	if baseEvent.Metricset == nil {
-		baseEvent.Metricset = &modelpb.Metricset{}
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
 	}
-	baseEvent.Metricset.Samples = samples
+	baseEvent.Metricset.Samples = append(baseEvent.Metricset.Samples, sample)
 }
 
 func overflowSpanMetricsToAPMEvent(
@@ -747,15 +794,13 @@ func overflowSpanMetricsToAPMEvent(
 	}
 	spanMetricsToAPMEvent(overflowKey, overflowSpan, baseEvent, intervalStr)
 
-	samples := baseEvent.GetMetricset().GetSamples()
-	samples = append(samples, &modelpb.MetricsetSample{
-		Name:  "service_destination.aggregation.overflow_count",
-		Value: float64(overflowCount),
-	})
+	sample := modelpb.MetricsetSampleFromVTPool()
+	sample.Name = "service_destination.aggregation.overflow_count"
+	sample.Value = float64(overflowCount)
 	if baseEvent.Metricset == nil {
-		baseEvent.Metricset = &modelpb.Metricset{}
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
 	}
-	baseEvent.Metricset.Samples = samples
+	baseEvent.Metricset.Samples = append(baseEvent.Metricset.Samples, sample)
 	baseEvent.Metricset.DocCount = int64(overflowCount)
 }
 
@@ -916,13 +961,6 @@ func formatDuration(d time.Duration) string {
 		return fmt.Sprintf("%.0fm", duration)
 	}
 	return fmt.Sprintf("%.0fs", d.Seconds())
-}
-
-func populateNil[T any](a *T) *T {
-	if a == nil {
-		return new(T)
-	}
-	return a
 }
 
 // combinedMetricsCollector collects and categorizes partitioned metrics into the
