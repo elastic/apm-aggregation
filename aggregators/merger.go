@@ -6,6 +6,7 @@ package aggregators
 
 import (
 	"io"
+	"sync"
 
 	"github.com/axiomhq/hyperloglog"
 
@@ -401,9 +402,19 @@ func mergeSpanMetrics(to, from *aggregationpb.SpanMetrics) {
 	to.Sum += from.Sum
 }
 
+// mapPool is a pool of maps to facilitate histogram merges.
+var mapPool = sync.Pool{New: func() interface{} {
+	return make(map[int32]int64)
+}}
+
 func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 	// Assume both histograms are created with same arguments
-	m := make(map[int32]int64)
+	m := mapPool.Get().(map[int32]int64)
+	defer mapPool.Put(m)
+	for k := range m {
+		delete(m, k)
+	}
+
 	for i := 0; i < len(to.Buckets); i++ {
 		m[to.Buckets[i]] = to.Counts[i]
 	}
