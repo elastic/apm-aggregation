@@ -76,17 +76,25 @@ type CombinedMetricsKey struct {
 	ID             [16]byte
 }
 
-// CombinedMetrics models the value to store the data in LSM tree.
+// GlobalLabels is an intermediate struct used to marshal/unmarshal the
+// provided global labels into a comparable format. The format is used by
+// pebble db to compare service aggregation keys.
+type GlobalLabels struct {
+	Labels        modelpb.Labels
+	NumericLabels modelpb.NumericLabels
+}
+
+// combinedMetrics models the value to store the data in LSM tree.
 // Each unique combined metrics ID stores a combined metrics per aggregation
-// interval. CombinedMetrics encapsulates the aggregated metrics
+// interval. combinedMetrics encapsulates the aggregated metrics
 // as well as the overflow metrics.
-type CombinedMetrics struct {
-	Services map[ServiceAggregationKey]ServiceMetrics
+type combinedMetrics struct {
+	Services map[serviceAggregationKey]serviceMetrics
 
 	// OverflowServices provides a dedicated bucket for collecting
 	// aggregate metrics for all the aggregation groups for all services
 	// that overflowed due to max services limit being reached.
-	OverflowServices Overflow
+	OverflowServices overflow
 
 	// OverflowServiceInstancesEstimator estimates the number of unique service
 	// instance aggregation keys that overflowed due to max services limit or
@@ -104,9 +112,9 @@ type CombinedMetrics struct {
 	YoungestEventTimestamp uint64
 }
 
-// ServiceAggregationKey models the key used to store service specific
+// serviceAggregationKey models the key used to store service specific
 // aggregation metrics.
-type ServiceAggregationKey struct {
+type serviceAggregationKey struct {
 	Timestamp           time.Time
 	ServiceName         string
 	ServiceEnvironment  string
@@ -114,25 +122,25 @@ type ServiceAggregationKey struct {
 	AgentName           string
 }
 
-// ServiceMetrics models the value to store all the aggregated metrics
+// serviceMetrics models the value to store all the aggregated metrics
 // for a specific service aggregation key.
-type ServiceMetrics struct {
-	ServiceInstanceGroups map[ServiceInstanceAggregationKey]ServiceInstanceMetrics
-	OverflowGroups        Overflow
+type serviceMetrics struct {
+	ServiceInstanceGroups map[serviceInstanceAggregationKey]serviceInstanceMetrics
+	OverflowGroups        overflow
 }
 
-// ServiceInstanceAggregationKey models the key used to store service instance specific
+// serviceInstanceAggregationKey models the key used to store service instance specific
 // aggregation metrics.
-type ServiceInstanceAggregationKey struct {
+type serviceInstanceAggregationKey struct {
 	GlobalLabelsStr string
 }
 
-// ServiceInstanceMetrics models the value to store all the aggregated metrics
+// serviceInstanceMetrics models the value to store all the aggregated metrics
 // for a specific service instance aggregation key.
-type ServiceInstanceMetrics struct {
-	TransactionGroups        map[TransactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
-	ServiceTransactionGroups map[ServiceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
-	SpanGroups               map[SpanAggregationKey]*aggregationpb.KeyedSpanMetrics
+type serviceInstanceMetrics struct {
+	TransactionGroups        map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
+	ServiceTransactionGroups map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
+	SpanGroups               map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics
 }
 
 func insertHash(to **hyperloglog.Sketch, hash uint64) {
@@ -151,12 +159,12 @@ func mergeEstimator(to **hyperloglog.Sketch, from *hyperloglog.Sketch) {
 	(*to).Merge(from)
 }
 
-type OverflowTransaction struct {
+type overflowTransaction struct {
 	Metrics   *aggregationpb.TransactionMetrics
 	Estimator *hyperloglog.Sketch
 }
 
-func (o *OverflowTransaction) Merge(
+func (o *overflowTransaction) Merge(
 	from *aggregationpb.TransactionMetrics,
 	hash uint64,
 ) {
@@ -167,7 +175,7 @@ func (o *OverflowTransaction) Merge(
 	insertHash(&o.Estimator, hash)
 }
 
-func (o *OverflowTransaction) MergeOverflow(from *OverflowTransaction) {
+func (o *overflowTransaction) MergeOverflow(from *overflowTransaction) {
 	if from.Estimator != nil {
 		if o.Metrics == nil {
 			o.Metrics = aggregationpb.TransactionMetricsFromVTPool()
@@ -177,16 +185,16 @@ func (o *OverflowTransaction) MergeOverflow(from *OverflowTransaction) {
 	}
 }
 
-func (o *OverflowTransaction) Empty() bool {
+func (o *overflowTransaction) Empty() bool {
 	return o.Estimator == nil
 }
 
-type OverflowServiceTransaction struct {
+type overflowServiceTransaction struct {
 	Metrics   *aggregationpb.ServiceTransactionMetrics
 	Estimator *hyperloglog.Sketch
 }
 
-func (o *OverflowServiceTransaction) Merge(
+func (o *overflowServiceTransaction) Merge(
 	from *aggregationpb.ServiceTransactionMetrics,
 	hash uint64,
 ) {
@@ -197,7 +205,7 @@ func (o *OverflowServiceTransaction) Merge(
 	insertHash(&o.Estimator, hash)
 }
 
-func (o *OverflowServiceTransaction) MergeOverflow(from *OverflowServiceTransaction) {
+func (o *overflowServiceTransaction) MergeOverflow(from *overflowServiceTransaction) {
 	if from.Estimator != nil {
 		if o.Metrics == nil {
 			o.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
@@ -207,16 +215,16 @@ func (o *OverflowServiceTransaction) MergeOverflow(from *OverflowServiceTransact
 	}
 }
 
-func (o *OverflowServiceTransaction) Empty() bool {
+func (o *overflowServiceTransaction) Empty() bool {
 	return o.Estimator == nil
 }
 
-type OverflowSpan struct {
+type overflowSpan struct {
 	Metrics   *aggregationpb.SpanMetrics
 	Estimator *hyperloglog.Sketch
 }
 
-func (o *OverflowSpan) Merge(
+func (o *overflowSpan) Merge(
 	from *aggregationpb.SpanMetrics,
 	hash uint64,
 ) {
@@ -227,7 +235,7 @@ func (o *OverflowSpan) Merge(
 	insertHash(&o.Estimator, hash)
 }
 
-func (o *OverflowSpan) MergeOverflow(from *OverflowSpan) {
+func (o *overflowSpan) MergeOverflow(from *overflowSpan) {
 	if from.Estimator != nil {
 		if o.Metrics == nil {
 			o.Metrics = aggregationpb.SpanMetricsFromVTPool()
@@ -237,21 +245,21 @@ func (o *OverflowSpan) MergeOverflow(from *OverflowSpan) {
 	}
 }
 
-func (o *OverflowSpan) Empty() bool {
+func (o *overflowSpan) Empty() bool {
 	return o.Estimator == nil
 }
 
-// Overflow contains transaction and spans overflow metrics and cardinality
+// overflow contains transaction and spans overflow metrics and cardinality
 // estimators for the aggregation group for overflow buckets.
-type Overflow struct {
-	OverflowTransaction        OverflowTransaction
-	OverflowServiceTransaction OverflowServiceTransaction
-	OverflowSpan               OverflowSpan
+type overflow struct {
+	OverflowTransaction        overflowTransaction
+	OverflowServiceTransaction overflowServiceTransaction
+	OverflowSpan               overflowSpan
 }
 
-// TransactionAggregationKey models the key used to store transaction
+// transactionAggregationKey models the key used to store transaction
 // aggregation metrics.
-type TransactionAggregationKey struct {
+type transactionAggregationKey struct {
 	TraceRoot bool
 
 	ContainerID       string
@@ -291,8 +299,8 @@ type TransactionAggregationKey struct {
 	CloudProjectName      string
 }
 
-// SpanAggregationKey models the key used to store span aggregation metrics.
-type SpanAggregationKey struct {
+// spanAggregationKey models the key used to store span aggregation metrics.
+type spanAggregationKey struct {
 	SpanName string
 	Outcome  string
 
@@ -302,16 +310,8 @@ type SpanAggregationKey struct {
 	Resource string
 }
 
-// ServiceTransactionAggregationKey models the key used to store
+// serviceTransactionAggregationKey models the key used to store
 // service transaction aggregation metrics.
-type ServiceTransactionAggregationKey struct {
+type serviceTransactionAggregationKey struct {
 	TransactionType string
-}
-
-// GlobalLabels is an intermediate struct used to marshal/unmarshal the
-// provided global labels into a comparable format. The format is used by
-// pebble db to compare service aggregation keys.
-type GlobalLabels struct {
-	Labels        modelpb.Labels
-	NumericLabels modelpb.NumericLabels
 }

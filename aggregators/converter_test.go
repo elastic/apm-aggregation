@@ -76,16 +76,16 @@ func TestEventToCombinedMetrics(t *testing.T) {
 					NewTestCombinedMetrics(
 						WithEventsTotal(1),
 						WithYoungestEventTimestamp(receivedTS)).
-						AddServiceMetrics(ServiceAggregationKey{
+						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-						AddTransaction(TransactionAggregationKey{
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+						AddTransaction(transactionAggregationKey{
 							TransactionName: "testtxn",
 							TransactionType: "testtyp",
 							EventOutcome:    "success",
 						}).
-						AddServiceTransaction(ServiceTransactionAggregationKey{
+						AddServiceTransaction(serviceTransactionAggregationKey{
 							TransactionType: "testtyp",
 						}).GetProto(),
 				}
@@ -146,11 +146,11 @@ func TestEventToCombinedMetrics(t *testing.T) {
 					NewTestCombinedMetrics(
 						WithEventsTotal(1),
 						WithYoungestEventTimestamp(receivedTS)).
-						AddServiceMetrics(ServiceAggregationKey{
+						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-						AddSpan(SpanAggregationKey{
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+						AddSpan(spanAggregationKey{
 							SpanName:   "testspan",
 							TargetName: "psql",
 							TargetType: "db",
@@ -181,11 +181,11 @@ func TestEventToCombinedMetrics(t *testing.T) {
 					NewTestCombinedMetrics(
 						WithEventsTotal(1),
 						WithYoungestEventTimestamp(receivedTS)).
-						AddServiceMetrics(ServiceAggregationKey{
+						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-						AddSpan(SpanAggregationKey{
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+						AddSpan(spanAggregationKey{
 							SpanName: "testspan",
 							Resource: "db",
 							Outcome:  "success",
@@ -209,10 +209,10 @@ func TestEventToCombinedMetrics(t *testing.T) {
 					NewTestCombinedMetrics(
 						WithEventsTotal(1),
 						WithYoungestEventTimestamp(receivedTS)).
-						AddServiceMetrics(ServiceAggregationKey{
+						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 						GetProto(),
 				}
 			},
@@ -230,10 +230,10 @@ func TestEventToCombinedMetrics(t *testing.T) {
 					NewTestCombinedMetrics(
 						WithEventsTotal(1),
 						WithYoungestEventTimestamp(receivedTS)).
-						AddServiceMetrics(ServiceAggregationKey{
+						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 						GetProto(),
 				}
 			},
@@ -274,18 +274,18 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 	svcName := "test"
 	coldstart := nullable.True
 	var (
-		svc            = ServiceAggregationKey{Timestamp: ts, ServiceName: svcName}
-		svcIns         = ServiceInstanceAggregationKey{}
+		svc            = serviceAggregationKey{Timestamp: ts, ServiceName: svcName}
+		svcIns         = serviceInstanceAggregationKey{}
 		faas           = &modelpb.Faas{Id: "f1", ColdStart: coldstart.ToBoolPtr(), Version: "v2", TriggerType: "http"}
-		span           = SpanAggregationKey{SpanName: "spn", Resource: "postgresql"}
-		overflowSpan   = SpanAggregationKey{TargetName: "_other"}
+		span           = spanAggregationKey{SpanName: "spn", Resource: "postgresql"}
+		overflowSpan   = spanAggregationKey{TargetName: "_other"}
 		spanCount      = 1
-		svcTxn         = ServiceTransactionAggregationKey{TransactionType: "typ"}
-		overflowSvcTxn = ServiceTransactionAggregationKey{TransactionType: "_other"}
-		txn            = TransactionAggregationKey{TransactionName: "txn", TransactionType: "typ"}
-		txnFaas        = TransactionAggregationKey{TransactionName: "txn", TransactionType: "typ",
+		svcTxn         = serviceTransactionAggregationKey{TransactionType: "typ"}
+		overflowSvcTxn = serviceTransactionAggregationKey{TransactionType: "_other"}
+		txn            = transactionAggregationKey{TransactionName: "txn", TransactionType: "typ"}
+		txnFaas        = transactionAggregationKey{TransactionName: "txn", TransactionType: "typ",
 			FAASID: faas.Id, FAASColdstart: coldstart, FAASVersion: faas.Version, FAASTriggerType: faas.TriggerType}
-		overflowTxn = TransactionAggregationKey{TransactionName: "_other"}
+		overflowTxn = transactionAggregationKey{TransactionName: "_other"}
 		txnCount    = 100
 	)
 	for _, tc := range []struct {
@@ -349,8 +349,8 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 				// Add global service overflow
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc_overflow"}).
-					AddServiceInstanceMetricsOverflow(ServiceInstanceAggregationKey{})
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc_overflow"}).
+					AddServiceInstanceMetricsOverflow(serviceInstanceAggregationKey{})
 				return tcm.GetProto()
 			},
 			expectedEvents: []*modelpb.APMEvent{
@@ -371,14 +371,14 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 			combinedMetrics: func() *aggregationpb.CombinedMetrics {
 				tcm := NewTestCombinedMetrics()
 				tcm.
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{})
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{})
 				tcm.
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetricsOverflow(ServiceInstanceAggregationKey{GlobalLabelsStr: getTestGlobalLabelsStr(t, "1")})
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetricsOverflow(serviceInstanceAggregationKey{GlobalLabelsStr: getTestGlobalLabelsStr(t, "1")})
 				tcm.
-					AddServiceMetricsOverflow(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
-					AddServiceInstanceMetricsOverflow(ServiceInstanceAggregationKey{GlobalLabelsStr: getTestGlobalLabelsStr(t, "2")})
+					AddServiceMetricsOverflow(serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+					AddServiceInstanceMetricsOverflow(serviceInstanceAggregationKey{GlobalLabelsStr: getTestGlobalLabelsStr(t, "2")})
 				return tcm.GetProto()
 			},
 			expectedEvents: []*modelpb.APMEvent{
@@ -424,21 +424,21 @@ func BenchmarkCombinedMetricsToBatch(b *testing.B) {
 	pt := ts.Truncate(ai)
 	cardinality := 10
 	tcm := NewTestCombinedMetrics().
-		AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "bench"}).
-		AddServiceInstanceMetrics(ServiceInstanceAggregationKey{})
+		AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "bench"}).
+		AddServiceInstanceMetrics(serviceInstanceAggregationKey{})
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)
 		spanName := fmt.Sprintf("spn%d", i)
 		tcm.
-			AddTransaction(TransactionAggregationKey{
+			AddTransaction(transactionAggregationKey{
 				TransactionName: txnName,
 				TransactionType: txnType,
 			}, WithTransactionCount(200)).
-			AddServiceTransaction(ServiceTransactionAggregationKey{
+			AddServiceTransaction(serviceTransactionAggregationKey{
 				TransactionType: txnType,
 			}, WithTransactionCount(200)).
-			AddSpan(SpanAggregationKey{
+			AddSpan(spanAggregationKey{
 				SpanName: spanName,
 			})
 	}
@@ -517,7 +517,7 @@ func createTestTransactionMetric(
 	ts time.Time,
 	ivl time.Duration,
 	svcName string,
-	txn TransactionAggregationKey,
+	txn transactionAggregationKey,
 	faas *modelpb.Faas,
 	count, overflowCount int,
 ) *modelpb.APMEvent {
@@ -577,7 +577,7 @@ func createTestServiceTransactionMetric(
 	ts time.Time,
 	ivl time.Duration,
 	svcName string,
-	svcTxn ServiceTransactionAggregationKey,
+	svcTxn serviceTransactionAggregationKey,
 	count, overflowCount int,
 ) *modelpb.APMEvent {
 	histRep := hdrhistogram.New()
@@ -628,7 +628,7 @@ func createTestSpanMetric(
 	ts time.Time,
 	ivl time.Duration,
 	svcName string,
-	span SpanAggregationKey,
+	span spanAggregationKey,
 	count, overflowCount int,
 ) *modelpb.APMEvent {
 	var metricsetSamples []*modelpb.MetricsetSample

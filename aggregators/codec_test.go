@@ -63,7 +63,7 @@ func TestHistogramRepresentation(t *testing.T) {
 	expected.RecordDuration(time.Minute, 2)
 
 	actual := hdrhistogram.New()
-	HistogramFromProto(actual, HistogramToProto(expected))
+	histogramFromProto(actual, histogramToProto(expected))
 	assert.Empty(t, cmp.Diff(
 		expected, actual,
 		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
@@ -77,23 +77,23 @@ func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 	ts := time.Now()
 	cardinality := 10
 	tcm := NewTestCombinedMetrics()
-	sim := tcm.AddServiceMetrics(ServiceAggregationKey{
+	sim := tcm.AddServiceMetrics(serviceAggregationKey{
 		Timestamp:   ts,
 		ServiceName: "bench",
-	}).AddServiceInstanceMetrics(ServiceInstanceAggregationKey{})
+	}).AddServiceInstanceMetrics(serviceInstanceAggregationKey{})
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)
 		spanName := fmt.Sprintf("spn%d", i)
 
-		sim.AddTransaction(TransactionAggregationKey{
+		sim.AddTransaction(transactionAggregationKey{
 			TransactionName: txnName,
 			TransactionType: txnType,
 		}, WithTransactionCount(200))
-		sim.AddServiceTransaction(ServiceTransactionAggregationKey{
+		sim.AddServiceTransaction(serviceTransactionAggregationKey{
 			TransactionType: txnType,
 		}, WithTransactionCount(200))
-		sim.AddSpan(SpanAggregationKey{
+		sim.AddSpan(spanAggregationKey{
 			SpanName: spanName,
 		})
 	}
