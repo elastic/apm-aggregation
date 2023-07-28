@@ -104,5 +104,53 @@ func BenchmarkNDJSON(b *testing.B) {
 			flushTestAggregator(b, agg)
 		})
 	}
+}
 
+func BenchmarkNDJSONParallel(b *testing.B) {
+	for _, tc := range []struct {
+		name     string
+		filename string
+	}{
+		{
+			name:     "AgentNodeJS",
+			filename: "nodejs-3.29.0.ndjson",
+		},
+		{
+			name:     "AgentPython",
+			filename: "python-6.7.2.ndjson",
+		},
+		{
+			name:     "AgentRuby",
+			filename: "ruby-4.5.0.ndjson",
+		},
+		{
+			name:     "AgentGo",
+			filename: "go-2.0.0.ndjson",
+		},
+	} {
+		b.Run(tc.name, func(b *testing.B) {
+			dirFS := os.DirFS("testdata")
+			f, err := dirFS.Open(tc.filename)
+			if err != nil {
+				b.Fatal(err)
+			}
+			defer f.Close()
+
+			var batch *modelpb.Batch
+			batch = ndjsonFileToBatch(bufio.NewReader(f))
+
+			agg := newTestAggregator(b)
+			cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
+			b.ResetTimer()
+
+			b.RunParallel(func(pb *testing.PB) {
+				for pb.Next() {
+					if err := agg.AggregateBatch(context.Background(), cmID, batch); err != nil {
+						b.Fatal(err)
+					}
+				}
+			})
+			flushTestAggregator(b, agg)
+		})
+	}
 }

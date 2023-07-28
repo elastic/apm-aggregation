@@ -1161,7 +1161,6 @@ func BenchmarkAggregateBatchParallel(b *testing.B) {
 
 func newTestAggregator(tb testing.TB) *Aggregator {
 	agg, err := New(
-		WithDataDir(tb.TempDir()),
 		WithLimits(Limits{
 			MaxSpanGroups:                         1000,
 			MaxSpanGroupsPerService:               100,
@@ -1175,6 +1174,7 @@ func newTestAggregator(tb testing.TB) *Aggregator {
 		WithProcessor(noOpProcessor()),
 		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
 		WithLogger(zap.NewNop()),
+		WithInMemory(true),
 	)
 	if err != nil {
 		tb.Fatal(err)
