@@ -138,7 +138,7 @@ func CombinedMetricsToBatch(
 
 	batchSize := 0
 	// service_summary overflow metric
-	if cm.OverflowServiceInstancesEstimator != nil {
+	if len(cm.OverflowServiceInstancesEstimator) > 0 {
 		batchSize++
 	}
 
@@ -156,13 +156,13 @@ func CombinedMetricsToBatch(
 		if sm.OverflowGroups == nil {
 			continue
 		}
-		if sm.OverflowGroups.OverflowTransactionsEstimator != nil {
+		if len(sm.OverflowGroups.OverflowTransactionsEstimator) > 0 {
 			batchSize++
 		}
-		if sm.OverflowGroups.OverflowServiceTransactionsEstimator != nil {
+		if len(sm.OverflowGroups.OverflowServiceTransactionsEstimator) > 0 {
 			batchSize++
 		}
-		if sm.OverflowGroups.OverflowSpansEstimator != nil {
+		if len(sm.OverflowGroups.OverflowSpansEstimator) > 0 {
 			batchSize++
 		}
 	}
@@ -213,7 +213,7 @@ func CombinedMetricsToBatch(
 		if sm.OverflowGroups == nil {
 			continue
 		}
-		if sm.OverflowGroups.OverflowTransactionsEstimator != nil {
+		if len(sm.OverflowGroups.OverflowTransactionsEstimator) > 0 {
 			estimator := hllSketch(sm.OverflowGroups.OverflowTransactionsEstimator)
 			event := getBaseEvent(sk)
 			overflowTxnMetricsToAPMEvent(
@@ -225,7 +225,7 @@ func CombinedMetricsToBatch(
 			)
 			b = append(b, event)
 		}
-		if sm.OverflowGroups.OverflowServiceTransactionsEstimator != nil {
+		if len(sm.OverflowGroups.OverflowServiceTransactionsEstimator) > 0 {
 			estimator := hllSketch(
 				sm.OverflowGroups.OverflowServiceTransactionsEstimator,
 			)
@@ -239,7 +239,7 @@ func CombinedMetricsToBatch(
 			)
 			b = append(b, event)
 		}
-		if sm.OverflowGroups.OverflowSpansEstimator != nil {
+		if len(sm.OverflowGroups.OverflowSpansEstimator) > 0 {
 			estimator := hllSketch(sm.OverflowGroups.OverflowSpansEstimator)
 			event := getBaseEvent(sk)
 			overflowSpanMetricsToAPMEvent(
@@ -252,7 +252,7 @@ func CombinedMetricsToBatch(
 			b = append(b, event)
 		}
 	}
-	if cm.OverflowServiceInstancesEstimator != nil {
+	if len(cm.OverflowServiceInstancesEstimator) > 0 {
 		estimator := hllSketch(cm.OverflowServiceInstancesEstimator)
 		getOverflowBaseEvent := func() *modelpb.APMEvent {
 			return &modelpb.APMEvent{
@@ -270,7 +270,7 @@ func CombinedMetricsToBatch(
 			aggIntervalStr,
 		)
 		b = append(b, event)
-		if cm.OverflowServices.OverflowTransactionsEstimator != nil {
+		if len(cm.OverflowServices.OverflowTransactionsEstimator) > 0 {
 			estimator := hllSketch(cm.OverflowServices.OverflowTransactionsEstimator)
 			event := getOverflowBaseEvent()
 			overflowTxnMetricsToAPMEvent(
@@ -283,7 +283,7 @@ func CombinedMetricsToBatch(
 			b = append(b, event)
 
 		}
-		if cm.OverflowServices.OverflowServiceTransactionsEstimator != nil {
+		if len(cm.OverflowServices.OverflowServiceTransactionsEstimator) > 0 {
 			estimator := hllSketch(
 				cm.OverflowServices.OverflowServiceTransactionsEstimator,
 			)
@@ -297,7 +297,7 @@ func CombinedMetricsToBatch(
 			)
 			b = append(b, event)
 		}
-		if cm.OverflowServices.OverflowSpansEstimator != nil {
+		if len(cm.OverflowServices.OverflowSpansEstimator) > 0 {
 			estimator := hllSketch(cm.OverflowServices.OverflowSpansEstimator)
 			event := getOverflowBaseEvent()
 			overflowSpanMetricsToAPMEvent(
