@@ -407,55 +407,6 @@ func (m *SpanMetrics) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
-func (m *CountValue) CloneVT() *CountValue {
-	if m == nil {
-		return (*CountValue)(nil)
-	}
-	r := &CountValue{
-		Count: m.Count,
-		Value: m.Value,
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *CountValue) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *HDRHistogram) CloneVT() *HDRHistogram {
-	if m == nil {
-		return (*HDRHistogram)(nil)
-	}
-	r := &HDRHistogram{
-		LowestTrackableValue:  m.LowestTrackableValue,
-		HighestTrackableValue: m.HighestTrackableValue,
-		SignificantFigures:    m.SignificantFigures,
-	}
-	if rhs := m.Counts; rhs != nil {
-		tmpContainer := make([]int64, len(rhs))
-		copy(tmpContainer, rhs)
-		r.Counts = tmpContainer
-	}
-	if rhs := m.Buckets; rhs != nil {
-		tmpContainer := make([]int32, len(rhs))
-		copy(tmpContainer, rhs)
-		r.Buckets = tmpContainer
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *HDRHistogram) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
 func (m *Overflow) CloneVT() *Overflow {
 	if m == nil {
 		return (*Overflow)(nil)
@@ -488,6 +439,52 @@ func (m *Overflow) CloneVT() *Overflow {
 }
 
 func (m *Overflow) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *Bar) CloneVT() *Bar {
+	if m == nil {
+		return (*Bar)(nil)
+	}
+	r := &Bar{
+		Bucket: m.Bucket,
+		Counts: m.Counts,
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *Bar) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *HDRHistogram) CloneVT() *HDRHistogram {
+	if m == nil {
+		return (*HDRHistogram)(nil)
+	}
+	r := &HDRHistogram{
+		LowestTrackableValue:  m.LowestTrackableValue,
+		HighestTrackableValue: m.HighestTrackableValue,
+		SignificantFigures:    m.SignificantFigures,
+	}
+	if rhs := m.Bars; rhs != nil {
+		tmpContainer := make([]*Bar, len(rhs))
+		for k, v := range rhs {
+			tmpContainer[k] = v.CloneVT()
+		}
+		r.Bars = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *HDRHistogram) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -1582,139 +1579,6 @@ func (m *SpanMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *CountValue) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *CountValue) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *CountValue) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.Value != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.Value))
-		i--
-		dAtA[i] = 0x10
-	}
-	if m.Count != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.Count))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *HDRHistogram) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *HDRHistogram) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *HDRHistogram) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.Buckets) > 0 {
-		var pksize2 int
-		for _, num := range m.Buckets {
-			pksize2 += sov(uint64(num))
-		}
-		i -= pksize2
-		j1 := i
-		for _, num1 := range m.Buckets {
-			num := uint64(num1)
-			for num >= 1<<7 {
-				dAtA[j1] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j1++
-			}
-			dAtA[j1] = uint8(num)
-			j1++
-		}
-		i = encodeVarint(dAtA, i, uint64(pksize2))
-		i--
-		dAtA[i] = 0x2a
-	}
-	if len(m.Counts) > 0 {
-		var pksize4 int
-		for _, num := range m.Counts {
-			pksize4 += sov(uint64(num))
-		}
-		i -= pksize4
-		j3 := i
-		for _, num1 := range m.Counts {
-			num := uint64(num1)
-			for num >= 1<<7 {
-				dAtA[j3] = uint8(uint64(num)&0x7f | 0x80)
-				num >>= 7
-				j3++
-			}
-			dAtA[j3] = uint8(num)
-			j3++
-		}
-		i = encodeVarint(dAtA, i, uint64(pksize4))
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.SignificantFigures != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.SignificantFigures))
-		i--
-		dAtA[i] = 0x18
-	}
-	if m.HighestTrackableValue != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.HighestTrackableValue))
-		i--
-		dAtA[i] = 0x10
-	}
-	if m.LowestTrackableValue != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.LowestTrackableValue))
-		i--
-		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
 func (m *Overflow) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
@@ -1795,6 +1659,109 @@ func (m *Overflow) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i = encodeVarint(dAtA, i, uint64(size))
 		i--
 		dAtA[i] = 0xa
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *Bar) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *Bar) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *Bar) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if m.Counts != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Counts))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.Bucket != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.Bucket))
+		i--
+		dAtA[i] = 0x8
+	}
+	return len(dAtA) - i, nil
+}
+
+func (m *HDRHistogram) MarshalVT() (dAtA []byte, err error) {
+	if m == nil {
+		return nil, nil
+	}
+	size := m.SizeVT()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *HDRHistogram) MarshalToVT(dAtA []byte) (int, error) {
+	size := m.SizeVT()
+	return m.MarshalToSizedBufferVT(dAtA[:size])
+}
+
+func (m *HDRHistogram) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+	if m == nil {
+		return 0, nil
+	}
+	i := len(dAtA)
+	_ = i
+	var l int
+	_ = l
+	if m.unknownFields != nil {
+		i -= len(m.unknownFields)
+		copy(dAtA[i:], m.unknownFields)
+	}
+	if len(m.Bars) > 0 {
+		for iNdEx := len(m.Bars) - 1; iNdEx >= 0; iNdEx-- {
+			size, err := m.Bars[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
+			if err != nil {
+				return 0, err
+			}
+			i -= size
+			i = encodeVarint(dAtA, i, uint64(size))
+			i--
+			dAtA[i] = 0x22
+		}
+	}
+	if m.SignificantFigures != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.SignificantFigures))
+		i--
+		dAtA[i] = 0x18
+	}
+	if m.HighestTrackableValue != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.HighestTrackableValue))
+		i--
+		dAtA[i] = 0x10
+	}
+	if m.LowestTrackableValue != 0 {
+		i = encodeVarint(dAtA, i, uint64(m.LowestTrackableValue))
+		i--
+		dAtA[i] = 0x8
 	}
 	return len(dAtA) - i, nil
 }
@@ -2165,48 +2132,6 @@ func SpanMetricsFromVTPool() *SpanMetrics {
 	return vtprotoPool_SpanMetrics.Get().(*SpanMetrics)
 }
 
-var vtprotoPool_CountValue = sync.Pool{
-	New: func() interface{} {
-		return &CountValue{}
-	},
-}
-
-func (m *CountValue) ResetVT() {
-	m.Reset()
-}
-func (m *CountValue) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_CountValue.Put(m)
-	}
-}
-func CountValueFromVTPool() *CountValue {
-	return vtprotoPool_CountValue.Get().(*CountValue)
-}
-
-var vtprotoPool_HDRHistogram = sync.Pool{
-	New: func() interface{} {
-		return &HDRHistogram{}
-	},
-}
-
-func (m *HDRHistogram) ResetVT() {
-	f0 := m.Counts[:0]
-	f1 := m.Buckets[:0]
-	m.Reset()
-	m.Counts = f0
-	m.Buckets = f1
-}
-func (m *HDRHistogram) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_HDRHistogram.Put(m)
-	}
-}
-func HDRHistogramFromVTPool() *HDRHistogram {
-	return vtprotoPool_HDRHistogram.Get().(*HDRHistogram)
-}
-
 var vtprotoPool_Overflow = sync.Pool{
 	New: func() interface{} {
 		return &Overflow{}
@@ -2233,6 +2158,50 @@ func (m *Overflow) ReturnToVTPool() {
 }
 func OverflowFromVTPool() *Overflow {
 	return vtprotoPool_Overflow.Get().(*Overflow)
+}
+
+var vtprotoPool_Bar = sync.Pool{
+	New: func() interface{} {
+		return &Bar{}
+	},
+}
+
+func (m *Bar) ResetVT() {
+	m.Reset()
+}
+func (m *Bar) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_Bar.Put(m)
+	}
+}
+func BarFromVTPool() *Bar {
+	return vtprotoPool_Bar.Get().(*Bar)
+}
+
+var vtprotoPool_HDRHistogram = sync.Pool{
+	New: func() interface{} {
+		return &HDRHistogram{}
+	},
+}
+
+func (m *HDRHistogram) ResetVT() {
+	for k, mm := range m.Bars {
+		mm.ReturnToVTPool()
+		m.Bars[k] = nil
+	}
+	f0 := m.Bars[:0]
+	m.Reset()
+	m.Bars = f0
+}
+func (m *HDRHistogram) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_HDRHistogram.Put(m)
+	}
+}
+func HDRHistogramFromVTPool() *HDRHistogram {
+	return vtprotoPool_HDRHistogram.Get().(*HDRHistogram)
 }
 func (m *CombinedMetrics) SizeVT() (n int) {
 	if m == nil {
@@ -2667,55 +2636,6 @@ func (m *SpanMetrics) SizeVT() (n int) {
 	return n
 }
 
-func (m *CountValue) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Count != 0 {
-		n += 1 + sov(uint64(m.Count))
-	}
-	if m.Value != 0 {
-		n += 1 + sov(uint64(m.Value))
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *HDRHistogram) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.LowestTrackableValue != 0 {
-		n += 1 + sov(uint64(m.LowestTrackableValue))
-	}
-	if m.HighestTrackableValue != 0 {
-		n += 1 + sov(uint64(m.HighestTrackableValue))
-	}
-	if m.SignificantFigures != 0 {
-		n += 1 + sov(uint64(m.SignificantFigures))
-	}
-	if len(m.Counts) > 0 {
-		l = 0
-		for _, e := range m.Counts {
-			l += sov(uint64(e))
-		}
-		n += 1 + sov(uint64(l)) + l
-	}
-	if len(m.Buckets) > 0 {
-		l = 0
-		for _, e := range m.Buckets {
-			l += sov(uint64(e))
-		}
-		n += 1 + sov(uint64(l)) + l
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
 func (m *Overflow) SizeVT() (n int) {
 	if m == nil {
 		return 0
@@ -2745,6 +2665,47 @@ func (m *Overflow) SizeVT() (n int) {
 	l = len(m.OverflowSpansEstimator)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *Bar) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Bucket != 0 {
+		n += 1 + sov(uint64(m.Bucket))
+	}
+	if m.Counts != 0 {
+		n += 1 + sov(uint64(m.Counts))
+	}
+	n += len(m.unknownFields)
+	return n
+}
+
+func (m *HDRHistogram) SizeVT() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.LowestTrackableValue != 0 {
+		n += 1 + sov(uint64(m.LowestTrackableValue))
+	}
+	if m.HighestTrackableValue != 0 {
+		n += 1 + sov(uint64(m.HighestTrackableValue))
+	}
+	if m.SignificantFigures != 0 {
+		n += 1 + sov(uint64(m.SignificantFigures))
+	}
+	if len(m.Bars) > 0 {
+		for _, e := range m.Bars {
+			l = e.SizeVT()
+			n += 1 + l + sov(uint64(l))
+		}
 	}
 	n += len(m.unknownFields)
 	return n
@@ -5699,355 +5660,6 @@ func (m *SpanMetrics) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *CountValue) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: CountValue: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: CountValue: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
-			}
-			m.Count = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Count |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
-			}
-			m.Value = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.Value |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *HDRHistogram) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: HDRHistogram: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: HDRHistogram: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field LowestTrackableValue", wireType)
-			}
-			m.LowestTrackableValue = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.LowestTrackableValue |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field HighestTrackableValue", wireType)
-			}
-			m.HighestTrackableValue = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.HighestTrackableValue |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 3:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SignificantFigures", wireType)
-			}
-			m.SignificantFigures = 0
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				m.SignificantFigures |= int64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-		case 4:
-			if wireType == 0 {
-				var v int64
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflow
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					v |= int64(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				m.Counts = append(m.Counts, v)
-			} else if wireType == 2 {
-				var packedLen int
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflow
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					packedLen |= int(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				if packedLen < 0 {
-					return ErrInvalidLength
-				}
-				postIndex := iNdEx + packedLen
-				if postIndex < 0 {
-					return ErrInvalidLength
-				}
-				if postIndex > l {
-					return io.ErrUnexpectedEOF
-				}
-				var elementCount int
-				var count int
-				for _, integer := range dAtA[iNdEx:postIndex] {
-					if integer < 128 {
-						count++
-					}
-				}
-				elementCount = count
-				if elementCount != 0 && len(m.Counts) == 0 && cap(m.Counts) < elementCount {
-					m.Counts = make([]int64, 0, elementCount)
-				}
-				for iNdEx < postIndex {
-					var v int64
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflow
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						v |= int64(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					m.Counts = append(m.Counts, v)
-				}
-			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Counts", wireType)
-			}
-		case 5:
-			if wireType == 0 {
-				var v int32
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflow
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					v |= int32(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				m.Buckets = append(m.Buckets, v)
-			} else if wireType == 2 {
-				var packedLen int
-				for shift := uint(0); ; shift += 7 {
-					if shift >= 64 {
-						return ErrIntOverflow
-					}
-					if iNdEx >= l {
-						return io.ErrUnexpectedEOF
-					}
-					b := dAtA[iNdEx]
-					iNdEx++
-					packedLen |= int(b&0x7F) << shift
-					if b < 0x80 {
-						break
-					}
-				}
-				if packedLen < 0 {
-					return ErrInvalidLength
-				}
-				postIndex := iNdEx + packedLen
-				if postIndex < 0 {
-					return ErrInvalidLength
-				}
-				if postIndex > l {
-					return io.ErrUnexpectedEOF
-				}
-				var elementCount int
-				var count int
-				for _, integer := range dAtA[iNdEx:postIndex] {
-					if integer < 128 {
-						count++
-					}
-				}
-				elementCount = count
-				if elementCount != 0 && len(m.Buckets) == 0 && cap(m.Buckets) < elementCount {
-					m.Buckets = make([]int32, 0, elementCount)
-				}
-				for iNdEx < postIndex {
-					var v int32
-					for shift := uint(0); ; shift += 7 {
-						if shift >= 64 {
-							return ErrIntOverflow
-						}
-						if iNdEx >= l {
-							return io.ErrUnexpectedEOF
-						}
-						b := dAtA[iNdEx]
-						iNdEx++
-						v |= int32(b&0x7F) << shift
-						if b < 0x80 {
-							break
-						}
-					}
-					m.Buckets = append(m.Buckets, v)
-				}
-			} else {
-				return fmt.Errorf("proto: wrong wireType = %d for field Buckets", wireType)
-			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -6285,6 +5897,244 @@ func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 			m.OverflowSpansEstimator = append(m.OverflowSpansEstimator[:0], dAtA[iNdEx:postIndex]...)
 			if m.OverflowSpansEstimator == nil {
 				m.OverflowSpansEstimator = []byte{}
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *Bar) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: Bar: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: Bar: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Bucket", wireType)
+			}
+			m.Bucket = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Bucket |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Counts", wireType)
+			}
+			m.Counts = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.Counts |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skip(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if (skippy < 0) || (iNdEx+skippy) < 0 {
+				return ErrInvalidLength
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *HDRHistogram) UnmarshalVT(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflow
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: HDRHistogram: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: HDRHistogram: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field LowestTrackableValue", wireType)
+			}
+			m.LowestTrackableValue = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.LowestTrackableValue |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 2:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HighestTrackableValue", wireType)
+			}
+			m.HighestTrackableValue = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.HighestTrackableValue |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 3:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field SignificantFigures", wireType)
+			}
+			m.SignificantFigures = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.SignificantFigures |= int64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Bars", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if len(m.Bars) == cap(m.Bars) {
+				m.Bars = append(m.Bars, &Bar{})
+			} else {
+				m.Bars = m.Bars[:len(m.Bars)+1]
+				if m.Bars[len(m.Bars)-1] == nil {
+					m.Bars[len(m.Bars)-1] = &Bar{}
+				}
+			}
+			if err := m.Bars[len(m.Bars)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
 			}
 			iNdEx = postIndex
 		default:

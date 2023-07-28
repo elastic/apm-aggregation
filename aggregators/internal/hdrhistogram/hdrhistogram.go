@@ -33,6 +33,8 @@ import (
 	"math"
 	"math/bits"
 	"time"
+
+	"golang.org/x/exp/slices"
 )
 
 const (
@@ -280,46 +282,59 @@ func getBucketCount() int32 {
 	return bucketsNeeded
 }
 
+// Bar represents a bar of histogram. Each bar has an bucket, representing
+// where the bar belongs to in the histogram range, and the count of values
+// in each bucket.
+type Bar struct {
+	Bucket int32
+	Counts int64
+}
+
 // HybridCountsRep represents a hybrid counts representation for
 // sparse histogram. It is optimized to record a single value as
 // integer type and more values as map.
 type HybridCountsRep struct {
 	bucket int32
 	value  int64
-	m      map[int32]int64
+	s      []Bar
 }
 
 // Add adds a new value to a bucket of given index.
 func (c *HybridCountsRep) Add(bucket int32, value int64) {
-	if c.m == nil && c.bucket == 0 && c.value == 0 {
+	if c.s == nil && c.bucket == 0 && c.value == 0 {
 		c.bucket = bucket
 		c.value = value
 		return
 	}
-	if c.m == nil {
-		c.m = make(map[int32]int64)
-		// automatic promotion to map
-		c.m[c.bucket] = c.value
+	if c.s == nil {
+		// automatic promotion to slice
+		c.s = make([]Bar, 0, 128) // TODO: Use pool
+		c.s = slices.Insert(c.s, 0, Bar{Bucket: c.bucket, Counts: c.value})
 		c.bucket, c.value = 0, 0
 	}
-	c.m[bucket] += value
+	at, found := slices.BinarySearchFunc(c.s, Bar{Bucket: bucket}, compareBar)
+	if found {
+		c.s[at].Counts += value
+		return
+	}
+	c.s = slices.Insert(c.s, at, Bar{Bucket: bucket, Counts: value})
 }
 
 // ForEach iterates over each bucket and calls the given function.
 func (c *HybridCountsRep) ForEach(f func(int32, int64)) {
-	if c.m == nil && (c.bucket != 0 || c.value != 0) {
+	if c.s == nil && (c.bucket != 0 || c.value != 0) {
 		f(c.bucket, c.value)
 		return
 	}
-	for k, v := range c.m {
-		f(k, v)
+	for i := range c.s {
+		f(c.s[i].Bucket, c.s[i].Counts)
 	}
 }
 
 // Len returns the number of buckets currently recording.
 func (c *HybridCountsRep) Len() int {
-	if c.m != nil {
-		return len(c.m)
+	if c.s != nil {
+		return len(c.s)
 	}
 	if c.bucket != 0 || c.value != 0 {
 		return 1
@@ -330,23 +345,24 @@ func (c *HybridCountsRep) Len() int {
 // Get returns the count of values in a given bucket along with a bool
 // which is false if the bucket is not found.
 func (c *HybridCountsRep) Get(bucket int32) (int64, bool) {
-	if c.m == nil {
+	if c.s == nil {
 		if c.bucket == bucket {
 			return c.value, true
 		}
 		return 0, false
 	}
-	val, ok := c.m[bucket]
-	return val, ok
+	at, found := slices.BinarySearchFunc(c.s, Bar{Bucket: bucket}, compareBar)
+	if found {
+		return c.s[at].Counts, true
+	}
+	return 0, false
 }
 
 // Reset resets the values recorded.
 func (c *HybridCountsRep) Reset() {
 	c.bucket = 0
 	c.value = 0
-	for k := range c.m {
-		delete(c.m, k)
-	}
+	c.s = c.s[:0]
 }
 
 // Equal returns true if same bucket and count is recorded in both.
@@ -365,4 +381,14 @@ func (c *HybridCountsRep) Equal(h *HybridCountsRep) bool {
 		}
 	})
 	return equal
+}
+
+func compareBar(a, b Bar) int {
+	if a.Bucket == b.Bucket {
+		return 0
+	}
+	if a.Bucket > b.Bucket {
+		return 1
+	}
+	return -1
 }

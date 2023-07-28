@@ -131,19 +131,6 @@ message SpanMetrics {
   double sum = 2;
 }
 
-message CountValue {
-  int64 count = 1;
-  int64 value = 2;
-}
-
-message HDRHistogram {
-  int64 lowest_trackable_value = 1;
-  int64 highest_trackable_value = 2;
-  int64 significant_figures = 3;
-  repeated int64 counts = 4;
-  repeated int32 buckets = 5;
-}
-
 message Overflow {
   TransactionMetrics overflow_transactions = 1;
   ServiceTransactionMetrics overflow_service_transactions = 2;
@@ -152,3 +139,16 @@ message Overflow {
   bytes overflow_service_transactions_estimator = 5;
   bytes overflow_spans_estimator = 6;
 }
+
+message Bar {
+  int32 bucket = 1;
+  int64 counts = 2;
+}
+
+message HDRHistogram {
+  int64 lowest_trackable_value = 1;
+  int64 highest_trackable_value = 2;
+  int64 significant_figures = 3;
+  repeated Bar bars = 4;
+}
+

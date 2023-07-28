@@ -6,9 +6,9 @@ package aggregators
 
 import (
 	"io"
-	"sync"
 
 	"github.com/axiomhq/hyperloglog"
+	"golang.org/x/exp/slices"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 )
@@ -407,40 +407,72 @@ func mergeSpanMetrics(to, from *aggregationpb.SpanMetrics) {
 	to.Sum += from.Sum
 }
 
-// mapPool is a pool of maps to facilitate histogram merges.
-var mapPool = sync.Pool{New: func() interface{} {
-	return make(map[int32]int64)
-}}
-
+// mergeHistogram merges two proto representation of HDRHistogram. The
+// merge assumes both histograms are created with same arguments and
+// that they their representations are sorted by bucket. `from` is
+// changed and should not be used after merge.
 func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
-	// Assume both histograms are created with same arguments
-	m := mapPool.Get().(map[int32]int64)
-	defer mapPool.Put(m)
-	for k := range m {
-		delete(m, k)
+	if len(from.Bars) == 0 {
+		return
 	}
 
-	for i := 0; i < len(to.Buckets); i++ {
-		m[to.Buckets[i]] = to.Counts[i]
-	}
-	for i := 0; i < len(from.Buckets); i++ {
-		m[from.Buckets[i]] += from.Counts[i]
-	}
-
-	if cap(to.Buckets) < len(m) {
-		to.Buckets = make([]int32, len(m))
-	}
-	if cap(to.Counts) < len(m) {
-		to.Counts = make([]int64, len(m))
+	if len(to.Bars) == 0 {
+		requiredLen := len(from.Bars)
+		to.Bars = slices.Grow(to.Bars, requiredLen)
+		for i := 0; i < requiredLen; i++ {
+			to.Bars = append(to.Bars, from.Bars[i])
+			from.Bars[i] = nil
+		}
+		from.Bars = from.Bars[:0]
+		return
 	}
 
-	to.Buckets = to.Buckets[:0]
-	to.Counts = to.Counts[:0]
-
-	for b, c := range m {
-		to.Buckets = append(to.Buckets, b)
-		to.Counts = append(to.Counts, c)
+	requiredLen := len(to.Bars) + len(from.Bars)
+	for toIdx, fromIdx := 0, 0; toIdx < len(to.Bars) && fromIdx < len(from.Bars); {
+		v := to.Bars[toIdx].Bucket - from.Bars[fromIdx].Bucket
+		switch {
+		case v == 0:
+			// For every bucket that is common, we need one less bucket in final slice
+			requiredLen--
+			toIdx++
+			fromIdx++
+		case v < 0:
+			toIdx++
+		case v > 0:
+			fromIdx++
+		}
 	}
+
+	toIdx, fromIdx := len(to.Bars)-1, len(from.Bars)-1
+	to.Bars = slices.Grow(to.Bars, requiredLen)
+	to.Bars = to.Bars[:requiredLen]
+	for idx := len(to.Bars) - 1; idx >= 0; idx-- {
+		if fromIdx < 0 {
+			break
+		}
+		if toIdx < 0 {
+			to.Bars[idx] = from.Bars[fromIdx]
+			from.Bars[fromIdx] = nil
+			fromIdx--
+			continue
+		}
+		v := to.Bars[toIdx].Bucket - from.Bars[fromIdx].Bucket
+		switch {
+		case v == 0:
+			to.Bars[toIdx].Counts += from.Bars[fromIdx].Counts
+			to.Bars[idx] = to.Bars[toIdx]
+			from.Bars[fromIdx] = nil
+			toIdx--
+			fromIdx--
+		case v > 0:
+			to.Bars[idx] = to.Bars[toIdx]
+			toIdx--
+		case v < 0:
+			to.Bars[idx] = from.Bars[fromIdx]
+			fromIdx--
+		}
+	}
+	from.Bars = from.Bars[:0]
 }
 
 // getServiceMetrics returns the service metric from a combined metrics based on the

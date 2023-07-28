@@ -426,10 +426,9 @@ func histogramFromProto(h *hdrhistogram.HistogramRepresentation, pb *aggregation
 	h.SignificantFigures = pb.SignificantFigures
 	h.CountsRep.Reset()
 
-	for i := 0; i < len(pb.Buckets); i++ {
-		bucket := pb.Buckets[i]
-		counts := pb.Counts[i]
-		h.CountsRep.Add(bucket, counts)
+	for i := 0; i < len(pb.Bars); i++ {
+		bar := pb.Bars[i]
+		h.CountsRep.Add(bar.Bucket, bar.Counts)
 	}
 }
 
@@ -442,15 +441,14 @@ func histogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 	pb.HighestTrackableValue = h.HighestTrackableValue
 	pb.SignificantFigures = h.SignificantFigures
 	countsLen := h.CountsRep.Len()
-	if countsLen > cap(pb.Buckets) {
-		pb.Buckets = make([]int32, 0, countsLen)
-	}
-	if countsLen > cap(pb.Counts) {
-		pb.Counts = make([]int64, 0, countsLen)
+	if countsLen > cap(pb.Bars) {
+		pb.Bars = make([]*aggregationpb.Bar, 0, countsLen)
 	}
 	h.CountsRep.ForEach(func(bucket int32, value int64) {
-		pb.Buckets = append(pb.Buckets, bucket)
-		pb.Counts = append(pb.Counts, value)
+		bar := aggregationpb.BarFromVTPool()
+		bar.Bucket = bucket
+		bar.Counts = value
+		pb.Bars = append(pb.Bars, bar)
 	})
 	return pb
 }
