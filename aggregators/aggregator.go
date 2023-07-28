@@ -9,9 +9,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"math"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/cockroachdb/pebble"
@@ -33,12 +31,9 @@ const (
 )
 
 var (
-	// ErrAggregatorStopped means that aggregator was stopped when the
+	// ErrAggregatorClosed means that aggregator was closed when the
 	// method was called and thus cannot be processed further.
-	ErrAggregatorStopped = errors.New("aggregator is stopping or stopped")
-	// ErrAggregatorAlreadyRunning means that aggregator Run method is
-	// called while the aggregator is already running.
-	ErrAggregatorAlreadyRunning = errors.New("aggregator is already running")
+	ErrAggregatorClosed = errors.New("aggregator is closed")
 )
 
 // Aggregator represents a LSM based aggregator instance to generate
@@ -59,79 +54,15 @@ type Aggregator struct {
 	batch          *pebble.Batch
 	cachedEvents   cachedEventsMap
 
-	stopping   chan struct{}
-	runStarted atomic.Bool
+	closed     chan struct{}
 	runStopped chan struct{}
 
 	metrics *telemetry.Metrics
 }
 
-// cachedEventsMap holds a counts of cached events, keyed by interval and ID.
-// Cached events are events that have been processed by Aggregate methods,
-// but which haven't yet been harvested. Event counts are fractional because
-// an event may be spread over multiple partitions.
-//
-// Access to the map is protected with a mutex. During harvest, an exclusive
-// (write) lock is held. Concurrent aggregations may perform atomic updates
-// to the map, and the harvester may assume that the map will not be modified
-// while it is reading it.
-type cachedEventsMap struct {
-	// (interval, id) -> count
-	m         sync.Map
-	countPool sync.Pool
-}
-
-func (m *cachedEventsMap) loadAndDelete(end time.Time) map[time.Duration]map[[16]byte]float64 {
-	loaded := make(map[time.Duration]map[[16]byte]float64)
-	m.m.Range(func(k, v any) bool {
-		key := k.(cachedEventsStatsKey)
-		if !end.Truncate(key.interval).Equal(end) {
-			return true
-		}
-		intervalMetrics, ok := loaded[key.interval]
-		if !ok {
-			intervalMetrics = make(map[[16]byte]float64)
-			loaded[key.interval] = intervalMetrics
-		}
-		vscaled := *v.(*uint64)
-		value := float64(vscaled / math.MaxUint16)
-		intervalMetrics[key.id] = value
-		m.m.Delete(k)
-		m.countPool.Put(v)
-		return true
-	})
-	return loaded
-}
-
-func (m *cachedEventsMap) add(interval time.Duration, id [16]byte, n float64) {
-	// We use a pool for the value to minimise allocations, as it will
-	// always escape to the heap through LoadOrStore.
-	nscaled, ok := m.countPool.Get().(*uint64)
-	if !ok {
-		nscaled = new(uint64)
-	}
-	// Scale by the maximum number of partitions to get an integer value,
-	// for simpler atomic operations.
-	*nscaled = uint64(n * math.MaxUint16)
-	key := cachedEventsStatsKey{interval: interval, id: id}
-	old, loaded := m.m.Load(key)
-	if !loaded {
-		old, loaded = m.m.LoadOrStore(key, nscaled)
-		if !loaded {
-			// Stored a new value.
-			return
-		}
-	}
-	atomic.AddUint64(old.(*uint64), *nscaled)
-	m.countPool.Put(nscaled)
-}
-
-type cachedEventsStatsKey struct {
-	interval time.Duration
-	id       [16]byte
-}
-
 // New returns a new aggregator instance.
+//
+// Close must be called when the the aggregator is no longer needed.
 func New(opts ...Option) (*Aggregator, error) {
 	cfg, err := NewConfig(opts...)
 	if err != nil {
@@ -176,8 +107,7 @@ func New(opts ...Option) (*Aggregator, error) {
 		writeOptions:   writeOptions,
 		cfg:            cfg,
 		processingTime: time.Now().Truncate(cfg.AggregationIntervals[0]),
-		stopping:       make(chan struct{}),
-		runStopped:     make(chan struct{}),
+		closed:         make(chan struct{}),
 		metrics:        metrics,
 	}, nil
 }
@@ -198,8 +128,8 @@ func (a *Aggregator) AggregateBatch(
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-a.stopping:
-		return ErrAggregatorStopped
+	case <-a.closed:
+		return ErrAggregatorClosed
 	default:
 	}
 
@@ -251,8 +181,8 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	select {
 	case <-ctx.Done():
 		return ctx.Err()
-	case <-a.stopping:
-		return ErrAggregatorStopped
+	case <-a.closed:
+		return ErrAggregatorClosed
 	default:
 	}
 
@@ -271,12 +201,16 @@ func (a *Aggregator) AggregateCombinedMetrics(
 
 // Run harvests the aggregated results periodically. For an aggregator,
 // Run must be called at-most once.
-// - Running more than once will return ErrAggregatorAlreadyRunning.
-// - Running after aggregator is stopped will return ErrAggregatorStopped.
+// - Running more than once will return an error
+// - Running after aggregator is stopped will return ErrAggregatorClosed.
 func (a *Aggregator) Run(ctx context.Context) error {
-	if !a.runStarted.CompareAndSwap(false, true) {
-		return ErrAggregatorAlreadyRunning
+	a.mu.Lock()
+	if a.runStopped != nil {
+		a.mu.Unlock()
+		return errors.New("aggregator is already running")
 	}
+	a.runStopped = make(chan struct{})
+	a.mu.Unlock()
 	defer close(a.runStopped)
 
 	to := a.processingTime.Add(a.cfg.AggregationIntervals[0])
@@ -286,8 +220,8 @@ func (a *Aggregator) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return ctx.Err()
-		case <-a.stopping:
-			return ErrAggregatorStopped
+		case <-a.closed:
+			return ErrAggregatorClosed
 		case <-timer.C:
 		}
 
@@ -306,31 +240,31 @@ func (a *Aggregator) Run(ctx context.Context) error {
 	}
 }
 
-// Stop stops the aggregator. Aggregations performed after calling Stop
-// will return an error. Stop can be called multiple times but concurrent
-// calls to stop will block.
-func (a *Aggregator) Stop(ctx context.Context) error {
-	ctx, span := a.cfg.Tracer.Start(ctx, "Aggregator.Stop")
+// Close commits and closes any buffered writes, stops any running harvester,
+// performs a final harvest, and closes the underlying database.
+//
+// No further writes may be performed after Close is called, and no further
+// harvests will be performed once Close returns.
+func (a *Aggregator) Close(ctx context.Context) error {
+	ctx, span := a.cfg.Tracer.Start(ctx, "Aggregator.Close")
 	defer span.End()
 
 	a.mu.Lock()
+	defer a.mu.Unlock()
+
 	select {
-	case <-a.stopping:
+	case <-a.closed:
 	default:
-		close(a.stopping)
+		a.cfg.Logger.Info("stopping aggregator")
+		close(a.closed)
 	}
-	a.mu.Unlock()
-	if a.runStarted.Load() {
+	if a.runStopped != nil {
 		select {
 		case <-ctx.Done():
 			return fmt.Errorf("context cancelled while waiting for run to complete: %w", ctx.Err())
 		case <-a.runStopped:
 		}
 	}
-
-	a.cfg.Logger.Info("stopping aggregator")
-	a.mu.Lock()
-	defer a.mu.Unlock()
 
 	if a.db != nil {
 		a.cfg.Logger.Info("running final aggregation")
