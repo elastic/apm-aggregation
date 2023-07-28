@@ -23,9 +23,9 @@ func TestMerge(t *testing.T) {
 	for _, tc := range []struct {
 		name     string
 		limits   Limits
-		to       func() CombinedMetrics
+		to       func() combinedMetrics
 		from     func() *aggregationpb.CombinedMetrics
-		expected func() CombinedMetrics
+		expected func() combinedMetrics
 	}{
 		{
 			name: "no_overflow_with_count_values",
@@ -39,42 +39,42 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           2,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(10)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(5)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(5)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(5)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(5)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(4)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(2)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(2)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(2)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(2)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
 					Get()
 			},
@@ -91,42 +91,42 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           2,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1000)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(500)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(500)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(500)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(500)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(4)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(2)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(2)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(2)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(2)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1004)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(502)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(502)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(502)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(502)).
 					Get()
 			},
@@ -143,42 +143,42 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           2,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(4)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(2)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(2)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(2)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(2)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1000)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(500)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(500)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(500)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(500)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1004)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(502)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(502)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(502)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(502)).
 					Get()
 			},
@@ -195,42 +195,42 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           2,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1400)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(700)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(700)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(700)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(700)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1000)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(500)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(500)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(500)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(500)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(2400)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(1200)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(1200)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(1200)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(1200)).
 					Get()
 			},
@@ -247,51 +247,51 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(10)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(5)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(24)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 					// no merge as span, transaction, and service transaction will overflow
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
 					// all span, transaction, and service transaction from _from_ will overflow
-					AddSpanOverflow(SpanAggregationKey{SpanName: ""}, WithSpanCount(5)).
+					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(5)).
 					AddServiceTransactionOverflow(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
 					AddTransactionOverflow(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(5)).
 					Get()
 			},
@@ -308,57 +308,57 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(34)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
-					AddSpanOverflow(SpanAggregationKey{SpanName: ""}, WithSpanCount(10)).
+					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(10)).
 					AddServiceTransactionOverflow(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(10)).
 					AddTransactionOverflow(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(10)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(10)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(5)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(44)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
-					AddSpanOverflow(SpanAggregationKey{SpanName: ""}, WithSpanCount(15)).
+					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(15)).
 					AddServiceTransactionOverflow(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(15),
 					).
 					AddTransactionOverflow(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(15),
 					).
 					Get()
@@ -376,62 +376,62 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(26)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(5)).
-					AddSpanOverflow(SpanAggregationKey{SpanName: ""}, WithSpanCount(8)).
+					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(8)).
 					AddServiceTransactionOverflow(
-						ServiceTransactionAggregationKey{TransactionType: "type3"},
+						serviceTransactionAggregationKey{TransactionType: "type3"},
 						WithTransactionCount(8)).
 					AddTransactionOverflow(
-						TransactionAggregationKey{TransactionName: "txn3", TransactionType: "type3"},
+						transactionAggregationKey{TransactionName: "txn3", TransactionType: "type3"},
 						WithTransactionCount(8)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(40)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
-					AddSpanOverflow(SpanAggregationKey{SpanName: ""}, WithSpanCount(13)).
+					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(13)).
 					AddServiceTransactionOverflow(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
 					AddTransactionOverflow(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(5)).
 					AddServiceTransactionOverflow(
-						ServiceTransactionAggregationKey{TransactionType: "type3"},
+						serviceTransactionAggregationKey{TransactionType: "type3"},
 						WithTransactionCount(8)).
 					AddTransactionOverflow(
-						TransactionAggregationKey{TransactionName: "txn3", TransactionType: "type3"},
+						transactionAggregationKey{TransactionName: "txn3", TransactionType: "type3"},
 						WithTransactionCount(8)).
 					Get()
 			},
@@ -448,17 +448,17 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(7)).
@@ -467,49 +467,49 @@ func TestMerge(t *testing.T) {
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(10)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(5)).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(5)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(5)).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(5)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(24))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(7))
 				// svc2 overflows
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
-					AddServiceInstanceMetricsOverflow(ServiceInstanceAggregationKey{}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+					AddServiceInstanceMetricsOverflow(serviceInstanceAggregationKey{}).
 					AddTransactionOverflow(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(5)).
 					AddServiceTransactionOverflow(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(5)).
 					AddSpanOverflow(
-						SpanAggregationKey{SpanName: "span1"}, WithSpanCount(5))
+						spanAggregationKey{SpanName: "span1"}, WithSpanCount(5))
 				return tcm.Get()
 			},
 		},
@@ -525,30 +525,30 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(111)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(222)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(333))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{})
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{})
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
-					AddServiceInstanceMetricsOverflow(ServiceInstanceAggregationKey{})
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+					AddServiceInstanceMetricsOverflow(serviceInstanceAggregationKey{})
 				return tcm.Get()
 			},
 		},
@@ -564,49 +564,49 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(14)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(10)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(5)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(24)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-					AddSpan(SpanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
-					AddSpanOverflow(SpanAggregationKey{SpanName: ""}, WithSpanCount(5)).
+					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(5)).
 					AddServiceTransactionOverflow(
-						ServiceTransactionAggregationKey{TransactionType: "type2"},
+						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
 					AddTransactionOverflow(
-						TransactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(5)).
 					Get()
 			},
@@ -623,23 +623,23 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    2,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{GlobalLabelsStr: "1"}).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{GlobalLabelsStr: "1"}).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(2)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{GlobalLabelsStr: "2"}).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{GlobalLabelsStr: "2"}).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(3))
-				sm := tcm.AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"})
-				sm.AddServiceInstanceMetrics(ServiceInstanceAggregationKey{GlobalLabelsStr: "1"})
-				sm.AddServiceInstanceMetrics(ServiceInstanceAggregationKey{GlobalLabelsStr: "2"})
+				sm := tcm.AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"})
+				sm.AddServiceInstanceMetrics(serviceInstanceAggregationKey{GlobalLabelsStr: "1"})
+				sm.AddServiceInstanceMetrics(serviceInstanceAggregationKey{GlobalLabelsStr: "2"})
 				return tcm.Get()
 			},
 		},
@@ -655,34 +655,34 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "1"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "1"}).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(2)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"}).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(3))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "1"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "1"})
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"})
 				return tcm.Get()
 			},
 		},
@@ -698,34 +698,34 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "1"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "1"}).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(2)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"}).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(3))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "1"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "1"})
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"})
 				return tcm.Get()
 			},
 		},
@@ -741,41 +741,41 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{GlobalLabelsStr: "1"}).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{GlobalLabelsStr: "1"}).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(1)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(2)).
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{GlobalLabelsStr: "2"}).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{GlobalLabelsStr: "2"}).
 					AddTransaction(
-						TransactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(2)).
 					GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(3))
 				tsm := tcm.
-					AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"})
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"})
 				tsm.
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "1"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "1"}).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(1))
 				tsm.
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"}).
 					AddTransactionOverflow(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(2))
@@ -794,96 +794,96 @@ func TestMerge(t *testing.T) {
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(1))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "1"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "1"}).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(1))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"})
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc3"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc3"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "3"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "3"})
 				return tcm.Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(2))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"}).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(2))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "3"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "3"})
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc3"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc3"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "3"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "3"})
 				return tcm.GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				tcm := NewTestCombinedMetrics(WithEventsTotal(3))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetrics(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "1"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "1"}).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(1))
 				tcm.
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"})
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"}).
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"}).
 					AddTransactionOverflow(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(2))
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "2"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "2"})
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "3"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "3"})
 				tcm.
 					AddServiceMetricsOverflow(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc3"}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc3"}).
 					AddServiceInstanceMetricsOverflow(
-						ServiceInstanceAggregationKey{GlobalLabelsStr: "3"})
+						serviceInstanceAggregationKey{GlobalLabelsStr: "3"})
 				return tcm.Get()
 			},
 		},
@@ -898,36 +898,36 @@ func TestMerge(t *testing.T) {
 				MaxServiceTransactionGroupsPerService: 1,
 				MaxServices:                           1,
 			},
-			to: func() CombinedMetrics {
+			to: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(7)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					Get()
 			},
 			from: func() *aggregationpb.CombinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(1)).GetProto()
 			},
-			expected: func() CombinedMetrics {
+			expected: func() combinedMetrics {
 				return NewTestCombinedMetrics(WithEventsTotal(8)).
 					AddServiceMetrics(
-						ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-					AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+						serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 					AddTransaction(
-						TransactionAggregationKey{
+						transactionAggregationKey{
 							TransactionName: "txn1",
 							TransactionType: "type1",
 						}, WithTransactionCount(7)).
 					AddServiceTransaction(
-						ServiceTransactionAggregationKey{TransactionType: "type1"},
+						serviceTransactionAggregationKey{TransactionType: "type1"},
 						WithTransactionCount(7)).
 					Get()
 			},
@@ -960,30 +960,30 @@ func TestCardinalityEstimationOnSubKeyCollision(t *testing.T) {
 	}
 	ts := time.Time{}
 	to := NewTestCombinedMetrics(WithEventsTotal(0)).
-		AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
-		AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
+		AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+		AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 		Get()
 	from1 := NewTestCombinedMetrics(WithEventsTotal(10)).
-		AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
-		AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-		AddSpan(SpanAggregationKey{}, WithSpanCount(5)).
-		AddTransaction(TransactionAggregationKey{
+		AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc2"}).
+		AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+		AddSpan(spanAggregationKey{}, WithSpanCount(5)).
+		AddTransaction(transactionAggregationKey{
 			TransactionName: "txn1",
 			TransactionType: "type1",
 		}, WithTransactionCount(5)).
-		AddServiceTransaction(ServiceTransactionAggregationKey{
+		AddServiceTransaction(serviceTransactionAggregationKey{
 			TransactionType: "type1",
 		}, WithTransactionCount(5)).
 		GetProto()
 	from2 := NewTestCombinedMetrics(WithEventsTotal(10)).
-		AddServiceMetrics(ServiceAggregationKey{Timestamp: ts, ServiceName: "svc3"}).
-		AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-		AddSpan(SpanAggregationKey{}, WithSpanCount(5)).
-		AddTransaction(TransactionAggregationKey{
+		AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc3"}).
+		AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+		AddSpan(spanAggregationKey{}, WithSpanCount(5)).
+		AddTransaction(transactionAggregationKey{
 			TransactionName: "txn1",
 			TransactionType: "type1",
 		}, WithTransactionCount(5)).
-		AddServiceTransaction(ServiceTransactionAggregationKey{
+		AddServiceTransaction(serviceTransactionAggregationKey{
 			TransactionType: "type1",
 		}, WithTransactionCount(5)).
 		GetProto()
@@ -1009,11 +1009,11 @@ func TestMergeHistogram(t *testing.T) {
 		hist2.RecordValues(v2, c2)
 	}
 
-	histproto1, histproto2 := HistogramToProto(hist1), HistogramToProto(hist2)
+	histproto1, histproto2 := histogramToProto(hist1), histogramToProto(hist2)
 	hist1.Merge(hist2)
 	mergeHistogram(histproto1, histproto2)
 	histActual := hdrhistogram.New()
-	HistogramFromProto(histActual, histproto1)
+	histogramFromProto(histActual, histproto1)
 
 	assert.Empty(t, cmp.Diff(
 		hist1,

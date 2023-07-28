@@ -176,26 +176,26 @@ func TestAggregateBatch(t *testing.T) {
 			},
 		},
 	}
-	sik := ServiceInstanceAggregationKey{GlobalLabelsStr: ""}
+	sik := serviceInstanceAggregationKey{GlobalLabelsStr: ""}
 	for i := 0; i < uniqueEventCount*repCount; i++ {
-		svcKey := ServiceAggregationKey{
+		svcKey := serviceAggregationKey{
 			Timestamp:   time.Unix(0, 0).UTC(),
 			ServiceName: fmt.Sprintf("svc%d", i%uniqueServices),
 		}
-		txKey := TransactionAggregationKey{
+		txKey := transactionAggregationKey{
 			TraceRoot:       true,
 			TransactionName: fmt.Sprintf("foo%d", i%uniqueEventCount),
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 			EventOutcome:    "success",
 		}
-		stxKey := ServiceTransactionAggregationKey{
+		stxKey := serviceTransactionAggregationKey{
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 		}
-		spanKey := SpanAggregationKey{
+		spanKey := spanAggregationKey{
 			SpanName: fmt.Sprintf("bar%d", i%uniqueEventCount),
 			Resource: "test_dest",
 		}
-		dssKey := SpanAggregationKey{
+		dssKey := spanAggregationKey{
 			SpanName: "",
 			Resource: fmt.Sprintf("dropped_dest_resource%d", i%uniqueEventCount),
 			Outcome:  "success",
@@ -1102,16 +1102,16 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 		ID:             EncodeToCombinedMetricsKeyID(b, "ab01"),
 	}
 	cm := NewTestCombinedMetrics(WithEventsTotal(1)).
-		AddServiceMetrics(ServiceAggregationKey{
+		AddServiceMetrics(serviceAggregationKey{
 			Timestamp:   time.Now(),
 			ServiceName: "test-svc",
 		}).
-		AddServiceInstanceMetrics(ServiceInstanceAggregationKey{}).
-		AddTransaction(TransactionAggregationKey{
+		AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+		AddTransaction(transactionAggregationKey{
 			TransactionName: "txntest",
 			TransactionType: "txntype",
 		}).
-		AddServiceTransaction(ServiceTransactionAggregationKey{
+		AddServiceTransaction(serviceTransactionAggregationKey{
 			TransactionType: "txntype",
 		}).
 		GetProto()

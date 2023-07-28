@@ -38,7 +38,7 @@ func WithYoungestEventTimestamp(ts time.Time) TestCombinedMetricsOpt {
 
 var defaultTestCombinedMetricsCfg = TestCombinedMetricsCfg{
 	eventsTotal:            1,
-	youngestEventTimestamp: time.Time{},
+	youngestEventTimestamp: time.Unix(0, 0).UTC(),
 }
 
 type TestTransactionCfg struct {
@@ -96,39 +96,39 @@ var defaultTestSpanCfg = TestSpanCfg{
 // TestCombinedMetrics creates combined metrics for testing. The creation logic
 // is arranged in a way to allow chained creation and addition of leaf nodes
 // to combined metrics.
-type TestCombinedMetrics CombinedMetrics
+type TestCombinedMetrics combinedMetrics
 
 func NewTestCombinedMetrics(opts ...TestCombinedMetricsOpt) *TestCombinedMetrics {
 	cfg := defaultTestCombinedMetricsCfg
 	for _, opt := range opts {
 		cfg = opt(cfg)
 	}
-	var cm CombinedMetrics
+	var cm combinedMetrics
 	cm.EventsTotal = cfg.eventsTotal
 	cm.YoungestEventTimestamp = timestamppb.TimeToPBTimestamp(cfg.youngestEventTimestamp)
-	cm.Services = make(map[ServiceAggregationKey]ServiceMetrics)
+	cm.Services = make(map[serviceAggregationKey]serviceMetrics)
 	return (*TestCombinedMetrics)(&cm)
 }
 
 func (tcm *TestCombinedMetrics) GetProto() *aggregationpb.CombinedMetrics {
-	cm := (*CombinedMetrics)(tcm)
+	cm := (*combinedMetrics)(tcm)
 	cmproto := cm.ToProto()
 	return cmproto
 }
 
-func (tcm *TestCombinedMetrics) Get() CombinedMetrics {
-	cm := (*CombinedMetrics)(tcm)
+func (tcm *TestCombinedMetrics) Get() combinedMetrics {
+	cm := (*combinedMetrics)(tcm)
 	return *cm
 }
 
 type TestServiceMetrics struct {
-	sk       ServiceAggregationKey
+	sk       serviceAggregationKey
 	tcm      *TestCombinedMetrics
 	overflow bool // indicates if the service has overflowed to global
 }
 
 func (tcm *TestCombinedMetrics) AddServiceMetrics(
-	sk ServiceAggregationKey,
+	sk serviceAggregationKey,
 ) *TestServiceMetrics {
 	if _, ok := tcm.Services[sk]; !ok {
 		tcm.Services[sk] = newServiceMetrics()
@@ -137,7 +137,7 @@ func (tcm *TestCombinedMetrics) AddServiceMetrics(
 }
 
 func (tcm *TestCombinedMetrics) AddServiceMetricsOverflow(
-	sk ServiceAggregationKey,
+	sk serviceAggregationKey,
 ) *TestServiceMetrics {
 	if _, ok := tcm.Services[sk]; ok {
 		panic("service already added as non overflow")
@@ -148,13 +148,13 @@ func (tcm *TestCombinedMetrics) AddServiceMetricsOverflow(
 }
 
 type TestServiceInstanceMetrics struct {
-	sik      ServiceInstanceAggregationKey
+	sik      serviceInstanceAggregationKey
 	tsm      *TestServiceMetrics
 	overflow bool // indicates if the service instance has overflowed to global
 }
 
 func (tsm *TestServiceMetrics) AddServiceInstanceMetrics(
-	sik ServiceInstanceAggregationKey,
+	sik serviceInstanceAggregationKey,
 ) *TestServiceInstanceMetrics {
 	svc := tsm.tcm.Services[tsm.sk]
 	if _, ok := svc.ServiceInstanceGroups[sik]; !ok {
@@ -167,7 +167,7 @@ func (tsm *TestServiceMetrics) AddServiceInstanceMetrics(
 }
 
 func (tsm *TestServiceMetrics) AddServiceInstanceMetricsOverflow(
-	sik ServiceInstanceAggregationKey,
+	sik serviceInstanceAggregationKey,
 ) *TestServiceInstanceMetrics {
 	if !tsm.overflow {
 		svc := tsm.tcm.Services[tsm.sk]
@@ -190,16 +190,8 @@ func (tsm *TestServiceMetrics) AddServiceInstanceMetricsOverflow(
 	}
 }
 
-func (tsim *TestServiceInstanceMetrics) GetProto() *aggregationpb.CombinedMetrics {
-	return tsim.tsm.tcm.GetProto()
-}
-
-func (tsim *TestServiceInstanceMetrics) Get() CombinedMetrics {
-	return tsim.tsm.tcm.Get()
-}
-
 func (tsim *TestServiceInstanceMetrics) AddTransaction(
-	tk TransactionAggregationKey,
+	tk transactionAggregationKey,
 	opts ...TestTransactionOpt,
 ) *TestServiceInstanceMetrics {
 	if tsim.overflow {
@@ -215,7 +207,7 @@ func (tsim *TestServiceInstanceMetrics) AddTransaction(
 	ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
 	ktm.Key = tk.ToProto()
 	ktm.Metrics = aggregationpb.TransactionMetricsFromVTPool()
-	ktm.Metrics.Histogram = HistogramToProto(hdr)
+	ktm.Metrics.Histogram = histogramToProto(hdr)
 
 	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
 	svcIns := svc.ServiceInstanceGroups[tsim.sik]
@@ -228,7 +220,7 @@ func (tsim *TestServiceInstanceMetrics) AddTransaction(
 }
 
 func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
-	tk TransactionAggregationKey,
+	tk transactionAggregationKey,
 	opts ...TestTransactionOpt,
 ) *TestServiceInstanceMetrics {
 	cfg := defaultTestTransactionCfg
@@ -239,7 +231,7 @@ func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
 	hdr := hdrhistogram.New()
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
 	from := aggregationpb.TransactionMetricsFromVTPool()
-	from.Histogram = HistogramToProto(hdr)
+	from.Histogram = histogramToProto(hdr)
 
 	hash := Hasher{}.
 		Chain(tsim.tsm.sk.ToProto()).
@@ -259,7 +251,7 @@ func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
 }
 
 func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
-	stk ServiceTransactionAggregationKey,
+	stk serviceTransactionAggregationKey,
 	opts ...TestTransactionOpt,
 ) *TestServiceInstanceMetrics {
 	cfg := defaultTestTransactionCfg
@@ -272,7 +264,7 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
 	kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
 	kstm.Key = stk.ToProto()
 	kstm.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
-	kstm.Metrics.Histogram = HistogramToProto(hdr)
+	kstm.Metrics.Histogram = histogramToProto(hdr)
 	kstm.Metrics.SuccessCount += float64(cfg.count)
 
 	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
@@ -286,7 +278,7 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
 }
 
 func (tsim *TestServiceInstanceMetrics) AddServiceTransactionOverflow(
-	stk ServiceTransactionAggregationKey,
+	stk serviceTransactionAggregationKey,
 	opts ...TestTransactionOpt,
 ) *TestServiceInstanceMetrics {
 	cfg := defaultTestTransactionCfg
@@ -297,7 +289,7 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransactionOverflow(
 	hdr := hdrhistogram.New()
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
 	from := aggregationpb.ServiceTransactionMetricsFromVTPool()
-	from.Histogram = HistogramToProto(hdr)
+	from.Histogram = histogramToProto(hdr)
 	from.SuccessCount += float64(cfg.count)
 
 	hash := Hasher{}.
@@ -318,7 +310,7 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransactionOverflow(
 }
 
 func (tsim *TestServiceInstanceMetrics) AddSpan(
-	spk SpanAggregationKey,
+	spk spanAggregationKey,
 	opts ...TestSpanOpt,
 ) *TestServiceInstanceMetrics {
 	cfg := defaultTestSpanCfg
@@ -343,7 +335,7 @@ func (tsim *TestServiceInstanceMetrics) AddSpan(
 }
 
 func (tsim *TestServiceInstanceMetrics) AddSpanOverflow(
-	spk SpanAggregationKey,
+	spk spanAggregationKey,
 	opts ...TestSpanOpt,
 ) *TestServiceInstanceMetrics {
 	cfg := defaultTestSpanCfg
@@ -370,6 +362,14 @@ func (tsim *TestServiceInstanceMetrics) AddSpanOverflow(
 		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
 	}
 	return tsim
+}
+
+func (tsim *TestServiceInstanceMetrics) GetProto() *aggregationpb.CombinedMetrics {
+	return tsim.tsm.tcm.GetProto()
+}
+
+func (tsim *TestServiceInstanceMetrics) Get() combinedMetrics {
+	return tsim.tsm.tcm.Get()
 }
 
 // Set of cmp options to sort combined metrics based on key hash. Hash collisions

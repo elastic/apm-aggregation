@@ -323,7 +323,7 @@ func eventToTxnMetrics(
 	*aggregationpb.ServiceInstanceMetrics,
 ) {
 	tm := aggregationpb.TransactionMetricsFromVTPool()
-	tm.Histogram = HistogramToProto(hdr)
+	tm.Histogram = histogramToProto(hdr)
 
 	txnKey := transactionKey(e)
 	ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
@@ -344,7 +344,7 @@ func eventToServiceTxnMetrics(
 	*aggregationpb.ServiceInstanceMetrics,
 ) {
 	stm := aggregationpb.ServiceTransactionMetricsFromVTPool()
-	stm.Histogram = HistogramToProto(hdr)
+	stm.Histogram = histogramToProto(hdr)
 	setMetricCountBasedOnOutcome(stm, e)
 
 	svcTxnKey := serviceTransactionKey(e)
@@ -445,7 +445,7 @@ func txnMetricsToAPMEvent(
 	intervalStr string,
 ) {
 	histogram := hdrhistogram.New()
-	HistogramFromProto(histogram, metrics.Histogram)
+	histogramFromProto(histogram, metrics.Histogram)
 	totalCount, counts, values := histogram.Buckets()
 	var eventSuccessCount modelpb.SummaryMetric
 	switch key.EventOutcome {
@@ -579,7 +579,7 @@ func svcTxnMetricsToAPMEvent(
 	intervalStr string,
 ) {
 	histogram := hdrhistogram.New()
-	HistogramFromProto(histogram, metrics.Histogram)
+	histogramFromProto(histogram, metrics.Histogram)
 	totalCount, counts, values := histogram.Buckets()
 	transactionDurationSummary := modelpb.SummaryMetric{
 		Count: totalCount,
