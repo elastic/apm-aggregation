@@ -38,7 +38,9 @@ func (m *combinedMetricsMerger) MergeOlder(value []byte) error {
 }
 
 func (m *combinedMetricsMerger) Finish(includesBase bool) ([]byte, io.Closer, error) {
-	data, err := m.metrics.MarshalBinary()
+	pb := m.metrics.ToProto()
+	defer pb.ReturnToVTPool()
+	data, err := pb.MarshalVT()
 	return data, nil, err
 }
 
