@@ -771,7 +771,7 @@ func TestHarvest(t *testing.T) {
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 270},
+				"aggregator.bytes.ingested": {Value: 258},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},

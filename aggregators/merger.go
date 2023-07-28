@@ -409,8 +409,8 @@ func mergeSpanMetrics(to, from *aggregationpb.SpanMetrics) {
 
 // mergeHistogram merges two proto representation of HDRHistogram. The
 // merge assumes both histograms are created with same arguments and
-// that they their representations are sorted by bucket. `from` is
-// changed and should not be used after merge.
+// their representations are sorted by bucket. `from` is changed and
+// should not be used after merge.
 func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 	if len(from.Bars) == 0 {
 		return
@@ -469,6 +469,7 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 			toIdx--
 		case v < 0:
 			to.Bars[idx] = from.Bars[fromIdx]
+			from.Bars[fromIdx] = nil
 			fromIdx--
 		}
 	}
