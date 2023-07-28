@@ -93,6 +93,9 @@ func BenchmarkNDJSON(b *testing.B) {
 			batch = ndjsonFileToBatch(bufio.NewReader(f))
 
 			agg := newTestAggregator(b)
+			b.Cleanup(func() {
+				agg.Close(context.TODO())
+			})
 			cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
 			b.ResetTimer()
 
@@ -101,7 +104,7 @@ func BenchmarkNDJSON(b *testing.B) {
 					b.Fatal(err)
 				}
 			}
-			flushTestAggregator(b, agg)
+
 		})
 	}
 }
@@ -140,6 +143,9 @@ func BenchmarkNDJSONParallel(b *testing.B) {
 			batch = ndjsonFileToBatch(bufio.NewReader(f))
 
 			agg := newTestAggregator(b)
+			b.Cleanup(func() {
+				agg.Close(context.TODO())
+			})
 			cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
 			b.ResetTimer()
 
@@ -150,7 +156,6 @@ func BenchmarkNDJSONParallel(b *testing.B) {
 					}
 				}
 			})
-			flushTestAggregator(b, agg)
 		})
 	}
 }
