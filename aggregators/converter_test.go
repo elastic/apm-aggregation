@@ -445,9 +445,12 @@ func BenchmarkCombinedMetricsToBatch(b *testing.B) {
 	cm := tcm.GetProto()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		_, err := CombinedMetricsToBatch(cm, pt, ai)
+		batch, err := CombinedMetricsToBatch(cm, pt, ai)
 		if err != nil {
 			b.Fatal(err)
+		}
+		for _, e := range *batch {
+			e.ReturnToVTPool()
 		}
 	}
 }
