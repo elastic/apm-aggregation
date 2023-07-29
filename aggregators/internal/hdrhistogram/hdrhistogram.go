@@ -213,14 +213,6 @@ func (i *iterator) jump(count int) bool {
 	return true
 }
 
-func (i *iterator) next() bool {
-	if !i.nextCountAtIdx() {
-		return false
-	}
-	i.highestEquivalentValue = i.h.highestEquivalentValue(i.valueFromIdx)
-	return true
-}
-
 func (i *iterator) nextCountAtIdx() bool {
 	// increment bucket
 	i.subBucketIdx++
