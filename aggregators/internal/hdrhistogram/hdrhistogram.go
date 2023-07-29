@@ -122,23 +122,21 @@ func (h *HistogramRepresentation) Buckets() (int64, []int64, []float64) {
 	values := make([]float64, 0, h.CountsRep.Len())
 
 	var totalCount int64
-	var bucketsSeen int
+	var prevBucket int32
 	iter := h.iterator()
-	// TODO @lahsivjar: Optimize to use sorted slice representation.
-	for idx := 0; iter.next(); idx++ {
-		if bucketsSeen == h.CountsRep.Len() {
-			break
+	iter.nextCountAtIdx()
+	h.CountsRep.ForEach(func(bucket int32, scaledCounts int64) {
+		if scaledCounts <= 0 {
+			return
 		}
-		scaledCount, ok := h.CountsRep.Get(int32(idx))
-		if !ok || scaledCount <= 0 {
-			continue
+		if iter.jump(int(bucket - prevBucket)) {
+			count := int64(math.Round(float64(scaledCounts) / histogramCountScale))
+			counts = append(counts, count)
+			values = append(values, float64(iter.highestEquivalentValue))
+			totalCount += count
 		}
-		bucketsSeen++
-		count := int64(math.Round(float64(scaledCount) / histogramCountScale))
-		counts = append(counts, count)
-		values = append(values, float64(iter.highestEquivalentValue))
-		totalCount += count
-	}
+		prevBucket = bucket
+	})
 	return totalCount, counts, values
 }
 
@@ -202,6 +200,17 @@ type iterator struct {
 	bucketIdx, subBucketIdx int32
 	valueFromIdx            int64
 	highestEquivalentValue  int64
+}
+
+// jump jumps the iterator by count
+func (i *iterator) jump(count int) bool {
+	for c := 0; c < count; c++ {
+		if !i.nextCountAtIdx() {
+			return false
+		}
+	}
+	i.highestEquivalentValue = i.h.highestEquivalentValue(i.valueFromIdx)
+	return true
 }
 
 func (i *iterator) next() bool {
