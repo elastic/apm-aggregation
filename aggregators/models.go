@@ -112,9 +112,9 @@ type combinedMetrics struct {
 	YoungestEventTimestamp uint64
 
 	// Cached counts for number of total groups
-	TotalTransactionGroups        uint32
-	TotalServiceTransactionGroups uint32
-	TotalSpanGroups               uint32
+	TotalTransactionGroups        int
+	TotalServiceTransactionGroups int
+	TotalSpanGroups               int
 }
 
 // serviceAggregationKey models the key used to store service specific
