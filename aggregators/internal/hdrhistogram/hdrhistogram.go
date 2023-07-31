@@ -282,10 +282,10 @@ func getBucketCount() int32 {
 	return bucketsNeeded
 }
 
-// Bar represents a bar of histogram. Each bar has a bucket, representing
+// bar represents a bar of histogram. Each bar has a bucket, representing
 // where the bar belongs to in the histogram range, and the count of values
 // in each bucket.
-type Bar struct {
+type bar struct {
 	Bucket int32
 	Count  int64
 }
@@ -296,7 +296,7 @@ type Bar struct {
 type HybridCountsRep struct {
 	bucket int32
 	value  int64
-	s      []Bar
+	s      []bar
 }
 
 // Add adds a new value to a bucket of given index.
@@ -308,16 +308,16 @@ func (c *HybridCountsRep) Add(bucket int32, value int64) {
 	}
 	if c.s == nil {
 		// automatic promotion to slice
-		c.s = make([]Bar, 0, 128) // TODO: Use pool
-		c.s = slices.Insert(c.s, 0, Bar{Bucket: c.bucket, Count: c.value})
+		c.s = make([]bar, 0, 128) // TODO: Use pool
+		c.s = slices.Insert(c.s, 0, bar{Bucket: c.bucket, Count: c.value})
 		c.bucket, c.value = 0, 0
 	}
-	at, found := slices.BinarySearchFunc(c.s, Bar{Bucket: bucket}, compareBar)
+	at, found := slices.BinarySearchFunc(c.s, bar{Bucket: bucket}, compareBar)
 	if found {
 		c.s[at].Count += value
 		return
 	}
-	c.s = slices.Insert(c.s, at, Bar{Bucket: bucket, Count: value})
+	c.s = slices.Insert(c.s, at, bar{Bucket: bucket, Count: value})
 }
 
 // ForEach iterates over each bucket and calls the given function.
@@ -351,7 +351,7 @@ func (c *HybridCountsRep) Get(bucket int32) (int64, bool) {
 		}
 		return 0, false
 	}
-	at, found := slices.BinarySearchFunc(c.s, Bar{Bucket: bucket}, compareBar)
+	at, found := slices.BinarySearchFunc(c.s, bar{Bucket: bucket}, compareBar)
 	if found {
 		return c.s[at].Count, true
 	}
@@ -383,7 +383,7 @@ func (c *HybridCountsRep) Equal(h *HybridCountsRep) bool {
 	return equal
 }
 
-func compareBar(a, b Bar) int {
+func compareBar(a, b bar) int {
 	if a.Bucket == b.Bucket {
 		return 0
 	}
