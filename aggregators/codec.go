@@ -427,9 +427,7 @@ func histogramFromProto(h *hdrhistogram.HistogramRepresentation, pb *aggregation
 	h.CountsRep.Reset()
 
 	for i := 0; i < len(pb.Buckets); i++ {
-		bucket := pb.Buckets[i]
-		counts := pb.Counts[i]
-		h.CountsRep.Add(bucket, counts)
+		h.CountsRep.Add(pb.Buckets[i], pb.Counts[i])
 	}
 }
 
@@ -455,9 +453,9 @@ func setHistogramProto(h *hdrhistogram.HistogramRepresentation, pb *aggregationp
 	if countsLen > cap(pb.Counts) {
 		pb.Counts = make([]int64, 0, countsLen)
 	}
-	h.CountsRep.ForEach(func(bucket int32, value int64) {
+	h.CountsRep.ForEach(func(bucket int32, count int64) {
 		pb.Buckets = append(pb.Buckets, bucket)
-		pb.Counts = append(pb.Counts, value)
+		pb.Counts = append(pb.Counts, count)
 	})
 }
 

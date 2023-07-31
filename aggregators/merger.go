@@ -6,9 +6,9 @@ package aggregators
 
 import (
 	"io"
-	"sync"
 
 	"github.com/axiomhq/hyperloglog"
+	"golang.org/x/exp/slices"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 )
@@ -407,39 +407,68 @@ func mergeSpanMetrics(to, from *aggregationpb.SpanMetrics) {
 	to.Sum += from.Sum
 }
 
-// mapPool is a pool of maps to facilitate histogram merges.
-var mapPool = sync.Pool{New: func() interface{} {
-	return make(map[int32]int64)
-}}
-
+// mergeHistogram merges two proto representation of HDRHistogram. The
+// merge assumes both histograms are created with same arguments and
+// their representations are sorted by bucket.
 func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
-	// Assume both histograms are created with same arguments
-	m := mapPool.Get().(map[int32]int64)
-	defer mapPool.Put(m)
-	for k := range m {
-		delete(m, k)
+	if len(from.Buckets) == 0 {
+		return
 	}
 
-	for i := 0; i < len(to.Buckets); i++ {
-		m[to.Buckets[i]] = to.Counts[i]
-	}
-	for i := 0; i < len(from.Buckets); i++ {
-		m[from.Buckets[i]] += from.Counts[i]
-	}
-
-	if cap(to.Buckets) < len(m) {
-		to.Buckets = make([]int32, len(m))
-	}
-	if cap(to.Counts) < len(m) {
-		to.Counts = make([]int64, len(m))
+	if len(to.Buckets) == 0 {
+		to.Buckets = append(to.Buckets, from.Buckets...)
+		to.Counts = append(to.Counts, from.Counts...)
+		return
 	}
 
-	to.Buckets = to.Buckets[:0]
-	to.Counts = to.Counts[:0]
+	requiredLen := len(to.Buckets) + len(from.Buckets)
+	for toIdx, fromIdx := 0, 0; toIdx < len(to.Buckets) && fromIdx < len(from.Buckets); {
+		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
+		switch {
+		case v == 0:
+			// For every bucket that is common, we need one less bucket in final slice
+			requiredLen--
+			toIdx++
+			fromIdx++
+		case v < 0:
+			toIdx++
+		case v > 0:
+			fromIdx++
+		}
+	}
 
-	for b, c := range m {
-		to.Buckets = append(to.Buckets, b)
-		to.Counts = append(to.Counts, c)
+	toIdx, fromIdx := len(to.Buckets)-1, len(from.Buckets)-1
+	to.Buckets = slices.Grow(to.Buckets, requiredLen)
+	to.Counts = slices.Grow(to.Counts, requiredLen)
+	to.Buckets = to.Buckets[:requiredLen]
+	to.Counts = to.Counts[:requiredLen]
+	for idx := len(to.Buckets) - 1; idx >= 0; idx-- {
+		if fromIdx < 0 {
+			break
+		}
+		if toIdx < 0 {
+			to.Counts[idx] = from.Counts[fromIdx]
+			to.Buckets[idx] = from.Buckets[fromIdx]
+			fromIdx--
+			continue
+		}
+		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
+		switch {
+		case v == 0:
+			to.Counts[toIdx] += from.Counts[fromIdx]
+			to.Counts[idx] = to.Counts[toIdx]
+			to.Buckets[idx] = to.Buckets[toIdx]
+			toIdx--
+			fromIdx--
+		case v > 0:
+			to.Counts[idx] = to.Counts[toIdx]
+			to.Buckets[idx] = to.Buckets[toIdx]
+			toIdx--
+		case v < 0:
+			to.Counts[idx] = from.Counts[fromIdx]
+			to.Buckets[idx] = from.Buckets[fromIdx]
+			fromIdx--
+		}
 	}
 }
 
