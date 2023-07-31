@@ -70,8 +70,8 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 		m.metrics.Services = make(map[serviceAggregationKey]serviceMetrics)
 	}
 
-	// Calculate the current capacity of the transaction, service transaction,
-	// and span groups in the _to_ combined metrics.
+	// Use the cached counts of the transaction, service transaction, and span groups
+	// in the _to_ combined metrics for overflow detection.
 	totalTransactionGroupsConstraint := newConstraint(m.metrics.TotalTransactionGroups, m.limits.MaxTransactionGroups)
 	totalServiceTransactionGroupsConstraint := newConstraint(m.metrics.TotalServiceTransactionGroups, m.limits.MaxServiceTransactionGroups)
 	totalSpanGroupsConstraint := newConstraint(m.metrics.TotalSpanGroups, m.limits.MaxSpanGroups)
@@ -117,6 +117,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 		m.metrics.Services[sk] = toSvc
 	}
 
+	// Update cached counts after merging groups.
 	m.metrics.TotalTransactionGroups = totalTransactionGroupsConstraint.value()
 	m.metrics.TotalServiceTransactionGroups = totalServiceTransactionGroupsConstraint.value()
 	m.metrics.TotalSpanGroups = totalSpanGroupsConstraint.value()
