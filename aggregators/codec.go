@@ -427,9 +427,7 @@ func histogramFromProto(h *hdrhistogram.HistogramRepresentation, pb *aggregation
 	h.CountsRep.Reset()
 
 	for i := 0; i < len(pb.Buckets); i++ {
-		bucket := pb.Buckets[i]
-		counts := pb.Counts[i]
-		h.CountsRep.Add(bucket, counts)
+		h.CountsRep.Add(pb.Buckets[i], pb.Counts[i])
 	}
 }
 
@@ -438,9 +436,16 @@ func histogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 		return nil
 	}
 	pb := aggregationpb.HDRHistogramFromVTPool()
+	setHistogramProto(h, pb)
+	return pb
+}
+
+func setHistogramProto(h *hdrhistogram.HistogramRepresentation, pb *aggregationpb.HDRHistogram) {
 	pb.LowestTrackableValue = h.LowestTrackableValue
 	pb.HighestTrackableValue = h.HighestTrackableValue
 	pb.SignificantFigures = h.SignificantFigures
+	pb.Buckets = pb.Buckets[:0]
+	pb.Counts = pb.Counts[:0]
 	countsLen := h.CountsRep.Len()
 	if countsLen > cap(pb.Buckets) {
 		pb.Buckets = make([]int32, 0, countsLen)
@@ -448,11 +453,10 @@ func histogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 	if countsLen > cap(pb.Counts) {
 		pb.Counts = make([]int64, 0, countsLen)
 	}
-	h.CountsRep.ForEach(func(bucket int32, value int64) {
+	h.CountsRep.ForEach(func(bucket int32, count int64) {
 		pb.Buckets = append(pb.Buckets, bucket)
-		pb.Counts = append(pb.Counts, value)
+		pb.Counts = append(pb.Counts, count)
 	})
-	return pb
 }
 
 func hllBytes(estimator *hyperloglog.Sketch) []byte {
