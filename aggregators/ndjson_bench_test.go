@@ -3,6 +3,7 @@ package aggregators
 import (
 	"bufio"
 	"context"
+	"fmt"
 	"io"
 	"io/fs"
 	"math"
@@ -17,10 +18,10 @@ import (
 	"google.golang.org/protobuf/types/known/timestamppb"
 )
 
-func ndjsonFileToBatch(reader io.Reader) *modelpb.Batch {
+func ndjsonToBatch(reader io.Reader) (*modelpb.Batch, error) {
 	logger, err := zap.NewDevelopment()
 	if err != nil {
-		panic(err)
+		return nil, err
 	}
 	elasticapmProcessor := elasticapm.NewProcessor(elasticapm.Config{
 		Logger:       logger,
@@ -55,9 +56,9 @@ func ndjsonFileToBatch(reader io.Reader) *modelpb.Batch {
 		processor,
 		&elasticapmResult,
 	); err != nil {
-		logger.Error("stream error", zap.Error(err))
+		return nil, fmt.Errorf("stream error: %w", err)
 	}
-	return &batch
+	return &batch, nil
 }
 
 func BenchmarkNDJSONSerial(b *testing.B) {
@@ -74,7 +75,10 @@ func BenchmarkNDJSONSerial(b *testing.B) {
 			}
 			defer f.Close()
 
-			batch := ndjsonFileToBatch(bufio.NewReader(f))
+			batch, err := ndjsonToBatch(bufio.NewReader(f))
+			if err != nil {
+				b.Fatal(err)
+			}
 
 			agg := newTestAggregator(b)
 			b.Cleanup(func() {
@@ -107,7 +111,10 @@ func BenchmarkNDJSONParallel(b *testing.B) {
 			}
 			defer f.Close()
 
-			batch := ndjsonFileToBatch(bufio.NewReader(f))
+			batch, err := ndjsonToBatch(bufio.NewReader(f))
+			if err != nil {
+				b.Fatal(err)
+			}
 
 			agg := newTestAggregator(b)
 			b.Cleanup(func() {
