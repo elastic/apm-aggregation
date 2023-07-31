@@ -11,11 +11,13 @@ import (
 	"golang.org/x/exp/slices"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
+	"github.com/elastic/apm-aggregation/aggregators/internal/constraint"
 )
 
 type combinedMetricsMerger struct {
-	limits  Limits
-	metrics combinedMetrics
+	limits      Limits
+	constraints constraints
+	metrics     combinedMetrics
 }
 
 func (m *combinedMetricsMerger) MergeNewer(value []byte) error {
@@ -70,12 +72,6 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 		m.metrics.Services = make(map[serviceAggregationKey]serviceMetrics)
 	}
 
-	// Use the cached counts of the transaction, service transaction, and span groups
-	// in the _to_ combined metrics for overflow detection.
-	totalTransactionGroupsConstraint := newConstraint(m.metrics.TotalTransactionGroups, m.limits.MaxTransactionGroups)
-	totalServiceTransactionGroupsConstraint := newConstraint(m.metrics.TotalServiceTransactionGroups, m.limits.MaxServiceTransactionGroups)
-	totalSpanGroupsConstraint := newConstraint(m.metrics.TotalSpanGroups, m.limits.MaxSpanGroups)
-
 	// Iterate over the services in the _from_ combined metrics and merge them
 	// into the _to_ combined metrics as per the following rules:
 	// 1. If the service in the _from_ bucket is also present in the _to_
@@ -106,9 +102,9 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 			mergeServiceInstanceGroups(
 				&toSvc,
 				fromSvc.Metrics.ServiceInstanceMetrics,
-				totalTransactionGroupsConstraint,
-				totalServiceTransactionGroupsConstraint,
-				totalSpanGroupsConstraint,
+				m.constraints.totalTransactionGroups,
+				m.constraints.totalServiceTransactionGroups,
+				m.constraints.totalSpanGroups,
 				m.limits,
 				hash,
 				&m.metrics.OverflowServiceInstancesEstimator,
@@ -116,17 +112,12 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 		}
 		m.metrics.Services[sk] = toSvc
 	}
-
-	// Update cached counts after merging groups.
-	m.metrics.TotalTransactionGroups = totalTransactionGroupsConstraint.value()
-	m.metrics.TotalServiceTransactionGroups = totalServiceTransactionGroupsConstraint.value()
-	m.metrics.TotalSpanGroups = totalSpanGroupsConstraint.value()
 }
 
 func mergeServiceInstanceGroups(
 	to *serviceMetrics,
 	from []*aggregationpb.KeyedServiceInstanceMetrics,
-	totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *constraint,
+	totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *constraint.Constraint,
 	limits Limits,
 	hash Hasher,
 	overflowServiceInstancesEstimator **hyperloglog.Sketch,
@@ -153,7 +144,7 @@ func mergeServiceInstanceGroups(
 		mergeTransactionGroups(
 			toSvcIns.TransactionGroups,
 			fromSvcIns.Metrics.TransactionMetrics,
-			newConstraint(
+			constraint.New(
 				len(toSvcIns.TransactionGroups),
 				limits.MaxTransactionGroupsPerService,
 			),
@@ -164,7 +155,7 @@ func mergeServiceInstanceGroups(
 		mergeServiceTransactionGroups(
 			toSvcIns.ServiceTransactionGroups,
 			fromSvcIns.Metrics.ServiceTransactionMetrics,
-			newConstraint(
+			constraint.New(
 				len(toSvcIns.ServiceTransactionGroups),
 				limits.MaxServiceTransactionGroupsPerService,
 			),
@@ -175,7 +166,7 @@ func mergeServiceInstanceGroups(
 		mergeSpanGroups(
 			toSvcIns.SpanGroups,
 			fromSvcIns.Metrics.SpanMetrics,
-			newConstraint(
+			constraint.New(
 				len(toSvcIns.SpanGroups),
 				limits.MaxSpanGroupsPerService,
 			),
@@ -192,7 +183,7 @@ func mergeServiceInstanceGroups(
 func mergeTransactionGroups(
 	to map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics,
 	from []*aggregationpb.KeyedTransactionMetrics,
-	perSvcConstraint, globalConstraint *constraint,
+	perSvcConstraint, globalConstraint *constraint.Constraint,
 	hash Hasher,
 	overflowTo *overflowTransaction,
 ) {
@@ -202,7 +193,7 @@ func mergeTransactionGroups(
 		tk.FromProto(fromTxn.Key)
 		toTxn, ok := to[tk]
 		if !ok {
-			overflowed := perSvcConstraint.maxed() || globalConstraint.maxed()
+			overflowed := perSvcConstraint.Maxed() || globalConstraint.Maxed()
 			if overflowed {
 				overflowTo.Merge(
 					fromTxn.Metrics,
@@ -210,8 +201,8 @@ func mergeTransactionGroups(
 				)
 				continue
 			}
-			perSvcConstraint.add(1)
-			globalConstraint.add(1)
+			perSvcConstraint.Add(1)
+			globalConstraint.Add(1)
 
 			to[tk] = fromTxn
 			from[i] = nil
@@ -227,7 +218,7 @@ func mergeTransactionGroups(
 func mergeServiceTransactionGroups(
 	to map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics,
 	from []*aggregationpb.KeyedServiceTransactionMetrics,
-	perSvcConstraint, globalConstraint *constraint,
+	perSvcConstraint, globalConstraint *constraint.Constraint,
 	hash Hasher,
 	overflowTo *overflowServiceTransaction,
 ) {
@@ -237,7 +228,7 @@ func mergeServiceTransactionGroups(
 		stk.FromProto(fromSvcTxn.Key)
 		toSvcTxn, ok := to[stk]
 		if !ok {
-			overflowed := perSvcConstraint.maxed() || globalConstraint.maxed()
+			overflowed := perSvcConstraint.Maxed() || globalConstraint.Maxed()
 			if overflowed {
 				overflowTo.Merge(
 					fromSvcTxn.Metrics,
@@ -245,8 +236,8 @@ func mergeServiceTransactionGroups(
 				)
 				continue
 			}
-			perSvcConstraint.add(1)
-			globalConstraint.add(1)
+			perSvcConstraint.Add(1)
+			globalConstraint.Add(1)
 
 			to[stk] = fromSvcTxn
 			from[i] = nil
@@ -261,7 +252,7 @@ func mergeServiceTransactionGroups(
 func mergeSpanGroups(
 	to map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics,
 	from []*aggregationpb.KeyedSpanMetrics,
-	perSvcConstraint, globalConstraint *constraint,
+	perSvcConstraint, globalConstraint *constraint.Constraint,
 	hash Hasher,
 	overflowTo *overflowSpan,
 ) {
@@ -273,14 +264,14 @@ func mergeSpanGroups(
 		if !ok {
 			// Protect against agents that send high cardinality span names by dropping
 			// span.name if more than half of the per svc span group limit is reached.
-			half := perSvcConstraint.limit / 2
-			if perSvcConstraint.value() >= half {
+			half := perSvcConstraint.Limit() / 2
+			if perSvcConstraint.Value() >= half {
 				spk.SpanName = ""
 				fromSpan.Key.SpanName = ""
 				toSpan, ok = to[spk]
 			}
 			if !ok {
-				overflowed := perSvcConstraint.maxed() || globalConstraint.maxed()
+				overflowed := perSvcConstraint.Maxed() || globalConstraint.Maxed()
 				if overflowed {
 					overflowTo.Merge(
 						fromSpan.Metrics,
@@ -288,8 +279,8 @@ func mergeSpanGroups(
 					)
 					continue
 				}
-				perSvcConstraint.add(1)
-				globalConstraint.add(1)
+				perSvcConstraint.Add(1)
+				globalConstraint.Add(1)
 
 				to[spk] = fromSpan
 				from[i] = nil
@@ -513,26 +504,17 @@ func newServiceInstanceMetrics() serviceInstanceMetrics {
 	}
 }
 
-type constraint struct {
-	counter int
-	limit   int
+// constraints is a group of constraints to be observed during merge operations.
+type constraints struct {
+	totalTransactionGroups        *constraint.Constraint
+	totalServiceTransactionGroups *constraint.Constraint
+	totalSpanGroups               *constraint.Constraint
 }
 
-func newConstraint(initialCount, limit int) *constraint {
-	return &constraint{
-		counter: initialCount,
-		limit:   limit,
+func newConstraints(limits Limits) constraints {
+	return constraints{
+		totalTransactionGroups:        constraint.New(0, limits.MaxTransactionGroups),
+		totalServiceTransactionGroups: constraint.New(0, limits.MaxServiceTransactionGroups),
+		totalSpanGroups:               constraint.New(0, limits.MaxSpanGroups),
 	}
-}
-
-func (c *constraint) maxed() bool {
-	return c.counter >= c.limit
-}
-
-func (c *constraint) add(delta int) {
-	c.counter += delta
-}
-
-func (c *constraint) value() int {
-	return c.counter
 }

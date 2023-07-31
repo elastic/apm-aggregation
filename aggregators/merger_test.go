@@ -995,9 +995,21 @@ func TestMerge(t *testing.T) {
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
+			// Since we start with an existing metrics in combinedMetricsMerger,
+			// we'll have to make sure constraints struct is containing the correct counts.
+			metrics := tc.to()
+			constraints := newConstraints(tc.limits)
+			for _, svc := range metrics.Services {
+				for _, si := range svc.ServiceInstanceGroups {
+					constraints.totalTransactionGroups.Add(len(si.TransactionGroups))
+					constraints.totalServiceTransactionGroups.Add(len(si.ServiceTransactionGroups))
+					constraints.totalSpanGroups.Add(len(si.SpanGroups))
+				}
+			}
 			cmm := combinedMetricsMerger{
-				limits:  tc.limits,
-				metrics: tc.to(),
+				limits:      tc.limits,
+				constraints: constraints,
+				metrics:     metrics,
 			}
 			cmm.merge(tc.from())
 			assert.Empty(t, cmp.Diff(

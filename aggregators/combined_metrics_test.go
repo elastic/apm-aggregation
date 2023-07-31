@@ -216,7 +216,6 @@ func (tsim *TestServiceInstanceMetrics) AddTransaction(
 		ktm = oldKtm
 	}
 	svcIns.TransactionGroups[tk] = ktm
-	tsim.tsm.tcm.TotalTransactionGroups++
 	return tsim
 }
 
@@ -275,7 +274,6 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
 		kstm = oldKstm
 	}
 	svcIns.ServiceTransactionGroups[stk] = kstm
-	tsim.tsm.tcm.TotalServiceTransactionGroups++
 	return tsim
 }
 
@@ -333,7 +331,6 @@ func (tsim *TestServiceInstanceMetrics) AddSpan(
 		ksm = oldKsm
 	}
 	svcIns.SpanGroups[spk] = ksm
-	tsim.tsm.tcm.TotalSpanGroups++
 	return tsim
 }
 
