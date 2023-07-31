@@ -30,42 +30,70 @@ const (
 	overflowBucketName = "_other"
 )
 
+var (
+	partitionedMetricsBuilderPool sync.Pool
+	eventMetricsBuilderPool       sync.Pool
+)
+
 // partitionedMetricsBuilder provides support for building partitioned
 // sets of metrics from an event.
 type partitionedMetricsBuilder struct {
 	partitioner Partitioner
 	hasher      Hasher
-	builders    []*eventMetricsBuilder
-	space       [1]*eventMetricsBuilder
+	builders    []*eventMetricsBuilder // partitioned metrics
 
-	ServiceInstanceAggregationKey    aggregationpb.ServiceInstanceAggregationKey
-	ServiceInstanceMetrics           aggregationpb.ServiceInstanceMetrics
-	KeyedServiceInstanceMetrics      aggregationpb.KeyedServiceInstanceMetrics
-	KeyedServiceInstanceMetricsArray [1]*aggregationpb.KeyedServiceInstanceMetrics
+	// Event metrics are for exactly one service instance, so we create an
+	// array of a single element and use that for backing the slice in
+	// ServiceMetrics.
+	serviceInstanceAggregationKey    aggregationpb.ServiceInstanceAggregationKey
+	serviceInstanceMetrics           aggregationpb.ServiceInstanceMetrics
+	keyedServiceInstanceMetrics      aggregationpb.KeyedServiceInstanceMetrics
+	keyedServiceInstanceMetricsArray [1]*aggregationpb.KeyedServiceInstanceMetrics
 
-	ServiceAggregationKey    aggregationpb.ServiceAggregationKey
-	ServiceMetrics           aggregationpb.ServiceMetrics
-	KeyedServiceMetrics      aggregationpb.KeyedServiceMetrics
-	KeyedServiceMetricsArray [1]*aggregationpb.KeyedServiceMetrics
+	// Event metrics are for exactly one service, so we create an array of a
+	// single element and use that for backing the slice in CombinedMetrics.
+	serviceAggregationKey    aggregationpb.ServiceAggregationKey
+	serviceMetrics           aggregationpb.ServiceMetrics
+	keyedServiceMetrics      aggregationpb.KeyedServiceMetrics
+	keyedServiceMetricsArray [1]*aggregationpb.KeyedServiceMetrics
 
-	CombinedMetrics aggregationpb.CombinedMetrics
+	// We reuse a single CombinedMetrics for all partitions, by iterating
+	// through each partition's metrics and setting them on the CombinedMetrics
+	// before invoking the callback in EventToCombinedMetrics.
+	combinedMetrics aggregationpb.CombinedMetrics
 }
 
-var partitionedMetricsBuilderPool = sync.Pool{
-	New: func() any {
-		p := &partitionedMetricsBuilder{}
-		p.builders = p.space[:0]
+func getPartitionedMetricsBuilder(
+	serviceAggregationKey aggregationpb.ServiceAggregationKey,
+	serviceInstanceAggregationKey aggregationpb.ServiceInstanceAggregationKey,
+	partitioner Partitioner,
+) *partitionedMetricsBuilder {
+	p, ok := partitionedMetricsBuilderPool.Get().(*partitionedMetricsBuilder)
+	if !ok {
+		p = &partitionedMetricsBuilder{}
+		p.keyedServiceInstanceMetrics.Key = &p.serviceInstanceAggregationKey
+		p.keyedServiceInstanceMetrics.Metrics = &p.serviceInstanceMetrics
+		p.keyedServiceInstanceMetricsArray[0] = &p.keyedServiceInstanceMetrics
+		p.serviceMetrics.ServiceInstanceMetrics = p.keyedServiceInstanceMetricsArray[:]
+		p.keyedServiceMetrics.Key = &p.serviceAggregationKey
+		p.keyedServiceMetrics.Metrics = &p.serviceMetrics
+		p.keyedServiceMetricsArray[0] = &p.keyedServiceMetrics
+		p.combinedMetrics.ServiceMetrics = p.keyedServiceMetricsArray[:]
+	}
+	p.serviceAggregationKey = serviceAggregationKey
+	p.serviceInstanceAggregationKey = serviceInstanceAggregationKey
+	p.hasher = Hasher{}.Chain(&p.serviceAggregationKey).Chain(&p.serviceInstanceAggregationKey)
+	p.partitioner = partitioner
+	return p
+}
 
-		p.KeyedServiceInstanceMetrics.Key = &p.ServiceInstanceAggregationKey
-		p.KeyedServiceInstanceMetrics.Metrics = &p.ServiceInstanceMetrics
-		p.KeyedServiceInstanceMetricsArray[0] = &p.KeyedServiceInstanceMetrics
-		p.ServiceMetrics.ServiceInstanceMetrics = p.KeyedServiceInstanceMetricsArray[:]
-		p.KeyedServiceMetrics.Key = &p.ServiceAggregationKey
-		p.KeyedServiceMetrics.Metrics = &p.ServiceMetrics
-		p.KeyedServiceMetricsArray[0] = &p.KeyedServiceMetrics
-		p.CombinedMetrics.ServiceMetrics = p.KeyedServiceMetricsArray[:]
-		return p
-	},
+func (p *partitionedMetricsBuilder) release() {
+	for i, mb := range p.builders {
+		mb.release()
+		p.builders[i] = nil
+	}
+	p.builders = p.builders[:0]
+	partitionedMetricsBuilderPool.Put(p)
 }
 
 func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
@@ -76,10 +104,9 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 			// BUG we should add a service summary metric
 			return
 		}
-		hdr := hdrhistogram.New()
-		hdr.RecordDuration(e.GetEvent().GetDuration().AsDuration(), repCount)
-		p.addTransactionMetrics(e, hdr)
-		p.addServiceTransactionMetrics(e, repCount, hdr)
+		duration := e.GetEvent().GetDuration().AsDuration()
+		p.addTransactionMetrics(e, repCount, duration)
+		p.addServiceTransactionMetrics(e, repCount, duration)
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
 			p.addDroppedSpanStatsMetrics(dss, repCount)
 		}
@@ -99,40 +126,44 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 	}
 }
 
-func (p *partitionedMetricsBuilder) addTransactionMetrics(e *modelpb.APMEvent, hdr *hdrhistogram.HistogramRepresentation) {
+func (p *partitionedMetricsBuilder) addTransactionMetrics(e *modelpb.APMEvent, count float64, duration time.Duration) {
 	var key aggregationpb.TransactionAggregationKey
 	setTransactionKey(e, &key)
 
 	mb := p.get(p.hasher.Chain(&key))
-	mb.TransactionAggregationKey = key
-	setHistogramProto(hdr, &mb.TransactionHistogram)
-	mb.TransactionMetrics.Histogram = &mb.TransactionHistogram
-	mb.KeyedTransactionMetricsSlice = mb.KeyedTransactionMetricsArray[:]
+	mb.transactionAggregationKey = key
+
+	hdr := hdrhistogram.New()
+	hdr.RecordDuration(duration, count)
+	setHistogramProto(hdr, &mb.transactionHistogram)
+	mb.transactionMetrics.Histogram = &mb.transactionHistogram
+	mb.keyedTransactionMetricsSlice = mb.keyedTransactionMetricsArray[:]
 }
 
-func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(
-	e *modelpb.APMEvent,
-	repCount float64,
-	hdr *hdrhistogram.HistogramRepresentation,
-) {
+func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(e *modelpb.APMEvent, count float64, duration time.Duration) {
 	var key aggregationpb.ServiceTransactionAggregationKey
 	setServiceTransactionKey(e, &key)
 
 	mb := p.get(p.hasher.Chain(&key))
-	mb.ServiceTransactionAggregationKey = key
-	// TODO don't set TransactionHistogram again if we're
-	// in the same partition as transaction metrics.
-	setHistogramProto(hdr, &mb.TransactionHistogram)
-	mb.ServiceTransactionMetrics.Histogram = &mb.TransactionHistogram
+	mb.serviceTransactionAggregationKey = key
+
+	if mb.transactionMetrics.Histogram == nil {
+		// mb.TransactionMetrics.Histogram will be set if the event's
+		// transaction metric ended up in the same partition.
+		hdr := hdrhistogram.New()
+		hdr.RecordDuration(duration, count)
+		setHistogramProto(hdr, &mb.transactionHistogram)
+	}
+	mb.serviceTransactionMetrics.Histogram = &mb.transactionHistogram
 	switch e.GetEvent().GetOutcome() {
 	case "failure":
-		mb.ServiceTransactionMetrics.SuccessCount = 0
-		mb.ServiceTransactionMetrics.FailureCount = repCount
+		mb.serviceTransactionMetrics.SuccessCount = 0
+		mb.serviceTransactionMetrics.FailureCount = count
 	case "success":
-		mb.ServiceTransactionMetrics.SuccessCount = repCount
-		mb.ServiceTransactionMetrics.FailureCount = 0
+		mb.serviceTransactionMetrics.SuccessCount = count
+		mb.serviceTransactionMetrics.FailureCount = 0
 	}
-	mb.KeyedServiceTransactionMetricsSlice = mb.KeyedServiceTransactionMetricsArray[:]
+	mb.keyedServiceTransactionMetricsSlice = mb.keyedServiceTransactionMetricsArray[:]
 }
 
 func (p *partitionedMetricsBuilder) addDroppedSpanStatsMetrics(dss *modelpb.DroppedSpanStats, repCount float64) {
@@ -140,19 +171,19 @@ func (p *partitionedMetricsBuilder) addDroppedSpanStatsMetrics(dss *modelpb.Drop
 	setDroppedSpanStatsKey(dss, &key)
 
 	mb := p.get(p.hasher.Chain(&key))
-	i := len(mb.KeyedSpanMetricsSlice)
-	if i == len(mb.KeyedSpanMetrics) {
+	i := len(mb.keyedSpanMetricsSlice)
+	if i == 128 { //len(mb.keyedSpanMetrics) {
 		// No more capacity. The spec says that when 128 dropped span
 		// stats entries are reached, then any remaining entries will
 		// be silently discarded.
 		return
 	}
 
-	mb.SpanAggregationKey[i] = key
-	setDroppedSpanStatsMetrics(dss, repCount, &mb.SpanMetrics[i])
-	mb.KeyedSpanMetrics[i].Key = &mb.SpanAggregationKey[i]
-	mb.KeyedSpanMetrics[i].Metrics = &mb.SpanMetrics[i]
-	mb.KeyedSpanMetricsSlice = append(mb.KeyedSpanMetricsSlice, &mb.KeyedSpanMetrics[i])
+	mb.spanAggregationKey[i] = key
+	setDroppedSpanStatsMetrics(dss, repCount, &mb.spanMetrics[i])
+	mb.keyedSpanMetrics[i].Key = &mb.spanAggregationKey[i]
+	mb.keyedSpanMetrics[i].Metrics = &mb.spanMetrics[i]
+	mb.keyedSpanMetricsSlice = append(mb.keyedSpanMetricsSlice, &mb.keyedSpanMetrics[i])
 }
 
 func (p *partitionedMetricsBuilder) addSpanMetrics(e *modelpb.APMEvent, repCount float64) {
@@ -160,12 +191,12 @@ func (p *partitionedMetricsBuilder) addSpanMetrics(e *modelpb.APMEvent, repCount
 	setSpanKey(e, &key)
 
 	mb := p.get(p.hasher.Chain(&key))
-	i := len(mb.KeyedSpanMetricsSlice)
-	mb.SpanAggregationKey[i] = key
-	setSpanMetrics(e, repCount, &mb.SpanMetrics[i])
-	mb.KeyedSpanMetrics[i].Key = &mb.SpanAggregationKey[i]
-	mb.KeyedSpanMetrics[i].Metrics = &mb.SpanMetrics[i]
-	mb.KeyedSpanMetricsSlice = append(mb.KeyedSpanMetricsSlice, &mb.KeyedSpanMetrics[i])
+	i := len(mb.keyedSpanMetricsSlice)
+	mb.spanAggregationKey[i] = key
+	setSpanMetrics(e, repCount, &mb.spanMetrics[i])
+	mb.keyedSpanMetrics[i].Key = &mb.spanAggregationKey[i]
+	mb.keyedSpanMetrics[i].Metrics = &mb.spanMetrics[i]
+	mb.keyedSpanMetricsSlice = append(mb.keyedSpanMetricsSlice, &mb.keyedSpanMetrics[i])
 }
 
 func (p *partitionedMetricsBuilder) addServiceSummaryMetrics() {
@@ -182,8 +213,7 @@ func (p *partitionedMetricsBuilder) get(h Hasher) *eventMetricsBuilder {
 			return mb
 		}
 	}
-	mb := eventMetricsBuilderPool.Get().(*eventMetricsBuilder)
-	mb.partition = partition
+	mb := getEventMetricsBuilder(partition)
 	p.builders = append(p.builders, mb)
 	return mb
 }
@@ -191,50 +221,80 @@ func (p *partitionedMetricsBuilder) get(h Hasher) *eventMetricsBuilder {
 // eventMetricsBuilder holds memory for the contents of per-partition
 // ServiceInstanceMetrics. Each instance of the struct is capable
 // of holding as many metrics as may be produced for a single event.
+//
+// For each metric type, the builder holds:
+//   - an array with enough capacity to hold the maximum possible
+//     number of that type
+//   - a slice of the array, for tracking the actual number of
+//     metrics of that type that will be produced; this is what
+//     will be used for setting CombinedMetrics fields
+//   - for each array element, space for an aggregation key
+//   - for each array element, space for the metric values
 type eventMetricsBuilder struct {
 	partition uint16
 
-	TransactionHistogramCounts   [1]int64
-	TransactionHistogramBuckets  [1]int32
-	TransactionHistogram         aggregationpb.HDRHistogram
-	TransactionAggregationKey    aggregationpb.TransactionAggregationKey
-	TransactionMetrics           aggregationpb.TransactionMetrics
-	KeyedTransactionMetrics      aggregationpb.KeyedTransactionMetrics
-	KeyedTransactionMetricsArray [1]*aggregationpb.KeyedTransactionMetrics
-	KeyedTransactionMetricsSlice []*aggregationpb.KeyedTransactionMetrics
+	// Preallocate space for a single-valued histogram. This histogram may
+	// be used for either or both transaction and service transaction metrics.
+	transactionHDRHistogramRepresentation *hdrhistogram.HistogramRepresentation
+	transactionHistogramCounts            [1]int64
+	transactionHistogramBuckets           [1]int32
+	transactionHistogram                  aggregationpb.HDRHistogram
 
-	ServiceTransactionAggregationKey    aggregationpb.ServiceTransactionAggregationKey
-	ServiceTransactionMetrics           aggregationpb.ServiceTransactionMetrics
-	KeyedServiceTransactionMetrics      aggregationpb.KeyedServiceTransactionMetrics
-	KeyedServiceTransactionMetricsArray [1]*aggregationpb.KeyedServiceTransactionMetrics
-	KeyedServiceTransactionMetricsSlice []*aggregationpb.KeyedServiceTransactionMetrics
+	// There can be at most 1 transaction metric per event.
+	transactionAggregationKey    aggregationpb.TransactionAggregationKey
+	transactionMetrics           aggregationpb.TransactionMetrics
+	keyedTransactionMetrics      aggregationpb.KeyedTransactionMetrics
+	keyedTransactionMetricsArray [1]*aggregationpb.KeyedTransactionMetrics
+	keyedTransactionMetricsSlice []*aggregationpb.KeyedTransactionMetrics
+
+	// There can be at most 1 service transaction metric per event.
+	serviceTransactionAggregationKey    aggregationpb.ServiceTransactionAggregationKey
+	serviceTransactionMetrics           aggregationpb.ServiceTransactionMetrics
+	keyedServiceTransactionMetrics      aggregationpb.KeyedServiceTransactionMetrics
+	keyedServiceTransactionMetricsArray [1]*aggregationpb.KeyedServiceTransactionMetrics
+	keyedServiceTransactionMetricsSlice []*aggregationpb.KeyedServiceTransactionMetrics
 
 	// There can be at most 128 span metrics per event:
 	// - exactly 1 for a span event
 	// - at most 128 (dropped span stats) for a transaction event (1)
 	//
 	// (1) https://github.com/elastic/apm/blob/main/specs/agents/handling-huge-traces/tracing-spans-dropped-stats.md#limits
-	SpanAggregationKey    [128]aggregationpb.SpanAggregationKey
-	SpanMetrics           [128]aggregationpb.SpanMetrics
-	KeyedSpanMetrics      [128]aggregationpb.KeyedSpanMetrics
-	KeyedSpanMetricsSlice []*aggregationpb.KeyedSpanMetrics
+	spanAggregationKey    [128]aggregationpb.SpanAggregationKey
+	spanMetrics           [128]aggregationpb.SpanMetrics
+	keyedSpanMetrics      [128]aggregationpb.KeyedSpanMetrics
+	keyedSpanMetricsArray [128]*aggregationpb.KeyedSpanMetrics
+	keyedSpanMetricsSlice []*aggregationpb.KeyedSpanMetrics
 }
 
-var eventMetricsBuilderPool = sync.Pool{
-	New: func() any {
-		mb := &eventMetricsBuilder{}
-		mb.TransactionHistogram.Counts = mb.TransactionHistogramCounts[:0]
-		mb.TransactionHistogram.Buckets = mb.TransactionHistogramBuckets[:0]
-		mb.KeyedTransactionMetrics.Key = &mb.TransactionAggregationKey
-		mb.KeyedTransactionMetrics.Metrics = &mb.TransactionMetrics
-		mb.KeyedTransactionMetricsArray[0] = &mb.KeyedTransactionMetrics
-		mb.KeyedTransactionMetricsSlice = mb.KeyedTransactionMetricsArray[:0]
-		mb.KeyedServiceTransactionMetrics.Key = &mb.ServiceTransactionAggregationKey
-		mb.KeyedServiceTransactionMetrics.Metrics = &mb.ServiceTransactionMetrics
-		mb.KeyedServiceTransactionMetricsArray[0] = &mb.KeyedServiceTransactionMetrics
-		mb.KeyedServiceTransactionMetricsSlice = mb.KeyedServiceTransactionMetricsArray[:0]
+func getEventMetricsBuilder(partition uint16) *eventMetricsBuilder {
+	mb, ok := eventMetricsBuilderPool.Get().(*eventMetricsBuilder)
+	if ok {
+		mb.partition = partition
+		mb.transactionHDRHistogramRepresentation.CountsRep.Reset()
+		mb.keyedServiceTransactionMetricsSlice = mb.keyedServiceTransactionMetricsSlice[:0]
+		mb.keyedTransactionMetricsSlice = mb.keyedTransactionMetricsSlice[:0]
+		mb.keyedSpanMetricsSlice = mb.keyedSpanMetricsSlice[:0]
 		return mb
-	},
+	}
+	mb = &eventMetricsBuilder{partition: partition}
+	mb.transactionHDRHistogramRepresentation = hdrhistogram.New()
+	mb.transactionHistogram.Counts = mb.transactionHistogramCounts[:0]
+	mb.transactionHistogram.Buckets = mb.transactionHistogramBuckets[:0]
+	mb.transactionMetrics.Histogram = nil
+	mb.keyedTransactionMetrics.Key = &mb.transactionAggregationKey
+	mb.keyedTransactionMetrics.Metrics = &mb.transactionMetrics
+	mb.keyedTransactionMetricsArray[0] = &mb.keyedTransactionMetrics
+	mb.keyedTransactionMetricsSlice = mb.keyedTransactionMetricsArray[:0]
+	mb.keyedServiceTransactionMetrics.Key = &mb.serviceTransactionAggregationKey
+	mb.keyedServiceTransactionMetrics.Metrics = &mb.serviceTransactionMetrics
+	mb.keyedServiceTransactionMetricsArray[0] = &mb.keyedServiceTransactionMetrics
+	mb.keyedServiceTransactionMetricsSlice = mb.keyedServiceTransactionMetricsArray[:0]
+	mb.keyedSpanMetricsSlice = mb.keyedSpanMetricsArray[:0]
+	return mb
+}
+
+func (mb *eventMetricsBuilder) release() {
+	eventMetricsBuilderPool.Put(mb)
 }
 
 // EventToCombinedMetrics converts APMEvent to one or more CombinedMetrics and
@@ -249,7 +309,7 @@ var eventMetricsBuilderPool = sync.Pool{
 func EventToCombinedMetrics(
 	e *modelpb.APMEvent,
 	unpartitionedKey CombinedMetricsKey,
-	p Partitioner,
+	partitioner Partitioner,
 	callback func(CombinedMetricsKey, *aggregationpb.CombinedMetrics) error,
 ) error {
 	globalLabels, err := marshalEventGlobalLabels(e)
@@ -257,36 +317,21 @@ func EventToCombinedMetrics(
 		return fmt.Errorf("failed to marshal global labels: %w", err)
 	}
 
-	pmb := partitionedMetricsBuilderPool.Get().(*partitionedMetricsBuilder)
-	defer func() {
-		// don't use ResetVT, we're not using VT pools here
-		pmb.ServiceInstanceMetrics.Reset()
-		partitionedMetricsBuilderPool.Put(pmb)
-	}()
-	pmb.partitioner = p
-	pmb.hasher = Hasher{}.Chain(&pmb.ServiceAggregationKey).Chain(&pmb.ServiceInstanceAggregationKey)
-	pmb.builders = pmb.builders[:0]
-	pmb.ServiceAggregationKey = aggregationpb.ServiceAggregationKey{
-		Timestamp: tspb.TimeToPBTimestamp(
-			e.GetTimestamp().AsTime().Truncate(unpartitionedKey.Interval),
-		),
-		ServiceName:         e.GetService().GetName(),
-		ServiceEnvironment:  e.GetService().GetEnvironment(),
-		ServiceLanguageName: e.GetService().GetLanguage().GetName(),
-		AgentName:           e.GetAgent().GetName(),
-	}
-	pmb.ServiceInstanceAggregationKey = aggregationpb.ServiceInstanceAggregationKey{
-		GlobalLabelsStr: globalLabels,
-	}
+	pmb := getPartitionedMetricsBuilder(
+		aggregationpb.ServiceAggregationKey{
+			Timestamp: tspb.TimeToPBTimestamp(
+				e.GetTimestamp().AsTime().Truncate(unpartitionedKey.Interval),
+			),
+			ServiceName:         e.GetService().GetName(),
+			ServiceEnvironment:  e.GetService().GetEnvironment(),
+			ServiceLanguageName: e.GetService().GetLanguage().GetName(),
+			AgentName:           e.GetAgent().GetName(),
+		},
+		aggregationpb.ServiceInstanceAggregationKey{GlobalLabelsStr: globalLabels},
+		partitioner,
+	)
+	defer pmb.release()
 
-	defer func() {
-		for _, mb := range pmb.builders {
-			mb.KeyedServiceTransactionMetricsSlice = mb.KeyedServiceTransactionMetricsSlice[:0]
-			mb.KeyedTransactionMetricsSlice = mb.KeyedTransactionMetricsSlice[:0]
-			mb.KeyedSpanMetricsSlice = mb.KeyedSpanMetricsSlice[:0]
-			eventMetricsBuilderPool.Put(mb)
-		}
-	}()
 	pmb.processEvent(e)
 	if len(pmb.builders) == 0 {
 		// BUG we should _always_ create a service summary metric.
@@ -295,17 +340,17 @@ func EventToCombinedMetrics(
 
 	// Approximate events total by uniformly distributing the events total
 	// amongst the partitioned key values.
-	pmb.CombinedMetrics.EventsTotal = 1 / float64(len(pmb.builders))
-	pmb.CombinedMetrics.YoungestEventTimestamp = tspb.TimeToPBTimestamp(e.GetEvent().GetReceived().AsTime())
+	pmb.combinedMetrics.EventsTotal = 1 / float64(len(pmb.builders))
+	pmb.combinedMetrics.YoungestEventTimestamp = tspb.TimeToPBTimestamp(e.GetEvent().GetReceived().AsTime())
 
 	var errs []error
 	for _, mb := range pmb.builders {
 		key := unpartitionedKey
 		key.PartitionID = mb.partition
-		pmb.ServiceInstanceMetrics.TransactionMetrics = mb.KeyedTransactionMetricsSlice
-		pmb.ServiceInstanceMetrics.ServiceTransactionMetrics = mb.KeyedServiceTransactionMetricsSlice
-		pmb.ServiceInstanceMetrics.SpanMetrics = mb.KeyedSpanMetricsSlice
-		if err := callback(key, &pmb.CombinedMetrics); err != nil {
+		pmb.serviceInstanceMetrics.TransactionMetrics = mb.keyedTransactionMetricsSlice
+		pmb.serviceInstanceMetrics.ServiceTransactionMetrics = mb.keyedServiceTransactionMetricsSlice
+		pmb.serviceInstanceMetrics.SpanMetrics = mb.keyedSpanMetricsSlice
+		if err := callback(key, &pmb.combinedMetrics); err != nil {
 			errs = append(errs, err)
 		}
 	}
@@ -1012,10 +1057,8 @@ func setSpanKey(e *modelpb.APMEvent, key *aggregationpb.SpanAggregationKey) {
 }
 
 func setDroppedSpanStatsKey(dss *modelpb.DroppedSpanStats, key *aggregationpb.SpanAggregationKey) {
-
 	// Dropped span statistics do not contain span name because it
 	// would be too expensive to track dropped span stats per span name.
-
 	key.Outcome = dss.GetOutcome()
 	key.TargetType = dss.GetServiceTargetType()
 	key.TargetName = dss.GetServiceTargetName()
