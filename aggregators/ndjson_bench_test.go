@@ -61,7 +61,7 @@ func ndjsonToBatch(reader io.Reader) (*modelpb.Batch, error) {
 	return &batch, nil
 }
 
-func BenchmarkNDJSONSerial(b *testing.B) {
+func forEachNDJSON(b *testing.B, f func(*testing.B, *modelpb.Batch)) {
 	dirFS := os.DirFS("testdata")
 	matches, err := fs.Glob(dirFS, "*.ndjson")
 	if err != nil {
@@ -69,67 +69,53 @@ func BenchmarkNDJSONSerial(b *testing.B) {
 	}
 	for _, filename := range matches {
 		b.Run(filename, func(b *testing.B) {
-			f, err := dirFS.Open(filename)
+			file, err := dirFS.Open(filename)
 			if err != nil {
 				b.Fatal(err)
 			}
-			defer f.Close()
+			defer file.Close()
 
-			batch, err := ndjsonToBatch(bufio.NewReader(f))
+			batch, err := ndjsonToBatch(bufio.NewReader(file))
 			if err != nil {
 				b.Fatal(err)
 			}
-
-			agg := newTestAggregator(b)
-			b.Cleanup(func() {
-				agg.Close(context.TODO())
-			})
-			cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
-			b.ResetTimer()
-
-			for i := 0; i < b.N; i++ {
-				if err := agg.AggregateBatch(context.Background(), cmID, batch); err != nil {
-					b.Fatal(err)
-				}
-			}
-
+			f(b, batch)
 		})
 	}
 }
 
-func BenchmarkNDJSONParallel(b *testing.B) {
-	dirFS := os.DirFS("testdata")
-	matches, err := fs.Glob(dirFS, "*.ndjson")
-	if err != nil {
-		b.Fatal(err)
-	}
-	for _, filename := range matches {
-		b.Run(filename, func(b *testing.B) {
-			f, err := dirFS.Open(filename)
-			if err != nil {
-				b.Fatal(err)
-			}
-			defer f.Close()
-
-			batch, err := ndjsonToBatch(bufio.NewReader(f))
-			if err != nil {
-				b.Fatal(err)
-			}
-
-			agg := newTestAggregator(b)
-			b.Cleanup(func() {
-				agg.Close(context.TODO())
-			})
-			cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
-			b.ResetTimer()
-
-			b.RunParallel(func(pb *testing.PB) {
-				for pb.Next() {
-					if err := agg.AggregateBatch(context.Background(), cmID, batch); err != nil {
-						b.Fatal(err)
-					}
-				}
-			})
+func BenchmarkNDJSONSerial(b *testing.B) {
+	forEachNDJSON(b, func(b *testing.B, batch *modelpb.Batch) {
+		agg := newTestAggregator(b)
+		b.Cleanup(func() {
+			agg.Close(context.TODO())
 		})
-	}
+		cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
+		b.ResetTimer()
+
+		for i := 0; i < b.N; i++ {
+			if err := agg.AggregateBatch(context.Background(), cmID, batch); err != nil {
+				b.Fatal(err)
+			}
+		}
+	})
+}
+
+func BenchmarkNDJSONParallel(b *testing.B) {
+	forEachNDJSON(b, func(b *testing.B, batch *modelpb.Batch) {
+		agg := newTestAggregator(b)
+		b.Cleanup(func() {
+			agg.Close(context.TODO())
+		})
+		cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
+		b.ResetTimer()
+
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				if err := agg.AggregateBatch(context.Background(), cmID, batch); err != nil {
+					b.Fatal(err)
+				}
+			}
+		})
+	})
 }
