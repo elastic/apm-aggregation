@@ -999,26 +999,66 @@ func TestCardinalityEstimationOnSubKeyCollision(t *testing.T) {
 }
 
 func TestMergeHistogram(t *testing.T) {
-	// Test assumes histogram representation Merge is correct
-	hist1, hist2 := hdrhistogram.New(), hdrhistogram.New()
+	for _, tc := range []struct {
+		name       string
+		recordFunc func(h1, h2 *hdrhistogram.HistogramRepresentation)
+	}{
+		{
+			name: "zero_values",
+			recordFunc: func(h1, h2 *hdrhistogram.HistogramRepresentation) {
+				h1.RecordValues(0, 0)
+				h2.RecordValues(0, 0)
+			},
+		},
+		{
+			name: "random_only_to",
+			recordFunc: func(h1, h2 *hdrhistogram.HistogramRepresentation) {
+				for i := 0; i < 1_000_000; i++ {
+					v := rand.Int63n(3_600_000_000)
+					c := rand.Int63n(1_000)
+					h1.RecordValues(v, c)
+				}
+			},
+		},
+		{
+			name: "random_only_from",
+			recordFunc: func(h1, h2 *hdrhistogram.HistogramRepresentation) {
+				for i := 0; i < 1_000_000; i++ {
+					v := rand.Int63n(3_600_000_000)
+					c := rand.Int63n(1_000)
+					h2.RecordValues(v, c)
+				}
+			},
+		},
+		{
+			name: "random_both",
+			recordFunc: func(h1, h2 *hdrhistogram.HistogramRepresentation) {
+				for i := 0; i < 1_000_000; i++ {
+					v1, v2 := rand.Int63n(3_600_000_000), rand.Int63n(3_600_000_000)
+					c1, c2 := rand.Int63n(1_000), rand.Int63n(1_000)
+					h1.RecordValues(v1, c1)
+					h2.RecordValues(v2, c2)
+				}
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			// Test assumes histogram representation Merge is correct
+			hist1, hist2 := hdrhistogram.New(), hdrhistogram.New()
 
-	for i := 0; i < 1_000_000; i++ {
-		v1, v2 := rand.Int63n(3_600_000_000), rand.Int63n(3_600_000_000)
-		c1, c2 := rand.Int63n(1_000), rand.Int63n(1_000)
-		hist1.RecordValues(v1, c1)
-		hist2.RecordValues(v2, c2)
+			tc.recordFunc(hist1, hist2)
+			histproto1, histproto2 := histogramToProto(hist1), histogramToProto(hist2)
+			hist1.Merge(hist2)
+			mergeHistogram(histproto1, histproto2)
+			histActual := hdrhistogram.New()
+			histogramFromProto(histActual, histproto1)
+
+			assert.Empty(t, cmp.Diff(
+				hist1,
+				histActual,
+				cmp.AllowUnexported(hdrhistogram.HistogramRepresentation{}),
+				cmp.AllowUnexported(hdrhistogram.HybridCountsRep{}),
+			))
+		})
 	}
-
-	histproto1, histproto2 := histogramToProto(hist1), histogramToProto(hist2)
-	hist1.Merge(hist2)
-	mergeHistogram(histproto1, histproto2)
-	histActual := hdrhistogram.New()
-	histogramFromProto(histActual, histproto1)
-
-	assert.Empty(t, cmp.Diff(
-		hist1,
-		histActual,
-		cmp.AllowUnexported(hdrhistogram.HistogramRepresentation{}),
-		cmp.AllowUnexported(hdrhistogram.HybridCountsRep{}),
-	))
 }

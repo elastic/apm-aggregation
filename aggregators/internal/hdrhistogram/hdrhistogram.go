@@ -287,7 +287,7 @@ func getBucketCount() int32 {
 // in each bucket.
 type Bar struct {
 	Bucket int32
-	Counts int64
+	Count  int64
 }
 
 // HybridCountsRep represents a hybrid counts representation for
@@ -309,15 +309,15 @@ func (c *HybridCountsRep) Add(bucket int32, value int64) {
 	if c.s == nil {
 		// automatic promotion to slice
 		c.s = make([]Bar, 0, 128) // TODO: Use pool
-		c.s = slices.Insert(c.s, 0, Bar{Bucket: c.bucket, Counts: c.value})
+		c.s = slices.Insert(c.s, 0, Bar{Bucket: c.bucket, Count: c.value})
 		c.bucket, c.value = 0, 0
 	}
 	at, found := slices.BinarySearchFunc(c.s, Bar{Bucket: bucket}, compareBar)
 	if found {
-		c.s[at].Counts += value
+		c.s[at].Count += value
 		return
 	}
-	c.s = slices.Insert(c.s, at, Bar{Bucket: bucket, Counts: value})
+	c.s = slices.Insert(c.s, at, Bar{Bucket: bucket, Count: value})
 }
 
 // ForEach iterates over each bucket and calls the given function.
@@ -327,7 +327,7 @@ func (c *HybridCountsRep) ForEach(f func(int32, int64)) {
 		return
 	}
 	for i := range c.s {
-		f(c.s[i].Bucket, c.s[i].Counts)
+		f(c.s[i].Bucket, c.s[i].Count)
 	}
 }
 
@@ -353,7 +353,7 @@ func (c *HybridCountsRep) Get(bucket int32) (int64, bool) {
 	}
 	at, found := slices.BinarySearchFunc(c.s, Bar{Bucket: bucket}, compareBar)
 	if found {
-		return c.s[at].Counts, true
+		return c.s[at].Count, true
 	}
 	return 0, false
 }

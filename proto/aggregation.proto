@@ -140,15 +140,11 @@ message Overflow {
   bytes overflow_spans_estimator = 6;
 }
 
-message Bar {
-  int32 bucket = 1;
-  int64 counts = 2;
-}
-
 message HDRHistogram {
   int64 lowest_trackable_value = 1;
   int64 highest_trackable_value = 2;
   int64 significant_figures = 3;
-  repeated Bar bars = 4;
+  repeated int64 counts = 4;
+  repeated int32 buckets = 5;
 }
 

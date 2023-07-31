@@ -412,24 +412,26 @@ func mergeSpanMetrics(to, from *aggregationpb.SpanMetrics) {
 // their representations are sorted by bucket. `from` is changed and
 // should not be used after merge.
 func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
-	if len(from.Bars) == 0 {
+	if len(from.Buckets) == 0 {
 		return
 	}
 
-	if len(to.Bars) == 0 {
-		requiredLen := len(from.Bars)
-		to.Bars = slices.Grow(to.Bars, requiredLen)
+	if len(to.Buckets) == 0 {
+		requiredLen := len(from.Buckets)
+		to.Buckets = slices.Grow(to.Buckets, requiredLen)
+		to.Counts = slices.Grow(to.Counts, requiredLen)
 		for i := 0; i < requiredLen; i++ {
-			to.Bars = append(to.Bars, from.Bars[i])
-			from.Bars[i] = nil
+			to.Buckets = append(to.Buckets, from.Buckets[i])
+			to.Counts = append(to.Counts, from.Counts[i])
 		}
-		from.Bars = from.Bars[:0]
+		from.Buckets = from.Buckets[:0]
+		from.Counts = from.Counts[:0]
 		return
 	}
 
-	requiredLen := len(to.Bars) + len(from.Bars)
-	for toIdx, fromIdx := 0, 0; toIdx < len(to.Bars) && fromIdx < len(from.Bars); {
-		v := to.Bars[toIdx].Bucket - from.Bars[fromIdx].Bucket
+	requiredLen := len(to.Buckets) + len(from.Buckets)
+	for toIdx, fromIdx := 0, 0; toIdx < len(to.Buckets) && fromIdx < len(from.Buckets); {
+		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
 		switch {
 		case v == 0:
 			// For every bucket that is common, we need one less bucket in final slice
@@ -443,37 +445,41 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 		}
 	}
 
-	toIdx, fromIdx := len(to.Bars)-1, len(from.Bars)-1
-	to.Bars = slices.Grow(to.Bars, requiredLen)
-	to.Bars = to.Bars[:requiredLen]
-	for idx := len(to.Bars) - 1; idx >= 0; idx-- {
+	toIdx, fromIdx := len(to.Buckets)-1, len(from.Buckets)-1
+	to.Buckets = slices.Grow(to.Buckets, requiredLen)
+	to.Counts = slices.Grow(to.Counts, requiredLen)
+	to.Buckets = to.Buckets[:requiredLen]
+	to.Counts = to.Counts[:requiredLen]
+	for idx := len(to.Buckets) - 1; idx >= 0; idx-- {
 		if fromIdx < 0 {
 			break
 		}
 		if toIdx < 0 {
-			to.Bars[idx] = from.Bars[fromIdx]
-			from.Bars[fromIdx] = nil
+			to.Counts[idx] = from.Counts[fromIdx]
+			to.Buckets[idx] = from.Buckets[fromIdx]
 			fromIdx--
 			continue
 		}
-		v := to.Bars[toIdx].Bucket - from.Bars[fromIdx].Bucket
+		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
 		switch {
 		case v == 0:
-			to.Bars[toIdx].Counts += from.Bars[fromIdx].Counts
-			to.Bars[idx] = to.Bars[toIdx]
-			from.Bars[fromIdx] = nil
+			to.Counts[toIdx] += from.Counts[fromIdx]
+			to.Counts[idx] = to.Counts[toIdx]
+			to.Buckets[idx] = to.Buckets[toIdx]
 			toIdx--
 			fromIdx--
 		case v > 0:
-			to.Bars[idx] = to.Bars[toIdx]
+			to.Counts[idx] = to.Counts[toIdx]
+			to.Buckets[idx] = to.Buckets[toIdx]
 			toIdx--
 		case v < 0:
-			to.Bars[idx] = from.Bars[fromIdx]
-			from.Bars[fromIdx] = nil
+			to.Counts[idx] = from.Counts[fromIdx]
+			to.Buckets[idx] = from.Buckets[fromIdx]
 			fromIdx--
 		}
 	}
-	from.Bars = from.Bars[:0]
+	from.Buckets = from.Buckets[:0]
+	from.Counts = from.Counts[:0]
 }
 
 // getServiceMetrics returns the service metric from a combined metrics based on the

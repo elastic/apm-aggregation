@@ -1280,76 +1280,22 @@ func (x *Overflow) GetOverflowSpansEstimator() []byte {
 	return nil
 }
 
-type Bar struct {
-	state         protoimpl.MessageState
-	sizeCache     protoimpl.SizeCache
-	unknownFields protoimpl.UnknownFields
-
-	Bucket int32 `protobuf:"varint,1,opt,name=bucket,proto3" json:"bucket,omitempty"`
-	Counts int64 `protobuf:"varint,2,opt,name=counts,proto3" json:"counts,omitempty"`
-}
-
-func (x *Bar) Reset() {
-	*x = Bar{}
-	if protoimpl.UnsafeEnabled {
-		mi := &file_proto_aggregation_proto_msgTypes[17]
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		ms.StoreMessageInfo(mi)
-	}
-}
-
-func (x *Bar) String() string {
-	return protoimpl.X.MessageStringOf(x)
-}
-
-func (*Bar) ProtoMessage() {}
-
-func (x *Bar) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_aggregation_proto_msgTypes[17]
-	if protoimpl.UnsafeEnabled && x != nil {
-		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
-		if ms.LoadMessageInfo() == nil {
-			ms.StoreMessageInfo(mi)
-		}
-		return ms
-	}
-	return mi.MessageOf(x)
-}
-
-// Deprecated: Use Bar.ProtoReflect.Descriptor instead.
-func (*Bar) Descriptor() ([]byte, []int) {
-	return file_proto_aggregation_proto_rawDescGZIP(), []int{17}
-}
-
-func (x *Bar) GetBucket() int32 {
-	if x != nil {
-		return x.Bucket
-	}
-	return 0
-}
-
-func (x *Bar) GetCounts() int64 {
-	if x != nil {
-		return x.Counts
-	}
-	return 0
-}
-
 type HDRHistogram struct {
 	state         protoimpl.MessageState
 	sizeCache     protoimpl.SizeCache
 	unknownFields protoimpl.UnknownFields
 
-	LowestTrackableValue  int64  `protobuf:"varint,1,opt,name=lowest_trackable_value,json=lowestTrackableValue,proto3" json:"lowest_trackable_value,omitempty"`
-	HighestTrackableValue int64  `protobuf:"varint,2,opt,name=highest_trackable_value,json=highestTrackableValue,proto3" json:"highest_trackable_value,omitempty"`
-	SignificantFigures    int64  `protobuf:"varint,3,opt,name=significant_figures,json=significantFigures,proto3" json:"significant_figures,omitempty"`
-	Bars                  []*Bar `protobuf:"bytes,4,rep,name=bars,proto3" json:"bars,omitempty"`
+	LowestTrackableValue  int64   `protobuf:"varint,1,opt,name=lowest_trackable_value,json=lowestTrackableValue,proto3" json:"lowest_trackable_value,omitempty"`
+	HighestTrackableValue int64   `protobuf:"varint,2,opt,name=highest_trackable_value,json=highestTrackableValue,proto3" json:"highest_trackable_value,omitempty"`
+	SignificantFigures    int64   `protobuf:"varint,3,opt,name=significant_figures,json=significantFigures,proto3" json:"significant_figures,omitempty"`
+	Counts                []int64 `protobuf:"varint,4,rep,packed,name=counts,proto3" json:"counts,omitempty"`
+	Buckets               []int32 `protobuf:"varint,5,rep,packed,name=buckets,proto3" json:"buckets,omitempty"`
 }
 
 func (x *HDRHistogram) Reset() {
 	*x = HDRHistogram{}
 	if protoimpl.UnsafeEnabled {
-		mi := &file_proto_aggregation_proto_msgTypes[18]
+		mi := &file_proto_aggregation_proto_msgTypes[17]
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		ms.StoreMessageInfo(mi)
 	}
@@ -1362,7 +1308,7 @@ func (x *HDRHistogram) String() string {
 func (*HDRHistogram) ProtoMessage() {}
 
 func (x *HDRHistogram) ProtoReflect() protoreflect.Message {
-	mi := &file_proto_aggregation_proto_msgTypes[18]
+	mi := &file_proto_aggregation_proto_msgTypes[17]
 	if protoimpl.UnsafeEnabled && x != nil {
 		ms := protoimpl.X.MessageStateOf(protoimpl.Pointer(x))
 		if ms.LoadMessageInfo() == nil {
@@ -1375,7 +1321,7 @@ func (x *HDRHistogram) ProtoReflect() protoreflect.Message {
 
 // Deprecated: Use HDRHistogram.ProtoReflect.Descriptor instead.
 func (*HDRHistogram) Descriptor() ([]byte, []int) {
-	return file_proto_aggregation_proto_rawDescGZIP(), []int{18}
+	return file_proto_aggregation_proto_rawDescGZIP(), []int{17}
 }
 
 func (x *HDRHistogram) GetLowestTrackableValue() int64 {
@@ -1399,9 +1345,16 @@ func (x *HDRHistogram) GetSignificantFigures() int64 {
 	return 0
 }
 
-func (x *HDRHistogram) GetBars() []*Bar {
+func (x *HDRHistogram) GetCounts() []int64 {
 	if x != nil {
-		return x.Bars
+		return x.Counts
+	}
+	return nil
+}
+
+func (x *HDRHistogram) GetBuckets() []int32 {
+	if x != nil {
+		return x.Buckets
 	}
 	return nil
 }
@@ -1671,25 +1624,22 @@ var file_proto_aggregation_proto_rawDesc = []byte{
 	0x77, 0x5f, 0x73, 0x70, 0x61, 0x6e, 0x73, 0x5f, 0x65, 0x73, 0x74, 0x69, 0x6d, 0x61, 0x74, 0x6f,
 	0x72, 0x18, 0x06, 0x20, 0x01, 0x28, 0x0c, 0x52, 0x16, 0x6f, 0x76, 0x65, 0x72, 0x66, 0x6c, 0x6f,
 	0x77, 0x53, 0x70, 0x61, 0x6e, 0x73, 0x45, 0x73, 0x74, 0x69, 0x6d, 0x61, 0x74, 0x6f, 0x72, 0x22,
-	0x35, 0x0a, 0x03, 0x42, 0x61, 0x72, 0x12, 0x16, 0x0a, 0x06, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74,
-	0x18, 0x01, 0x20, 0x01, 0x28, 0x05, 0x52, 0x06, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74, 0x12, 0x16,
-	0x0a, 0x06, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x06,
-	0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x22, 0xd3, 0x01, 0x0a, 0x0c, 0x48, 0x44, 0x52, 0x48, 0x69,
-	0x73, 0x74, 0x6f, 0x67, 0x72, 0x61, 0x6d, 0x12, 0x34, 0x0a, 0x16, 0x6c, 0x6f, 0x77, 0x65, 0x73,
+	0xdf, 0x01, 0x0a, 0x0c, 0x48, 0x44, 0x52, 0x48, 0x69, 0x73, 0x74, 0x6f, 0x67, 0x72, 0x61, 0x6d,
+	0x12, 0x34, 0x0a, 0x16, 0x6c, 0x6f, 0x77, 0x65, 0x73, 0x74, 0x5f, 0x74, 0x72, 0x61, 0x63, 0x6b,
+	0x61, 0x62, 0x6c, 0x65, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03,
+	0x52, 0x14, 0x6c, 0x6f, 0x77, 0x65, 0x73, 0x74, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x61, 0x62, 0x6c,
+	0x65, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x36, 0x0a, 0x17, 0x68, 0x69, 0x67, 0x68, 0x65, 0x73,
 	0x74, 0x5f, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x61, 0x62, 0x6c, 0x65, 0x5f, 0x76, 0x61, 0x6c, 0x75,
-	0x65, 0x18, 0x01, 0x20, 0x01, 0x28, 0x03, 0x52, 0x14, 0x6c, 0x6f, 0x77, 0x65, 0x73, 0x74, 0x54,
-	0x72, 0x61, 0x63, 0x6b, 0x61, 0x62, 0x6c, 0x65, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x36, 0x0a,
-	0x17, 0x68, 0x69, 0x67, 0x68, 0x65, 0x73, 0x74, 0x5f, 0x74, 0x72, 0x61, 0x63, 0x6b, 0x61, 0x62,
-	0x6c, 0x65, 0x5f, 0x76, 0x61, 0x6c, 0x75, 0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x15,
-	0x68, 0x69, 0x67, 0x68, 0x65, 0x73, 0x74, 0x54, 0x72, 0x61, 0x63, 0x6b, 0x61, 0x62, 0x6c, 0x65,
-	0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x2f, 0x0a, 0x13, 0x73, 0x69, 0x67, 0x6e, 0x69, 0x66, 0x69,
-	0x63, 0x61, 0x6e, 0x74, 0x5f, 0x66, 0x69, 0x67, 0x75, 0x72, 0x65, 0x73, 0x18, 0x03, 0x20, 0x01,
-	0x28, 0x03, 0x52, 0x12, 0x73, 0x69, 0x67, 0x6e, 0x69, 0x66, 0x69, 0x63, 0x61, 0x6e, 0x74, 0x46,
-	0x69, 0x67, 0x75, 0x72, 0x65, 0x73, 0x12, 0x24, 0x0a, 0x04, 0x62, 0x61, 0x72, 0x73, 0x18, 0x04,
-	0x20, 0x03, 0x28, 0x0b, 0x32, 0x10, 0x2e, 0x65, 0x6c, 0x61, 0x73, 0x74, 0x69, 0x63, 0x2e, 0x61,
-	0x70, 0x6d, 0x2e, 0x42, 0x61, 0x72, 0x52, 0x04, 0x62, 0x61, 0x72, 0x73, 0x42, 0x13, 0x48, 0x01,
-	0x5a, 0x0f, 0x2e, 0x2f, 0x61, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61, 0x74, 0x69, 0x6f, 0x6e, 0x70,
-	0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
+	0x65, 0x18, 0x02, 0x20, 0x01, 0x28, 0x03, 0x52, 0x15, 0x68, 0x69, 0x67, 0x68, 0x65, 0x73, 0x74,
+	0x54, 0x72, 0x61, 0x63, 0x6b, 0x61, 0x62, 0x6c, 0x65, 0x56, 0x61, 0x6c, 0x75, 0x65, 0x12, 0x2f,
+	0x0a, 0x13, 0x73, 0x69, 0x67, 0x6e, 0x69, 0x66, 0x69, 0x63, 0x61, 0x6e, 0x74, 0x5f, 0x66, 0x69,
+	0x67, 0x75, 0x72, 0x65, 0x73, 0x18, 0x03, 0x20, 0x01, 0x28, 0x03, 0x52, 0x12, 0x73, 0x69, 0x67,
+	0x6e, 0x69, 0x66, 0x69, 0x63, 0x61, 0x6e, 0x74, 0x46, 0x69, 0x67, 0x75, 0x72, 0x65, 0x73, 0x12,
+	0x16, 0x0a, 0x06, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x18, 0x04, 0x20, 0x03, 0x28, 0x03, 0x52,
+	0x06, 0x63, 0x6f, 0x75, 0x6e, 0x74, 0x73, 0x12, 0x18, 0x0a, 0x07, 0x62, 0x75, 0x63, 0x6b, 0x65,
+	0x74, 0x73, 0x18, 0x05, 0x20, 0x03, 0x28, 0x05, 0x52, 0x07, 0x62, 0x75, 0x63, 0x6b, 0x65, 0x74,
+	0x73, 0x42, 0x13, 0x48, 0x01, 0x5a, 0x0f, 0x2e, 0x2f, 0x61, 0x67, 0x67, 0x72, 0x65, 0x67, 0x61,
+	0x74, 0x69, 0x6f, 0x6e, 0x70, 0x62, 0x62, 0x06, 0x70, 0x72, 0x6f, 0x74, 0x6f, 0x33,
 }
 
 var (
@@ -1704,7 +1654,7 @@ func file_proto_aggregation_proto_rawDescGZIP() []byte {
 	return file_proto_aggregation_proto_rawDescData
 }
 
-var file_proto_aggregation_proto_msgTypes = make([]protoimpl.MessageInfo, 19)
+var file_proto_aggregation_proto_msgTypes = make([]protoimpl.MessageInfo, 18)
 var file_proto_aggregation_proto_goTypes = []interface{}{
 	(*CombinedMetrics)(nil),                  // 0: elastic.apm.CombinedMetrics
 	(*KeyedServiceMetrics)(nil),              // 1: elastic.apm.KeyedServiceMetrics
@@ -1723,8 +1673,7 @@ var file_proto_aggregation_proto_goTypes = []interface{}{
 	(*SpanAggregationKey)(nil),               // 14: elastic.apm.SpanAggregationKey
 	(*SpanMetrics)(nil),                      // 15: elastic.apm.SpanMetrics
 	(*Overflow)(nil),                         // 16: elastic.apm.Overflow
-	(*Bar)(nil),                              // 17: elastic.apm.Bar
-	(*HDRHistogram)(nil),                     // 18: elastic.apm.HDRHistogram
+	(*HDRHistogram)(nil),                     // 17: elastic.apm.HDRHistogram
 }
 var file_proto_aggregation_proto_depIdxs = []int32{
 	1,  // 0: elastic.apm.CombinedMetrics.service_metrics:type_name -> elastic.apm.KeyedServiceMetrics
@@ -1740,21 +1689,20 @@ var file_proto_aggregation_proto_depIdxs = []int32{
 	5,  // 10: elastic.apm.KeyedServiceInstanceMetrics.metrics:type_name -> elastic.apm.ServiceInstanceMetrics
 	8,  // 11: elastic.apm.KeyedTransactionMetrics.key:type_name -> elastic.apm.TransactionAggregationKey
 	9,  // 12: elastic.apm.KeyedTransactionMetrics.metrics:type_name -> elastic.apm.TransactionMetrics
-	18, // 13: elastic.apm.TransactionMetrics.histogram:type_name -> elastic.apm.HDRHistogram
+	17, // 13: elastic.apm.TransactionMetrics.histogram:type_name -> elastic.apm.HDRHistogram
 	11, // 14: elastic.apm.KeyedServiceTransactionMetrics.key:type_name -> elastic.apm.ServiceTransactionAggregationKey
 	12, // 15: elastic.apm.KeyedServiceTransactionMetrics.metrics:type_name -> elastic.apm.ServiceTransactionMetrics
-	18, // 16: elastic.apm.ServiceTransactionMetrics.histogram:type_name -> elastic.apm.HDRHistogram
+	17, // 16: elastic.apm.ServiceTransactionMetrics.histogram:type_name -> elastic.apm.HDRHistogram
 	14, // 17: elastic.apm.KeyedSpanMetrics.key:type_name -> elastic.apm.SpanAggregationKey
 	15, // 18: elastic.apm.KeyedSpanMetrics.metrics:type_name -> elastic.apm.SpanMetrics
 	9,  // 19: elastic.apm.Overflow.overflow_transactions:type_name -> elastic.apm.TransactionMetrics
 	12, // 20: elastic.apm.Overflow.overflow_service_transactions:type_name -> elastic.apm.ServiceTransactionMetrics
 	15, // 21: elastic.apm.Overflow.overflow_spans:type_name -> elastic.apm.SpanMetrics
-	17, // 22: elastic.apm.HDRHistogram.bars:type_name -> elastic.apm.Bar
-	23, // [23:23] is the sub-list for method output_type
-	23, // [23:23] is the sub-list for method input_type
-	23, // [23:23] is the sub-list for extension type_name
-	23, // [23:23] is the sub-list for extension extendee
-	0,  // [0:23] is the sub-list for field type_name
+	22, // [22:22] is the sub-list for method output_type
+	22, // [22:22] is the sub-list for method input_type
+	22, // [22:22] is the sub-list for extension type_name
+	22, // [22:22] is the sub-list for extension extendee
+	0,  // [0:22] is the sub-list for field type_name
 }
 
 func init() { file_proto_aggregation_proto_init() }
@@ -1968,18 +1916,6 @@ func file_proto_aggregation_proto_init() {
 			}
 		}
 		file_proto_aggregation_proto_msgTypes[17].Exporter = func(v interface{}, i int) interface{} {
-			switch v := v.(*Bar); i {
-			case 0:
-				return &v.state
-			case 1:
-				return &v.sizeCache
-			case 2:
-				return &v.unknownFields
-			default:
-				return nil
-			}
-		}
-		file_proto_aggregation_proto_msgTypes[18].Exporter = func(v interface{}, i int) interface{} {
 			switch v := v.(*HDRHistogram); i {
 			case 0:
 				return &v.state
@@ -1998,7 +1934,7 @@ func file_proto_aggregation_proto_init() {
 			GoPackagePath: reflect.TypeOf(x{}).PkgPath(),
 			RawDescriptor: file_proto_aggregation_proto_rawDesc,
 			NumEnums:      0,
-			NumMessages:   19,
+			NumMessages:   18,
 			NumExtensions: 0,
 			NumServices:   0,
 		},
