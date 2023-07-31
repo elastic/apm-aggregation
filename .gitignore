@@ -23,3 +23,7 @@ __debug_bin
 *.DS_Store
 
 build
+
+# git ignore ndjson testdata files to avoid duplication across repos
+# until we figure out a better way to do so
+/aggregators/testdata/*.ndjson
