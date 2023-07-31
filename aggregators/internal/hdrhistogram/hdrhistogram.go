@@ -282,7 +282,7 @@ func getBucketCount() int32 {
 	return bucketsNeeded
 }
 
-// Bar represents a bar of histogram. Each bar has an bucket, representing
+// Bar represents a bar of histogram. Each bar has a bucket, representing
 // where the bar belongs to in the histogram range, and the count of values
 // in each bucket.
 type Bar struct {
