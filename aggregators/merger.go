@@ -438,8 +438,8 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 	}
 
 	toIdx, fromIdx := len(to.Buckets)-1, len(from.Buckets)-1
-	to.Buckets = slices.Grow(to.Buckets, requiredLen)
-	to.Counts = slices.Grow(to.Counts, requiredLen)
+	to.Buckets = slices.Grow(to.Buckets, requiredLen-len(to.Buckets))
+	to.Counts = slices.Grow(to.Counts, requiredLen-len(to.Counts))
 	to.Buckets = to.Buckets[:requiredLen]
 	to.Counts = to.Counts[:requiredLen]
 	for idx := len(to.Buckets) - 1; idx >= 0; idx-- {

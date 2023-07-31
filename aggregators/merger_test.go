@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/google/go-cmp/cmp"
+	"github.com/google/go-cmp/cmp/cmpopts"
 	"github.com/stretchr/testify/assert"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -998,7 +999,7 @@ func TestCardinalityEstimationOnSubKeyCollision(t *testing.T) {
 	assert.Equal(t, uint64(2), cmm.metrics.OverflowServices.OverflowSpan.Estimator.Estimate())
 }
 
-func TestMergeHistogram(t *testing.T) {
+func TestMergeHistogramEquiv(t *testing.T) {
 	for _, tc := range []struct {
 		name       string
 		recordFunc func(h1, h2 *hdrhistogram.HistogramRepresentation)
@@ -1058,6 +1059,101 @@ func TestMergeHistogram(t *testing.T) {
 				histActual,
 				cmp.AllowUnexported(hdrhistogram.HistogramRepresentation{}),
 				cmp.AllowUnexported(hdrhistogram.HybridCountsRep{}),
+			))
+		})
+	}
+}
+
+func TestMergeHistogram(t *testing.T) {
+	for _, tc := range []struct {
+		name     string
+		to       *aggregationpb.HDRHistogram
+		from     *aggregationpb.HDRHistogram
+		expected *aggregationpb.HDRHistogram
+	}{
+		{
+			name: "from_between_to",
+			to: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 3000},
+				Counts:  []int64{1, 3},
+			},
+			from: &aggregationpb.HDRHistogram{
+				Buckets: []int32{2000},
+				Counts:  []int64{2},
+			},
+			expected: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 2000, 3000},
+				Counts:  []int64{1, 2, 3},
+			},
+		},
+		{
+			name: "to_between_from",
+			to: &aggregationpb.HDRHistogram{
+				Buckets: []int32{2000},
+				Counts:  []int64{2},
+			},
+			from: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 3000},
+				Counts:  []int64{1, 3},
+			},
+			expected: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 2000, 3000},
+				Counts:  []int64{1, 2, 3},
+			},
+		},
+		{
+			name: "merge_counts",
+			to: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 2000},
+				Counts:  []int64{1, 2},
+			},
+			from: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 2000},
+				Counts:  []int64{1, 2},
+			},
+			expected: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 2000},
+				Counts:  []int64{2, 4},
+			},
+		},
+		{
+			name: "empty_to",
+			to: &aggregationpb.HDRHistogram{
+				Buckets: []int32{},
+				Counts:  []int64{},
+			},
+			from: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000},
+				Counts:  []int64{1},
+			},
+			expected: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000},
+				Counts:  []int64{1},
+			},
+		},
+		{
+			name: "empty_from",
+			to: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000},
+				Counts:  []int64{1},
+			},
+			from: &aggregationpb.HDRHistogram{
+				Buckets: []int32{},
+				Counts:  []int64{},
+			},
+			expected: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000},
+				Counts:  []int64{1},
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			mergeHistogram(tc.to, tc.from)
+
+			assert.Empty(t, cmp.Diff(
+				tc.expected,
+				tc.to,
+				cmpopts.IgnoreUnexported(aggregationpb.HDRHistogram{}),
 			))
 		})
 	}
