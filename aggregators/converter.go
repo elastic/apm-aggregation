@@ -164,6 +164,9 @@ func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(e *modelpb.APME
 	case "success":
 		mb.serviceTransactionMetrics.SuccessCount = count
 		mb.serviceTransactionMetrics.FailureCount = 0
+	default:
+		mb.serviceTransactionMetrics.SuccessCount = 0
+		mb.serviceTransactionMetrics.FailureCount = 0
 	}
 	mb.keyedServiceTransactionMetricsSlice = mb.keyedServiceTransactionMetricsArray[:]
 }

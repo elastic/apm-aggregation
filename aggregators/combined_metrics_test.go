@@ -44,6 +44,10 @@ var defaultTestCombinedMetricsCfg = TestCombinedMetricsCfg{
 type TestTransactionCfg struct {
 	duration time.Duration
 	count    int
+	// outcome is used for service transaction as transaction already
+	// have `EventOutcome` in their key. For transactions this field
+	// will automatically be overriden based on the key value.
+	outcome string
 }
 
 type TestTransactionOpt func(TestTransactionCfg) TestTransactionCfg
@@ -62,9 +66,21 @@ func WithTransactionCount(c int) TestTransactionOpt {
 	}
 }
 
+// WithEventOutcome is used to specify the event outcome for building
+// test service transaction metrics. If it is specified for building
+// test transaction metrics then it will be overridden based on the
+// `EventOutcome` in the transaction aggregation key.
+func WithEventOutcome(o string) TestTransactionOpt {
+	return func(cfg TestTransactionCfg) TestTransactionCfg {
+		cfg.outcome = o
+		return cfg
+	}
+}
+
 var defaultTestTransactionCfg = TestTransactionCfg{
 	duration: time.Second,
 	count:    1,
+	outcome:  "success",
 }
 
 type TestSpanCfg struct {
@@ -201,6 +217,7 @@ func (tsim *TestServiceInstanceMetrics) AddTransaction(
 	for _, opt := range opts {
 		cfg = opt(cfg)
 	}
+	cfg.outcome = tk.EventOutcome
 
 	hdr := hdrhistogram.New()
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
@@ -227,6 +244,7 @@ func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
 	for _, opt := range opts {
 		cfg = opt(cfg)
 	}
+	cfg.outcome = tk.EventOutcome
 
 	hdr := hdrhistogram.New()
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
@@ -265,7 +283,12 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
 	kstm.Key = stk.ToProto()
 	kstm.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
 	kstm.Metrics.Histogram = histogramToProto(hdr)
-	kstm.Metrics.SuccessCount += float64(cfg.count)
+	switch cfg.outcome {
+	case "failure":
+		kstm.Metrics.FailureCount = float64(cfg.count)
+	case "success":
+		kstm.Metrics.SuccessCount = float64(cfg.count)
+	}
 
 	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
 	svcIns := svc.ServiceInstanceGroups[tsim.sik]
@@ -290,7 +313,12 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransactionOverflow(
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
 	from := aggregationpb.ServiceTransactionMetricsFromVTPool()
 	from.Histogram = histogramToProto(hdr)
-	from.SuccessCount += float64(cfg.count)
+	switch cfg.outcome {
+	case "failure":
+		from.FailureCount = float64(cfg.count)
+	case "success":
+		from.SuccessCount = float64(cfg.count)
+	}
 
 	hash := Hasher{}.
 		Chain(tsim.tsm.sk.ToProto()).
