@@ -236,13 +236,13 @@ func TestMerge(t *testing.T) {
 			},
 		},
 		{
-			name: "overflow_due_to_merge",
+			name: "per_svc_overflow_due_to_merge",
 			limits: Limits{
-				MaxSpanGroups:                         1,
+				MaxSpanGroups:                         100,
 				MaxSpanGroupsPerService:               1,
-				MaxTransactionGroups:                  1,
+				MaxTransactionGroups:                  100,
 				MaxTransactionGroupsPerService:        1,
-				MaxServiceTransactionGroups:           1,
+				MaxServiceTransactionGroups:           100,
 				MaxServiceTransactionGroupsPerService: 1,
 				MaxServices:                           1,
 				MaxServiceInstanceGroupsPerService:    1,
@@ -287,6 +287,67 @@ func TestMerge(t *testing.T) {
 						WithTransactionCount(7)).
 					// all span, transaction, and service transaction from _from_ will overflow
 					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(5)).
+					AddServiceTransactionOverflow(
+						serviceTransactionAggregationKey{TransactionType: "type2"},
+						WithTransactionCount(5)).
+					AddTransactionOverflow(
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						WithTransactionCount(5)).
+					Get()
+			},
+		},
+		{
+			name: "global_overflow_due_to_merge",
+			limits: Limits{
+				MaxSpanGroups:                         1,
+				MaxSpanGroupsPerService:               100,
+				MaxTransactionGroups:                  1,
+				MaxTransactionGroupsPerService:        100,
+				MaxServiceTransactionGroups:           1,
+				MaxServiceTransactionGroupsPerService: 100,
+				MaxServices:                           1,
+				MaxServiceInstanceGroupsPerService:    1,
+			},
+			to: func() combinedMetrics {
+				return NewTestCombinedMetrics(WithEventsTotal(14)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceTransaction(
+						serviceTransactionAggregationKey{TransactionType: "type1"},
+						WithTransactionCount(7)).
+					AddTransaction(
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						WithTransactionCount(7)).
+					Get()
+			},
+			from: func() *aggregationpb.CombinedMetrics {
+				return NewTestCombinedMetrics(WithEventsTotal(10)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					AddSpan(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
+					AddServiceTransaction(
+						serviceTransactionAggregationKey{TransactionType: "type2"},
+						WithTransactionCount(5)).
+					AddTransaction(
+						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
+						WithTransactionCount(5)).
+					GetProto()
+			},
+			expected: func() combinedMetrics {
+				return NewTestCombinedMetrics(WithEventsTotal(24)).
+					AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"}).
+					AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+					// no merge as span, transaction, and service transaction will overflow
+					AddSpan(spanAggregationKey{SpanName: "span1"}, WithSpanCount(7)).
+					AddServiceTransaction(
+						serviceTransactionAggregationKey{TransactionType: "type1"},
+						WithTransactionCount(7)).
+					AddTransaction(
+						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
+						WithTransactionCount(7)).
+					// all span, transaction, and service transaction from _from_ will overflow
+					AddSpanOverflow(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
 					AddServiceTransactionOverflow(
 						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
