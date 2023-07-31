@@ -1,3 +1,7 @@
+// Copyright Elasticsearch B.V. and/or licensed to Elasticsearch B.V. under one
+// or more contributor license agreements. Licensed under the Elastic License 2.0;
+// you may not use this file except in compliance with the Elastic License 2.0.
+
 package aggregators
 
 import (
@@ -10,12 +14,13 @@ import (
 	"os"
 	"testing"
 
-	"github.com/elastic/apm-data/input/elasticapm"
-	"github.com/elastic/apm-data/model/modelpb"
-	"github.com/elastic/apm-data/model/modelprocessor"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
 	"google.golang.org/protobuf/types/known/timestamppb"
+
+	"github.com/elastic/apm-data/input/elasticapm"
+	"github.com/elastic/apm-data/model/modelpb"
+	"github.com/elastic/apm-data/model/modelprocessor"
 )
 
 func ndjsonToBatch(reader io.Reader) (*modelpb.Batch, error) {
