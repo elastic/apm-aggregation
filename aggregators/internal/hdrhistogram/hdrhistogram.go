@@ -129,7 +129,7 @@ func (h *HistogramRepresentation) Buckets() (int64, []int64, []float64) {
 		if scaledCounts <= 0 {
 			return
 		}
-		if iter.jump(int(bucket - prevBucket)) {
+		if iter.advance(int(bucket - prevBucket)) {
 			count := int64(math.Round(float64(scaledCounts) / histogramCountScale))
 			counts = append(counts, count)
 			values = append(values, float64(iter.highestEquivalentValue))
@@ -202,8 +202,8 @@ type iterator struct {
 	highestEquivalentValue  int64
 }
 
-// jump jumps the iterator by count
-func (i *iterator) jump(count int) bool {
+// advance advances the iterator by count
+func (i *iterator) advance(count int) bool {
 	for c := 0; c < count; c++ {
 		if !i.nextCountAtIdx() {
 			return false
