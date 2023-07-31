@@ -436,9 +436,16 @@ func histogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 		return nil
 	}
 	pb := aggregationpb.HDRHistogramFromVTPool()
+	setHistogramProto(h, pb)
+	return pb
+}
+
+func setHistogramProto(h *hdrhistogram.HistogramRepresentation, pb *aggregationpb.HDRHistogram) {
 	pb.LowestTrackableValue = h.LowestTrackableValue
 	pb.HighestTrackableValue = h.HighestTrackableValue
 	pb.SignificantFigures = h.SignificantFigures
+	pb.Buckets = pb.Buckets[:0]
+	pb.Counts = pb.Counts[:0]
 	countsLen := h.CountsRep.Len()
 	if countsLen > cap(pb.Buckets) {
 		pb.Buckets = make([]int32, 0, countsLen)
@@ -450,7 +457,6 @@ func histogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 		pb.Buckets = append(pb.Buckets, bucket)
 		pb.Counts = append(pb.Counts, count)
 	})
-	return pb
 }
 
 func hllBytes(estimator *hyperloglog.Sketch) []byte {
