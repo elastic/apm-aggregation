@@ -87,6 +87,8 @@ func getPartitionedMetricsBuilder(
 	return p
 }
 
+// release releases all partitioned builders back to their pools.
+// Objects will be reset as needed if/when the builder is reacquired.
 func (p *partitionedMetricsBuilder) release() {
 	for i, mb := range p.builders {
 		mb.release()
@@ -293,6 +295,8 @@ func getEventMetricsBuilder(partition uint16) *eventMetricsBuilder {
 	return mb
 }
 
+// release releases the builder back to the pool.
+// Objects will be reset as needed if/when the builder is reacquired.
 func (mb *eventMetricsBuilder) release() {
 	eventMetricsBuilderPool.Put(mb)
 }
