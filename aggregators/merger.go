@@ -72,16 +72,9 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 
 	// Calculate the current capacity of the transaction, service transaction,
 	// and span groups in the _to_ combined metrics.
-	totalTransactionGroupsConstraint := newConstraint(0, m.limits.MaxTransactionGroups)
-	totalServiceTransactionGroupsConstraint := newConstraint(0, m.limits.MaxServiceTransactionGroups)
-	totalSpanGroupsConstraint := newConstraint(0, m.limits.MaxSpanGroups)
-	for _, svc := range m.metrics.Services {
-		for _, si := range svc.ServiceInstanceGroups {
-			totalTransactionGroupsConstraint.add(len(si.TransactionGroups))
-			totalServiceTransactionGroupsConstraint.add(len(si.ServiceTransactionGroups))
-			totalSpanGroupsConstraint.add(len(si.SpanGroups))
-		}
-	}
+	totalTransactionGroupsConstraint := newConstraint(int(m.metrics.TotalTransactionGroups), m.limits.MaxTransactionGroups)
+	totalServiceTransactionGroupsConstraint := newConstraint(int(m.metrics.TotalServiceTransactionGroups), m.limits.MaxServiceTransactionGroups)
+	totalSpanGroupsConstraint := newConstraint(int(m.metrics.TotalSpanGroups), m.limits.MaxSpanGroups)
 
 	// Iterate over the services in the _from_ combined metrics and merge them
 	// into the _to_ combined metrics as per the following rules:
@@ -123,6 +116,10 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 		}
 		m.metrics.Services[sk] = toSvc
 	}
+
+	m.metrics.TotalTransactionGroups = uint32(totalTransactionGroupsConstraint.value())
+	m.metrics.TotalServiceTransactionGroups = uint32(totalServiceTransactionGroupsConstraint.value())
+	m.metrics.TotalSpanGroups = uint32(totalSpanGroupsConstraint.value())
 }
 
 func mergeServiceInstanceGroups(

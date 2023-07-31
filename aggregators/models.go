@@ -110,6 +110,11 @@ type combinedMetrics struct {
 	// YoungestEventTimestamp is the youngest event that was aggregated
 	// in the combined metrics based on the received timestamp.
 	YoungestEventTimestamp uint64
+
+	// Cached counts for number of total groups
+	TotalTransactionGroups        uint32
+	TotalServiceTransactionGroups uint32
+	TotalSpanGroups               uint32
 }
 
 // serviceAggregationKey models the key used to store service specific
