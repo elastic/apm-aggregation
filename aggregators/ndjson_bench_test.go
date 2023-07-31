@@ -66,6 +66,8 @@ func ndjsonToBatch(reader io.Reader) (*modelpb.Batch, error) {
 	return &batch, nil
 }
 
+// forEachNDJSON loops over ndjson files in testdata.
+// The directory is empty by default but the ndjson files can be downloaded from the apm-perf repo.
 func forEachNDJSON(b *testing.B, f func(*testing.B, *modelpb.Batch)) {
 	dirFS := os.DirFS("testdata")
 	matches, err := fs.Glob(dirFS, "*.ndjson")
