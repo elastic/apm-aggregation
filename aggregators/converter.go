@@ -174,7 +174,7 @@ func (p *partitionedMetricsBuilder) addDroppedSpanStatsMetrics(dss *modelpb.Drop
 
 	mb := p.get(p.hasher.Chain(&key))
 	i := len(mb.keyedSpanMetricsSlice)
-	if i == 128 { //len(mb.keyedSpanMetrics) {
+	if i == len(mb.keyedSpanMetricsArray) {
 		// No more capacity. The spec says that when 128 dropped span
 		// stats entries are reached, then any remaining entries will
 		// be silently discarded.
