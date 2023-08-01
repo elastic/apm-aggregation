@@ -38,17 +38,17 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		},
 	}
 	for _, tc := range []struct {
-		name        string
-		input       func() []*modelpb.APMEvent
-		partitioner Partitioner
-		expected    func() []*aggregationpb.CombinedMetrics
+		name       string
+		input      func() []*modelpb.APMEvent
+		partitions uint16
+		expected   func() []*aggregationpb.CombinedMetrics
 	}{
 		{
 			name: "nil-input",
 			input: func() []*modelpb.APMEvent {
 				return nil
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return nil
 			},
@@ -64,7 +64,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 				return []*modelpb.APMEvent{event}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return nil
 			},
@@ -80,7 +80,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 				return []*modelpb.APMEvent{event}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return []*aggregationpb.CombinedMetrics{
 					NewTestCombinedMetrics(
@@ -112,7 +112,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 				return []*modelpb.APMEvent{event}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return nil
 			},
@@ -128,7 +128,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 				return []*modelpb.APMEvent{event}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return nil
 			},
@@ -150,7 +150,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				event.Event.Duration = durationpb.New(time.Nanosecond)
 				return []*modelpb.APMEvent{event}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return []*aggregationpb.CombinedMetrics{
 					NewTestCombinedMetrics(
@@ -185,7 +185,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				event.Event.Duration = durationpb.New(time.Nanosecond)
 				return []*modelpb.APMEvent{event}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return []*aggregationpb.CombinedMetrics{
 					NewTestCombinedMetrics(
@@ -213,7 +213,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 				return []*modelpb.APMEvent{event}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return []*aggregationpb.CombinedMetrics{
 					NewTestCombinedMetrics(
@@ -234,7 +234,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				event.Log = &modelpb.Log{}
 				return []*modelpb.APMEvent{event}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return []*aggregationpb.CombinedMetrics{
 					NewTestCombinedMetrics(
@@ -266,7 +266,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 				return []*modelpb.APMEvent{success, unknown}
 			},
-			partitioner: NewHashPartitioner(1),
+			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
 				return []*aggregationpb.CombinedMetrics{
 					NewTestCombinedMetrics(
@@ -318,7 +318,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				return nil
 			}
 			for _, e := range tc.input() {
-				err := EventToCombinedMetrics(e, cmk, tc.partitioner, collector)
+				err := EventToCombinedMetrics(e, cmk, tc.partitions, collector)
 				require.NoError(t, err)
 			}
 			assert.Empty(t, cmp.Diff(
@@ -543,13 +543,12 @@ func BenchmarkEventToCombinedMetrics(b *testing.B) {
 		ProcessingTime: time.Now().Truncate(time.Minute),
 		ID:             EncodeToCombinedMetricsKeyID(b, "ab01"),
 	}
-	partitioner := NewHashPartitioner(1)
 	noop := func(_ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics) error {
 		return nil
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := EventToCombinedMetrics(event, cmk, partitioner, noop)
+		err := EventToCombinedMetrics(event, cmk, 1 /*partitions*/, noop)
 		if err != nil {
 			b.Fatal(err)
 		}

@@ -33,18 +33,12 @@ type Processor func(
 	aggregationIvl time.Duration,
 ) error
 
-// Partitioner partitions the aggregation key based on the configured
-// partition logic.
-type Partitioner interface {
-	Partition(Hasher) uint16
-}
-
 // Config contains the required config for running the aggregator.
 type Config struct {
 	DataDir                string
 	Limits                 Limits
 	Processor              Processor
-	Partitioner            Partitioner
+	Partitions             uint16
 	AggregationIntervals   []time.Duration
 	HarvestDelay           time.Duration
 	CombinedMetricsIDToKVs func([16]byte) []attribute.KeyValue
@@ -93,13 +87,15 @@ func WithProcessor(processor Processor) Option {
 	}
 }
 
-// WithPartitioner configures a partitioner for partitioning the combined
-// metrics in pebble. Partition IDs are encoded in a way that all the
-// partitions of a specific combined metric are listed before any other if
-// compared using the bytes comparer.
-func WithPartitioner(partitioner Partitioner) Option {
+// WithPartitions configures the number of partitions for combined metrics
+// written to pebble. Defaults to 1.
+//
+// Partition IDs are encoded in a way that all the partitions of a specific
+// combined metric are listed before any other if compared using the bytes
+// comparer.
+func WithPartitions(n uint16) Option {
 	return func(c Config) Config {
-		c.Partitioner = partitioner
+		c.Partitions = n
 		return c
 	}
 }
@@ -185,7 +181,7 @@ func defaultCfg() Config {
 	return Config{
 		DataDir:                "/tmp",
 		Processor:              stdoutProcessor,
-		Partitioner:            NewHashPartitioner(1),
+		Partitions:             1,
 		AggregationIntervals:   []time.Duration{time.Minute},
 		Meter:                  otel.Meter(instrumentationName),
 		Tracer:                 otel.Tracer(instrumentationName),
@@ -201,8 +197,8 @@ func validateCfg(cfg Config) error {
 	if cfg.Processor == nil {
 		return errors.New("processor is required")
 	}
-	if cfg.Partitioner == nil {
-		return errors.New("partitioner is required")
+	if cfg.Partitions == 0 {
+		return errors.New("partitions must be greater than zero")
 	}
 	if len(cfg.AggregationIntervals) == 0 {
 		return errors.New("at least one aggregation interval is required")
