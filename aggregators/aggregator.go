@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	memTableSize      = 32 << 10
+	memTableSize      = 32 << 20 // 32 MBs
 	aggregationIvlKey = "aggregation_interval"
 	maxBatchGroupSize = 100 // TODO: scale with memory?
 )
