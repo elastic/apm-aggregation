@@ -74,7 +74,8 @@ func New(opts ...Option) (*Aggregator, error) {
 			Name: "combined_metrics_merger",
 			Merge: func(_, value []byte) (pebble.ValueMerger, error) {
 				merger := combinedMetricsMerger{
-					limits: cfg.Limits,
+					limits:      cfg.Limits,
+					constraints: newConstraints(cfg.Limits),
 				}
 				pb := aggregationpb.CombinedMetricsFromVTPool()
 				defer pb.ReturnToVTPool()
