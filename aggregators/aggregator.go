@@ -26,7 +26,8 @@ import (
 )
 
 const (
-	dbCommitThresholdBytes = 10 * 1024 * 1024 // commit every 10MB
+	memTableSize           = 16 << 20 // 16 MBs
+	dbCommitThresholdBytes = 7 << 20  // Keep it smaller than half of memtable size
 	aggregationIvlKey      = "aggregation_interval"
 )
 
@@ -85,6 +86,7 @@ func New(opts ...Option) (*Aggregator, error) {
 				return &merger, nil
 			},
 		},
+		MemTableSize: memTableSize,
 	}
 	writeOptions := pebble.Sync
 	if cfg.InMemory {
