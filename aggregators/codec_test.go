@@ -63,7 +63,7 @@ func TestHistogramRepresentation(t *testing.T) {
 	expected.RecordDuration(time.Minute, 2)
 
 	actual := hdrhistogram.New()
-	HistogramFromProto(actual, HistogramToProto(expected))
+	histogramFromProto(actual, histogramToProto(expected))
 	assert.Empty(t, cmp.Diff(
 		expected, actual,
 		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
@@ -76,45 +76,32 @@ func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 	b.ReportAllocs()
 	ts := time.Now()
 	cardinality := 10
-	tcm := createTestCombinedMetrics()
+	tcm := NewTestCombinedMetrics()
+	sim := tcm.AddServiceMetrics(serviceAggregationKey{
+		Timestamp:   ts,
+		ServiceName: "bench",
+	}).AddServiceInstanceMetrics(serviceInstanceAggregationKey{})
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)
 		spanName := fmt.Sprintf("spn%d", i)
-		tcm = tcm.addTransaction(ts, "bench", "", testTransaction{txnName: txnName, txnType: txnType, count: 200})
-		tcm = tcm.addServiceTransaction(ts, "bench", "", testServiceTransaction{txnType: txnType, count: 200})
-		tcm = tcm.addSpan(ts, "bench", "", testSpan{spanName: spanName})
+
+		sim.AddTransaction(transactionAggregationKey{
+			TransactionName: txnName,
+			TransactionType: txnType,
+		}, WithTransactionCount(200))
+		sim.AddServiceTransaction(serviceTransactionAggregationKey{
+			TransactionType: txnType,
+		}, WithTransactionCount(200))
+		sim.AddSpan(spanAggregationKey{
+			SpanName: spanName,
+		})
 	}
-	cm := CombinedMetrics(*tcm)
+	cm := tcm.Get()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
 		cmproto := cm.ToProto()
 		cmproto.ReturnToVTPool()
-	}
-}
-
-func BenchmarkCombinedMetricsDecoding(b *testing.B) {
-	b.ReportAllocs()
-	ts := time.Now()
-	cardinality := 10
-	tcm := createTestCombinedMetrics()
-	for i := 0; i < cardinality; i++ {
-		txnName := fmt.Sprintf("txn%d", i)
-		txnType := fmt.Sprintf("typ%d", i)
-		spanName := fmt.Sprintf("spn%d", i)
-		tcm = tcm.addTransaction(ts, "bench", "", testTransaction{txnName: txnName, txnType: txnType, count: 200})
-		tcm = tcm.addServiceTransaction(ts, "bench", "", testServiceTransaction{txnType: txnType, count: 200})
-		tcm = tcm.addSpan(ts, "bench", "", testSpan{spanName: spanName})
-	}
-	cm := CombinedMetrics(*tcm)
-	cmproto := cm.ToProto()
-	b.Cleanup(func() {
-		cmproto.ReturnToVTPool()
-	})
-	b.ResetTimer()
-	var expected CombinedMetrics
-	for i := 0; i < b.N; i++ {
-		expected.FromProto(cmproto)
 	}
 }
 

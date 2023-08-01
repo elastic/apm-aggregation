@@ -35,6 +35,7 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-data/model/modelpb"
 )
@@ -55,7 +56,8 @@ func TestAggregateBatch(t *testing.T) {
 	mp := metric.NewMeterProvider(metric.WithReader(gatherer))
 
 	cmID := EncodeToCombinedMetricsKeyID(t, "ab01")
-	txnDuration := 100 * time.Millisecond
+	eventDuration := 100 * time.Millisecond
+	dssDuration := 10 * time.Millisecond
 	uniqueEventCount := 100 // for each of txns and spans
 	uniqueServices := 10
 	repCount := 5
@@ -67,7 +69,7 @@ func TestAggregateBatch(t *testing.T) {
 		batch = append(batch, &modelpb.APMEvent{
 			Event: &modelpb.Event{
 				Outcome:  "success",
-				Duration: durationpb.New(txnDuration),
+				Duration: durationpb.New(eventDuration),
 				Received: timestamppb.New(ts),
 			},
 			Transaction: &modelpb.Transaction{
@@ -80,7 +82,7 @@ func TestAggregateBatch(t *testing.T) {
 						Outcome:                    "success",
 						Duration: &modelpb.AggregatedDuration{
 							Count: 1,
-							Sum:   durationpb.New(10 * time.Millisecond),
+							Sum:   durationpb.New(dssDuration),
 						},
 					},
 				},
@@ -89,6 +91,7 @@ func TestAggregateBatch(t *testing.T) {
 		})
 		batch = append(batch, &modelpb.APMEvent{
 			Event: &modelpb.Event{
+				Duration: durationpb.New(eventDuration),
 				Received: timestamppb.New(ts),
 			},
 			Span: &modelpb.Span{
@@ -103,7 +106,7 @@ func TestAggregateBatch(t *testing.T) {
 		})
 	}
 
-	out := make(chan CombinedMetrics, 1)
+	out := make(chan *aggregationpb.CombinedMetrics, 1)
 	aggIvl := time.Minute
 	agg, err := New(
 		WithDataDir(t.TempDir()),
@@ -129,8 +132,8 @@ func TestAggregateBatch(t *testing.T) {
 	require.NoError(t, err)
 
 	require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
-	require.NoError(t, agg.Stop(context.Background()))
-	var cm CombinedMetrics
+	require.NoError(t, agg.Close(context.Background()))
+	var cm *aggregationpb.CombinedMetrics
 	select {
 	case cm = <-out:
 	default:
@@ -146,16 +149,15 @@ func TestAggregateBatch(t *testing.T) {
 	}
 	assert.NotNil(t, span)
 
-	expectedCombinedMetrics := CombinedMetrics{
-		Services:               make(map[ServiceAggregationKey]ServiceMetrics),
-		eventsTotal:            float64(len(batch)),
-		youngestEventTimestamp: ts,
-	}
+	expectedCombinedMetrics := NewTestCombinedMetrics(
+		WithEventsTotal(float64(len(batch))),
+		WithYoungestEventTimestamp(ts),
+	)
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
 				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 133750},
+				"aggregator.bytes.ingested": {Value: 138250},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -174,67 +176,48 @@ func TestAggregateBatch(t *testing.T) {
 			},
 		},
 	}
-	sik := ServiceInstanceAggregationKey{GlobalLabelsStr: ""}
+	sik := serviceInstanceAggregationKey{GlobalLabelsStr: ""}
 	for i := 0; i < uniqueEventCount*repCount; i++ {
-		svcKey := ServiceAggregationKey{
+		svcKey := serviceAggregationKey{
 			Timestamp:   time.Unix(0, 0).UTC(),
 			ServiceName: fmt.Sprintf("svc%d", i%uniqueServices),
 		}
-		txKey := TransactionAggregationKey{
+		txKey := transactionAggregationKey{
 			TraceRoot:       true,
 			TransactionName: fmt.Sprintf("foo%d", i%uniqueEventCount),
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 			EventOutcome:    "success",
 		}
-		stxKey := ServiceTransactionAggregationKey{
+		stxKey := serviceTransactionAggregationKey{
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 		}
-		spanKey := SpanAggregationKey{
+		spanKey := spanAggregationKey{
 			SpanName: fmt.Sprintf("bar%d", i%uniqueEventCount),
 			Resource: "test_dest",
 		}
-		if _, ok := expectedCombinedMetrics.Services[svcKey]; !ok {
-			expectedCombinedMetrics.Services[svcKey] = newServiceMetrics()
-		}
-		if _, ok := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik]; !ok {
-			expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik] = newServiceInstanceMetrics()
-		}
-		var ok bool
-		var tm TransactionMetrics
-		if tm, ok = expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].TransactionGroups[txKey]; !ok {
-			tm = newTransactionMetrics()
-		}
-		tm.Histogram.RecordDuration(txnDuration, 1)
-		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].TransactionGroups[txKey] = tm
-		var stm ServiceTransactionMetrics
-		if stm, ok = expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].ServiceTransactionGroups[stxKey]; !ok {
-			stm = newServiceTransactionMetrics()
-		}
-		stm.Histogram.RecordDuration(txnDuration, 1)
-		stm.SuccessCount++
-		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].ServiceTransactionGroups[stxKey] = stm
-		sm := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[spanKey]
-		sm.Count++
-		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[spanKey] = sm
-
-		droppedSpanStatsKey := SpanAggregationKey{
+		dssKey := spanAggregationKey{
 			SpanName: "",
 			Resource: fmt.Sprintf("dropped_dest_resource%d", i%uniqueEventCount),
 			Outcome:  "success",
 		}
-		dssm := expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[droppedSpanStatsKey]
-		dssm.Count++
-		dssm.Sum += float64(10 * time.Millisecond)
-		expectedCombinedMetrics.Services[svcKey].ServiceInstanceGroups[sik].SpanGroups[droppedSpanStatsKey] = dssm
+		expectedCombinedMetrics.
+			AddServiceMetrics(svcKey).
+			AddServiceInstanceMetrics(sik).
+			AddTransaction(txKey, WithTransactionDuration(eventDuration)).
+			AddServiceTransaction(stxKey, WithTransactionDuration(eventDuration)).
+			AddSpan(spanKey, WithSpanDuration(eventDuration)).
+			AddSpan(dssKey, WithSpanDuration(dssDuration))
 	}
 	assert.Empty(t, cmp.Diff(
-		expectedCombinedMetrics, cm,
-		cmpopts.EquateEmpty(),
-		cmpopts.EquateApprox(0, 0.01),
-		cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
-			return a.Equal(&b)
-		}),
-		cmp.AllowUnexported(CombinedMetrics{}),
+		expectedCombinedMetrics.GetProto(), cm,
+		append(combinedMetricsSliceSorters,
+			cmpopts.EquateEmpty(),
+			cmpopts.EquateApprox(0, 0.01),
+			cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+				return a.Equal(&b)
+			}),
+			protocmp.Transform(),
+		)...,
 	))
 	assert.Empty(t, cmp.Diff(
 		expectedMeasurements,
@@ -582,7 +565,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 					require.NoError(t, err)
 				}
 			}
-			require.NoError(t, agg.Stop(context.Background()))
+			require.NoError(t, agg.Close(context.Background()))
 			var expectedEvents []*modelpb.APMEvent
 			for _, ivl := range aggregationIvls {
 				expectedEvents = append(expectedEvents, tt.getExpectedEvents(now, duration, ivl, count)...)
@@ -716,7 +699,7 @@ func TestHarvest(t *testing.T) {
 	processor := func(
 		_ context.Context,
 		cmk CombinedMetricsKey,
-		cm CombinedMetrics,
+		_ *aggregationpb.CombinedMetrics,
 		ivl time.Duration,
 	) error {
 		cmMap, ok := m[ivl]
@@ -770,7 +753,7 @@ func TestHarvest(t *testing.T) {
 		agg.Run(context.Background())
 	}()
 	t.Cleanup(func() {
-		agg.Stop(context.Background())
+		agg.Close(context.Background())
 	})
 
 	var batch modelpb.Batch
@@ -893,7 +876,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 		EncodeToCombinedMetricsKeyID(t, "ab01"),
 		&batch,
 	))
-	require.NoError(t, agg.Stop(context.Background()))
+	require.NoError(t, agg.Close(context.Background()))
 
 	expected := []*modelpb.APMEvent{
 		{
@@ -1011,7 +994,7 @@ func TestRunStopOrchestration(t *testing.T) {
 	newAggregator := func() *Aggregator {
 		agg, err := New(
 			WithDataDir(t.TempDir()),
-			WithProcessor(func(_ context.Context, _ CombinedMetricsKey, _ CombinedMetrics, _ time.Duration) error {
+			WithProcessor(func(_ context.Context, _ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics, _ time.Duration) error {
 				firstHarvestDone.Swap(true)
 				return nil
 			}),
@@ -1039,7 +1022,7 @@ func TestRunStopOrchestration(t *testing.T) {
 		)
 	}
 
-	t.Run("run_before_stop", func(t *testing.T) {
+	t.Run("run_before_close", func(t *testing.T) {
 		agg := newAggregator()
 		// Should aggregate even without running
 		assert.NoError(t, callAggregateBatch(agg))
@@ -1048,33 +1031,35 @@ func TestRunStopOrchestration(t *testing.T) {
 			return firstHarvestDone.Load()
 		}, 10*time.Second, 10*time.Millisecond, "failed while waiting for first harvest")
 		assert.NoError(t, callAggregateBatch(agg))
-		assert.NoError(t, agg.Stop(ctx))
-		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorStopped)
+		assert.NoError(t, agg.Close(ctx))
+		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorClosed)
 	})
-	t.Run("stop_before_run", func(t *testing.T) {
+	t.Run("close_before_run", func(t *testing.T) {
 		agg := newAggregator()
-		assert.NoError(t, agg.Stop(ctx))
-		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorStopped)
-		assert.ErrorIs(t, agg.Run(ctx), ErrAggregatorStopped)
+		assert.NoError(t, agg.Close(ctx))
+		assert.ErrorIs(t, callAggregateBatch(agg), ErrAggregatorClosed)
+		assert.ErrorIs(t, agg.Run(ctx), ErrAggregatorClosed)
 	})
 	t.Run("multiple_run", func(t *testing.T) {
 		agg := newAggregator()
-		defer agg.Stop(ctx)
+		defer agg.Close(ctx)
 
 		g, ctx := errgroup.WithContext(ctx)
 		g.Go(func() error { return agg.Run(ctx) })
 		g.Go(func() error { return agg.Run(ctx) })
-		assert.ErrorIs(t, g.Wait(), ErrAggregatorAlreadyRunning)
+		err := g.Wait()
+		assert.Error(t, err)
+		assert.EqualError(t, err, "aggregator is already running")
 	})
-	t.Run("multiple_stop", func(t *testing.T) {
+	t.Run("multiple_close", func(t *testing.T) {
 		agg := newAggregator()
-		defer agg.Stop(ctx)
+		defer agg.Close(ctx)
 		go func() { agg.Run(ctx) }()
 		time.Sleep(time.Second)
 
 		g, ctx := errgroup.WithContext(ctx)
-		g.Go(func() error { return agg.Stop(ctx) })
-		g.Go(func() error { return agg.Stop(ctx) })
+		g.Go(func() error { return agg.Close(ctx) })
+		g.Go(func() error { return agg.Close(ctx) })
 		assert.NoError(t, g.Wait())
 	})
 }
@@ -1109,27 +1094,27 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 		agg.Run(context.Background())
 	}()
 	b.Cleanup(func() {
-		agg.Stop(context.Background())
+		agg.Close(context.Background())
 	})
 	cmk := CombinedMetricsKey{
 		Interval:       aggIvl,
 		ProcessingTime: time.Now().Truncate(aggIvl),
 		ID:             EncodeToCombinedMetricsKeyID(b, "ab01"),
 	}
-	cm := (*CombinedMetrics)(createTestCombinedMetrics(withEventsTotal(1)).
-		addServiceTransaction(
-			time.Now(),
-			"test-svc",
-			"",
-			testServiceTransaction{txnType: "txntype", count: 1},
-		).
-		addTransaction(
-			time.Now(),
-			"test-svc",
-			"",
-			testTransaction{txnName: "txntest", txnType: "txntype", count: 1},
-		),
-	).ToProto()
+	cm := NewTestCombinedMetrics(WithEventsTotal(1)).
+		AddServiceMetrics(serviceAggregationKey{
+			Timestamp:   time.Now(),
+			ServiceName: "test-svc",
+		}).
+		AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+		AddTransaction(transactionAggregationKey{
+			TransactionName: "txntest",
+			TransactionType: "txntype",
+		}).
+		AddServiceTransaction(serviceTransactionAggregationKey{
+			TransactionType: "txntype",
+		}).
+		GetProto()
 	b.Cleanup(func() { cm.ReturnToVTPool() })
 	ctx, cancel := context.WithCancel(context.Background())
 	b.Cleanup(func() { cancel() })
@@ -1145,6 +1130,7 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 func BenchmarkAggregateBatchSerial(b *testing.B) {
 	b.ReportAllocs()
 	agg := newTestAggregator(b)
+	defer agg.Close(context.Background())
 	batch := newTestBatchForBenchmark()
 	cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
 	b.ResetTimer()
@@ -1154,12 +1140,12 @@ func BenchmarkAggregateBatchSerial(b *testing.B) {
 			b.Fatal(err)
 		}
 	}
-	flushTestAggregator(b, agg)
 }
 
 func BenchmarkAggregateBatchParallel(b *testing.B) {
 	b.ReportAllocs()
 	agg := newTestAggregator(b)
+	defer agg.Close(context.Background())
 	batch := newTestBatchForBenchmark()
 	cmID := EncodeToCombinedMetricsKeyID(b, "ab01")
 	b.ResetTimer()
@@ -1171,7 +1157,6 @@ func BenchmarkAggregateBatchParallel(b *testing.B) {
 			}
 		}
 	})
-	flushTestAggregator(b, agg)
 }
 
 func newTestAggregator(tb testing.TB) *Aggregator {
@@ -1194,22 +1179,12 @@ func newTestAggregator(tb testing.TB) *Aggregator {
 	if err != nil {
 		tb.Fatal(err)
 	}
+	tb.Cleanup(func() {
+		if err := agg.Close(context.Background()); err != nil {
+			tb.Fatal(err)
+		}
+	})
 	return agg
-}
-
-func flushTestAggregator(tb testing.TB, agg *Aggregator) {
-	if agg.batch != nil {
-		if err := agg.batch.Commit(agg.writeOptions); err != nil {
-			tb.Fatal(err)
-		}
-		if err := agg.batch.Close(); err != nil {
-			tb.Fatal(err)
-		}
-		agg.batch = nil
-	}
-	if err := agg.db.Close(); err != nil {
-		tb.Fatal(err)
-	}
 }
 
 func newTestBatchForBenchmark() *modelpb.Batch {
@@ -1226,19 +1201,19 @@ func newTestBatchForBenchmark() *modelpb.Batch {
 }
 
 func noOpProcessor() Processor {
-	return func(_ context.Context, _ CombinedMetricsKey, _ CombinedMetrics, _ time.Duration) error {
+	return func(_ context.Context, _ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics, _ time.Duration) error {
 		return nil
 	}
 }
 
-func combinedMetricsProcessor(out chan<- CombinedMetrics) Processor {
+func combinedMetricsProcessor(out chan<- *aggregationpb.CombinedMetrics) Processor {
 	return func(
 		_ context.Context,
 		_ CombinedMetricsKey,
-		cm CombinedMetrics,
+		cm *aggregationpb.CombinedMetrics,
 		_ time.Duration,
 	) error {
-		out <- cm
+		out <- cm.CloneVT()
 		return nil
 	}
 }
@@ -1247,7 +1222,7 @@ func sliceProcessor(slice *[]*modelpb.APMEvent) Processor {
 	return func(
 		ctx context.Context,
 		cmk CombinedMetricsKey,
-		cm CombinedMetrics,
+		cm *aggregationpb.CombinedMetrics,
 		aggregationIvl time.Duration,
 	) error {
 		batch, err := CombinedMetricsToBatch(cm, cmk.ProcessingTime, aggregationIvl)

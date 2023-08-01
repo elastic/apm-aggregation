@@ -8,89 +8,74 @@ import (
 	"io"
 
 	"github.com/axiomhq/hyperloglog"
+	"golang.org/x/exp/slices"
 
-	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
+	"github.com/elastic/apm-aggregation/aggregationpb"
 )
 
 type combinedMetricsMerger struct {
 	limits  Limits
-	metrics CombinedMetrics
+	metrics combinedMetrics
 }
 
 func (m *combinedMetricsMerger) MergeNewer(value []byte) error {
-	var from CombinedMetrics
-	if err := from.UnmarshalBinary(value); err != nil {
+	from := aggregationpb.CombinedMetricsFromVTPool()
+	defer from.ReturnToVTPool()
+	if err := from.UnmarshalVT(value); err != nil {
 		return err
 	}
-	merge(&m.metrics, &from, m.limits)
+	m.merge(from)
 	return nil
 }
 
 func (m *combinedMetricsMerger) MergeOlder(value []byte) error {
-	var from CombinedMetrics
-	if err := from.UnmarshalBinary(value); err != nil {
+	from := aggregationpb.CombinedMetricsFromVTPool()
+	defer from.ReturnToVTPool()
+	if err := from.UnmarshalVT(value); err != nil {
 		return err
 	}
-	merge(&m.metrics, &from, m.limits)
+	m.merge(from)
 	return nil
 }
 
 func (m *combinedMetricsMerger) Finish(includesBase bool) ([]byte, io.Closer, error) {
-	data, err := m.metrics.MarshalBinary()
+	pb := m.metrics.ToProto()
+	defer pb.ReturnToVTPool()
+	data, err := pb.MarshalVT()
 	return data, nil, err
 }
 
-type Constraint struct {
-	counter int
-	limit   int
-}
-
-func newConstraint(initialCount, limit int) *Constraint {
-	return &Constraint{
-		counter: initialCount,
-		limit:   limit,
-	}
-}
-
-func (c *Constraint) maxed() bool {
-	return c.counter >= c.limit
-}
-
-func (c *Constraint) add(delta int) {
-	c.counter += delta
-}
-
-func (c *Constraint) value() int {
-	return c.counter
-}
-
-// merge merges two combined metrics considering the configured limits.
-func merge(to, from *CombinedMetrics, limits Limits) {
+func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 	// We merge the below fields irrespective of the services present
 	// because it is possible for services to be empty if the event
 	// does not fit the criteria for aggregations.
-	to.eventsTotal += from.eventsTotal
-	if to.youngestEventTimestamp.Before(from.youngestEventTimestamp) {
-		to.youngestEventTimestamp = from.youngestEventTimestamp
-	}
-
-	if len(from.Services) == 0 {
-		// Accounts for overflow too as overflow cannot happen with 0 entries.
-		return
+	m.metrics.EventsTotal += from.EventsTotal
+	if m.metrics.YoungestEventTimestamp < from.YoungestEventTimestamp {
+		m.metrics.YoungestEventTimestamp = from.YoungestEventTimestamp
 	}
 	// If there is overflow due to max services in either of the buckets being
 	// merged then we can merge the overflow buckets without considering any other scenarios.
-	mergeOverflow(&to.OverflowServices, &from.OverflowServices)
-	if from.OverflowServiceInstancesEstimator != nil {
-		mergeEstimator(&to.OverflowServiceInstancesEstimator, from.OverflowServiceInstancesEstimator)
+	if len(from.OverflowServiceInstancesEstimator) > 0 {
+		mergeOverflow(&m.metrics.OverflowServices, from.OverflowServices)
+		mergeEstimator(
+			&m.metrics.OverflowServiceInstancesEstimator,
+			hllSketch(from.OverflowServiceInstancesEstimator),
+		)
+	}
+
+	if len(from.ServiceMetrics) == 0 {
+		return
+	}
+	if m.metrics.Services == nil {
+		m.metrics.Services = make(map[serviceAggregationKey]serviceMetrics)
 	}
 
 	// Calculate the current capacity of the transaction, service transaction,
 	// and span groups in the _to_ combined metrics.
-	totalTransactionGroupsConstraint := newConstraint(0, limits.MaxTransactionGroups)
-	totalServiceTransactionGroupsConstraint := newConstraint(0, limits.MaxServiceTransactionGroups)
-	totalSpanGroupsConstraint := newConstraint(0, limits.MaxSpanGroups)
-	for _, svc := range to.Services {
+	totalTransactionGroupsConstraint := newConstraint(0, m.limits.MaxTransactionGroups)
+	totalServiceTransactionGroupsConstraint := newConstraint(0, m.limits.MaxServiceTransactionGroups)
+	totalSpanGroupsConstraint := newConstraint(0, m.limits.MaxSpanGroups)
+	for _, svc := range m.metrics.Services {
 		for _, si := range svc.ServiceInstanceGroups {
 			totalTransactionGroupsConstraint.add(len(si.TransactionGroups))
 			totalServiceTransactionGroupsConstraint.add(len(si.ServiceTransactionGroups))
@@ -107,187 +92,396 @@ func merge(to, from *CombinedMetrics, limits Limits) {
 	//         create a new service in _to_ bucket and merge.
 	//    2.b. Else, merge the _from_ bucket to the overflow service bucket
 	//         of the _to_ combined metrics.
-	for svcKey, fromSvc := range from.Services {
-		hash := Hasher{}.Chain(svcKey)
-		toSvc, svcOverflow := getServiceMetrics(to, svcKey, limits.MaxServices)
+	for i := range from.ServiceMetrics {
+		fromSvc := from.ServiceMetrics[i]
+		hash := Hasher{}.Chain(fromSvc.Key)
+		var sk serviceAggregationKey
+		sk.FromProto(fromSvc.Key)
+		toSvc, svcOverflow := getServiceMetrics(&m.metrics, sk, m.limits.MaxServices)
 		if svcOverflow {
-			mergeOverflow(&to.OverflowServices, &fromSvc.OverflowGroups)
-
-			for sik, sim := range fromSvc.ServiceInstanceGroups {
-				sikHash := hash.Chain(sik)
-				mergeToOverflowFromSIM(&to.OverflowServices, &sim, sikHash)
-				insertHash(&to.OverflowServiceInstancesEstimator, sikHash.Sum())
+			mergeOverflow(&m.metrics.OverflowServices, fromSvc.Metrics.OverflowGroups)
+			for j := range fromSvc.Metrics.ServiceInstanceMetrics {
+				ksim := fromSvc.Metrics.ServiceInstanceMetrics[j]
+				sikHash := hash.Chain(ksim.Key)
+				mergeToOverflowFromSIM(&m.metrics.OverflowServices, ksim, sikHash)
+				insertHash(&m.metrics.OverflowServiceInstancesEstimator, sikHash.Sum())
 			}
 			continue
 		}
-		mergeOverflow(&toSvc.OverflowGroups, &fromSvc.OverflowGroups)
-		mergeServiceInstanceGroups(&toSvc, &fromSvc,
-			totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint,
-			limits, hash, &to.OverflowServiceInstancesEstimator)
-		to.Services[svcKey] = toSvc
+		if fromSvc.Metrics != nil {
+			mergeOverflow(&toSvc.OverflowGroups, fromSvc.Metrics.OverflowGroups)
+			mergeServiceInstanceGroups(
+				&toSvc,
+				fromSvc.Metrics.ServiceInstanceMetrics,
+				totalTransactionGroupsConstraint,
+				totalServiceTransactionGroupsConstraint,
+				totalSpanGroupsConstraint,
+				m.limits,
+				hash,
+				&m.metrics.OverflowServiceInstancesEstimator,
+			)
+		}
+		m.metrics.Services[sk] = toSvc
 	}
 }
 
-func mergeToOverflowFromSIM(to *Overflow, from *ServiceInstanceMetrics, hash Hasher) {
-	for tk, tm := range from.TransactionGroups {
-		to.OverflowTransaction.Merge(&tm, hash.Chain(tk).Sum())
-	}
-	for stk, stm := range from.ServiceTransactionGroups {
-		to.OverflowServiceTransaction.Merge(&stm, hash.Chain(stk).Sum())
-	}
-	for sk, sm := range from.SpanGroups {
-		to.OverflowSpan.Merge(&sm, hash.Chain(sk).Sum())
-	}
-}
+func mergeServiceInstanceGroups(
+	to *serviceMetrics,
+	from []*aggregationpb.KeyedServiceInstanceMetrics,
+	totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *constraint,
+	limits Limits,
+	hash Hasher,
+	overflowServiceInstancesEstimator **hyperloglog.Sketch,
+) {
+	for i := range from {
+		fromSvcIns := from[i]
+		var sik serviceInstanceAggregationKey
+		sik.FromProto(fromSvcIns.Key)
+		sikHash := hash.Chain(fromSvcIns.Key)
 
-func mergeServiceInstanceGroups(to, from *ServiceMetrics, totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *Constraint, limits Limits, hash Hasher, overflowServiceInstancesEstimator **hyperloglog.Sketch) {
-	for siKey, fromSIM := range from.ServiceInstanceGroups {
-		toSIM, overflowed := getServiceInstanceMetrics(to, siKey, limits.MaxServiceInstanceGroupsPerService)
-		siKeyHash := hash.Chain(siKey)
+		toSvcIns, overflowed := getServiceInstanceMetrics(to, sik, limits.MaxServiceInstanceGroupsPerService)
 		if overflowed {
-			mergeToOverflowFromSIM(&to.OverflowGroups, &fromSIM, siKeyHash)
-			insertHash(overflowServiceInstancesEstimator, siKeyHash.Sum())
+			mergeToOverflowFromSIM(
+				&to.OverflowGroups,
+				fromSvcIns,
+				sikHash,
+			)
+			insertHash(
+				overflowServiceInstancesEstimator,
+				sikHash.Sum(),
+			)
 			continue
 		}
-
 		mergeTransactionGroups(
-			&toSIM,
-			&fromSIM,
-			newConstraint(len(toSIM.TransactionGroups), limits.MaxTransactionGroupsPerService),
+			toSvcIns.TransactionGroups,
+			fromSvcIns.Metrics.TransactionMetrics,
+			newConstraint(
+				len(toSvcIns.TransactionGroups),
+				limits.MaxTransactionGroupsPerService,
+			),
 			totalTransactionGroupsConstraint,
 			hash,
 			&to.OverflowGroups.OverflowTransaction,
 		)
 		mergeServiceTransactionGroups(
-			&toSIM,
-			&fromSIM,
-			newConstraint(len(toSIM.ServiceTransactionGroups), limits.MaxServiceTransactionGroupsPerService),
+			toSvcIns.ServiceTransactionGroups,
+			fromSvcIns.Metrics.ServiceTransactionMetrics,
+			newConstraint(
+				len(toSvcIns.ServiceTransactionGroups),
+				limits.MaxServiceTransactionGroupsPerService,
+			),
 			totalServiceTransactionGroupsConstraint,
 			hash,
 			&to.OverflowGroups.OverflowServiceTransaction,
 		)
 		mergeSpanGroups(
-			&toSIM,
-			&fromSIM,
-			newConstraint(len(toSIM.SpanGroups), limits.MaxSpanGroupsPerService),
+			toSvcIns.SpanGroups,
+			fromSvcIns.Metrics.SpanMetrics,
+			newConstraint(
+				len(toSvcIns.SpanGroups),
+				limits.MaxSpanGroupsPerService,
+			),
 			totalSpanGroupsConstraint,
 			hash,
 			&to.OverflowGroups.OverflowSpan,
 		)
-		to.ServiceInstanceGroups[siKey] = toSIM
+		to.ServiceInstanceGroups[sik] = toSvcIns
 	}
 }
 
 // mergeTransactionGroups merges transaction aggregation groups for two combined metrics
 // considering max transaction groups and max transaction groups per service limits.
-func mergeTransactionGroups(to, from *ServiceInstanceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowTransaction) {
-	for txnKey, fromTxn := range from.TransactionGroups {
-		toTxn, ok := to.TransactionGroups[txnKey]
+func mergeTransactionGroups(
+	to map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics,
+	from []*aggregationpb.KeyedTransactionMetrics,
+	perSvcConstraint, globalConstraint *constraint,
+	hash Hasher,
+	overflowTo *overflowTransaction,
+) {
+	for i := range from {
+		fromTxn := from[i]
+		var tk transactionAggregationKey
+		tk.FromProto(fromTxn.Key)
+		toTxn, ok := to[tk]
 		if !ok {
 			overflowed := perSvcConstraint.maxed() || globalConstraint.maxed()
 			if overflowed {
-				overflowTo.Merge(&fromTxn, hash.Chain(txnKey).Sum())
+				overflowTo.Merge(
+					fromTxn.Metrics,
+					hash.Chain(fromTxn.Key).Sum(),
+				)
 				continue
 			}
-			toTxn = newTransactionMetrics()
 			perSvcConstraint.add(1)
 			globalConstraint.add(1)
+
+			to[tk] = fromTxn
+			from[i] = nil
+			continue
 		}
-		mergeTransactionMetrics(&toTxn, &fromTxn)
-		to.TransactionGroups[txnKey] = toTxn
+		mergeKeyedTransactionMetrics(toTxn, fromTxn)
 	}
 }
 
-// mergeServiceTransactionGroups merges service transaction aggregation groups for two combined metrics
-// considering max service transaction groups and max service transaction groups per service limits.
-func mergeServiceTransactionGroups(to, from *ServiceInstanceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowServiceTransaction) {
-	for svcTxnKey, fromSvcTxn := range from.ServiceTransactionGroups {
-		toSvcTxn, ok := to.ServiceTransactionGroups[svcTxnKey]
+// mergeServiceTransactionGroups merges service transaction aggregation groups for two
+// combined metrics considering max service transaction groups and max service
+// transaction groups per service limits.
+func mergeServiceTransactionGroups(
+	to map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics,
+	from []*aggregationpb.KeyedServiceTransactionMetrics,
+	perSvcConstraint, globalConstraint *constraint,
+	hash Hasher,
+	overflowTo *overflowServiceTransaction,
+) {
+	for i := range from {
+		fromSvcTxn := from[i]
+		var stk serviceTransactionAggregationKey
+		stk.FromProto(fromSvcTxn.Key)
+		toSvcTxn, ok := to[stk]
 		if !ok {
 			overflowed := perSvcConstraint.maxed() || globalConstraint.maxed()
 			if overflowed {
-				overflowTo.Merge(&fromSvcTxn, hash.Chain(svcTxnKey).Sum())
+				overflowTo.Merge(
+					fromSvcTxn.Metrics,
+					hash.Chain(fromSvcTxn.Key).Sum(),
+				)
 				continue
 			}
-			toSvcTxn = newServiceTransactionMetrics()
 			perSvcConstraint.add(1)
 			globalConstraint.add(1)
+
+			to[stk] = fromSvcTxn
+			from[i] = nil
+			continue
 		}
-		mergeServiceTransactionMetrics(&toSvcTxn, &fromSvcTxn)
-		to.ServiceTransactionGroups[svcTxnKey] = toSvcTxn
+		mergeKeyedServiceTransactionMetrics(toSvcTxn, fromSvcTxn)
 	}
 }
 
 // mergeSpanGroups merges span aggregation groups for two combined metrics considering
 // max span groups and max span groups per service limits.
-func mergeSpanGroups(to, from *ServiceInstanceMetrics, perSvcConstraint, globalConstraint *Constraint, hash Hasher, overflowTo *OverflowSpan) {
-	for spanKey, fromSpan := range from.SpanGroups {
-		toSpan, ok := to.SpanGroups[spanKey]
+func mergeSpanGroups(
+	to map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics,
+	from []*aggregationpb.KeyedSpanMetrics,
+	perSvcConstraint, globalConstraint *constraint,
+	hash Hasher,
+	overflowTo *overflowSpan,
+) {
+	for i := range from {
+		fromSpan := from[i]
+		var spk spanAggregationKey
+		spk.FromProto(fromSpan.Key)
+		toSpan, ok := to[spk]
 		if !ok {
 			// Protect against agents that send high cardinality span names by dropping
 			// span.name if more than half of the per svc span group limit is reached.
 			half := perSvcConstraint.limit / 2
 			if perSvcConstraint.value() >= half {
-				spanKey.SpanName = ""
-				toSpan, ok = to.SpanGroups[spanKey]
+				spk.SpanName = ""
+				fromSpan.Key.SpanName = ""
+				toSpan, ok = to[spk]
 			}
 			if !ok {
 				overflowed := perSvcConstraint.maxed() || globalConstraint.maxed()
 				if overflowed {
-					overflowTo.Merge(&fromSpan, hash.Chain(spanKey).Sum())
+					overflowTo.Merge(
+						fromSpan.Metrics,
+						hash.Chain(fromSpan.Key).Sum(),
+					)
 					continue
 				}
 				perSvcConstraint.add(1)
 				globalConstraint.add(1)
+
+				to[spk] = fromSpan
+				from[i] = nil
+				continue
 			}
 		}
-		mergeSpanMetrics(&toSpan, &fromSpan)
-		to.SpanGroups[spanKey] = toSpan
+		mergeKeyedSpanMetrics(toSpan, fromSpan)
 	}
 }
 
-// mergeOverflow merges overflowed aggregation groups for transaction,
-// service transaction, and span groups.
-func mergeOverflow(to, from *Overflow) {
+func mergeToOverflowFromSIM(
+	to *overflow,
+	from *aggregationpb.KeyedServiceInstanceMetrics,
+	hash Hasher,
+) {
+	if from.Metrics == nil {
+		return
+	}
+	for _, ktm := range from.Metrics.TransactionMetrics {
+		to.OverflowTransaction.Merge(
+			ktm.Metrics,
+			hash.Chain(ktm.Key).Sum(),
+		)
+	}
+	for _, kstm := range from.Metrics.ServiceTransactionMetrics {
+		to.OverflowServiceTransaction.Merge(
+			kstm.Metrics,
+			hash.Chain(kstm.Key).Sum(),
+		)
+	}
+	for _, ksm := range from.Metrics.SpanMetrics {
+		to.OverflowSpan.Merge(
+			ksm.Metrics,
+			hash.Chain(ksm.Key).Sum(),
+		)
+	}
+}
+
+func mergeOverflow(
+	to *overflow,
+	fromproto *aggregationpb.Overflow,
+) {
+	if fromproto == nil {
+		return
+	}
+	var from overflow
+	from.FromProto(fromproto)
 	to.OverflowTransaction.MergeOverflow(&from.OverflowTransaction)
 	to.OverflowServiceTransaction.MergeOverflow(&from.OverflowServiceTransaction)
 	to.OverflowSpan.MergeOverflow(&from.OverflowSpan)
 }
 
-// mergeTransactionMetrics merges two transaction metrics.
-func mergeTransactionMetrics(to, from *TransactionMetrics) {
-	if to.Histogram == nil && from.Histogram != nil {
-		to.Histogram = hdrhistogram.New()
+func mergeKeyedTransactionMetrics(
+	to, from *aggregationpb.KeyedTransactionMetrics,
+) {
+	if from.Metrics == nil {
+		return
 	}
-	to.Histogram.Merge(from.Histogram)
+	if to.Metrics == nil {
+		to.Metrics = aggregationpb.TransactionMetricsFromVTPool()
+	}
+	mergeTransactionMetrics(to.Metrics, from.Metrics)
 }
 
-// mergeTransactionMetrics merges two transaction metrics.
-func mergeServiceTransactionMetrics(to, from *ServiceTransactionMetrics) {
+func mergeTransactionMetrics(
+	to, from *aggregationpb.TransactionMetrics,
+) {
 	if to.Histogram == nil && from.Histogram != nil {
-		to.Histogram = hdrhistogram.New()
+		to.Histogram = aggregationpb.HDRHistogramFromVTPool()
 	}
-	to.Histogram.Merge(from.Histogram)
+	if to.Histogram != nil && from.Histogram != nil {
+		mergeHistogram(to.Histogram, from.Histogram)
+	}
+}
+
+func mergeKeyedServiceTransactionMetrics(
+	to, from *aggregationpb.KeyedServiceTransactionMetrics,
+) {
+	if from.Metrics == nil {
+		return
+	}
+	if to.Metrics == nil {
+		to.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
+	}
+	mergeServiceTransactionMetrics(to.Metrics, from.Metrics)
+}
+
+func mergeServiceTransactionMetrics(
+	to, from *aggregationpb.ServiceTransactionMetrics,
+) {
+	if to.Histogram == nil && from.Histogram != nil {
+		to.Histogram = aggregationpb.HDRHistogramFromVTPool()
+	}
+	if to.Histogram != nil && from.Histogram != nil {
+		mergeHistogram(to.Histogram, from.Histogram)
+	}
 	to.FailureCount += from.FailureCount
 	to.SuccessCount += from.SuccessCount
 }
 
-// mergeSpanMetrics merges two span metrics.
-func mergeSpanMetrics(to, from *SpanMetrics) {
+func mergeKeyedSpanMetrics(to, from *aggregationpb.KeyedSpanMetrics) {
+	if from.Metrics == nil {
+		return
+	}
+	if to.Metrics == nil {
+		to.Metrics = aggregationpb.SpanMetricsFromVTPool()
+	}
+	mergeSpanMetrics(to.Metrics, from.Metrics)
+}
+
+func mergeSpanMetrics(to, from *aggregationpb.SpanMetrics) {
 	to.Count += from.Count
 	to.Sum += from.Sum
+}
+
+// mergeHistogram merges two proto representation of HDRHistogram. The
+// merge assumes both histograms are created with same arguments and
+// their representations are sorted by bucket.
+func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
+	if len(from.Buckets) == 0 {
+		return
+	}
+
+	if len(to.Buckets) == 0 {
+		to.Buckets = append(to.Buckets, from.Buckets...)
+		to.Counts = append(to.Counts, from.Counts...)
+		return
+	}
+
+	requiredLen := len(to.Buckets) + len(from.Buckets)
+	for toIdx, fromIdx := 0, 0; toIdx < len(to.Buckets) && fromIdx < len(from.Buckets); {
+		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
+		switch {
+		case v == 0:
+			// For every bucket that is common, we need one less bucket in final slice
+			requiredLen--
+			toIdx++
+			fromIdx++
+		case v < 0:
+			toIdx++
+		case v > 0:
+			fromIdx++
+		}
+	}
+
+	toIdx, fromIdx := len(to.Buckets)-1, len(from.Buckets)-1
+	to.Buckets = slices.Grow(to.Buckets, requiredLen-len(to.Buckets))
+	to.Counts = slices.Grow(to.Counts, requiredLen-len(to.Counts))
+	to.Buckets = to.Buckets[:requiredLen]
+	to.Counts = to.Counts[:requiredLen]
+	for idx := len(to.Buckets) - 1; idx >= 0; idx-- {
+		if fromIdx < 0 {
+			break
+		}
+		if toIdx < 0 {
+			to.Counts[idx] = from.Counts[fromIdx]
+			to.Buckets[idx] = from.Buckets[fromIdx]
+			fromIdx--
+			continue
+		}
+		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
+		switch {
+		case v == 0:
+			to.Counts[toIdx] += from.Counts[fromIdx]
+			to.Counts[idx] = to.Counts[toIdx]
+			to.Buckets[idx] = to.Buckets[toIdx]
+			toIdx--
+			fromIdx--
+		case v > 0:
+			to.Counts[idx] = to.Counts[toIdx]
+			to.Buckets[idx] = to.Buckets[toIdx]
+			toIdx--
+		case v < 0:
+			to.Counts[idx] = from.Counts[fromIdx]
+			to.Buckets[idx] = from.Buckets[fromIdx]
+			fromIdx--
+		}
+	}
 }
 
 // getServiceMetrics returns the service metric from a combined metrics based on the
 // service key argument, creating one if needed. A second bool return value indicates
 // if a service is returned or no service can be created due to max svcs limit breach.
-func getServiceMetrics(cm *CombinedMetrics, svcKey ServiceAggregationKey, maxSvcs int) (ServiceMetrics, bool) {
+func getServiceMetrics(cm *combinedMetrics, svcKey serviceAggregationKey, maxSvcs int) (serviceMetrics, bool) {
 	srcSvc, ok := cm.Services[svcKey]
 	if !ok {
 		if len(cm.Services) < maxSvcs {
 			return newServiceMetrics(), false
 		}
-		return ServiceMetrics{}, true
+		return serviceMetrics{}, true
 	}
 	return srcSvc, false
 }
@@ -296,39 +490,51 @@ func getServiceMetrics(cm *CombinedMetrics, svcKey ServiceAggregationKey, maxSvc
 // based on the service instance key argument, creating one if needed. A second bool
 // return value indicates if a service instance is returned or no service instance can
 // be created due to service instance per service limit breach.
-func getServiceInstanceMetrics(sm *ServiceMetrics, siKey ServiceInstanceAggregationKey, maxSvcInstancePerSvc int) (ServiceInstanceMetrics, bool) {
+func getServiceInstanceMetrics(sm *serviceMetrics, siKey serviceInstanceAggregationKey, maxSvcInstancePerSvc int) (serviceInstanceMetrics, bool) {
 	sim, ok := sm.ServiceInstanceGroups[siKey]
 	if !ok {
 		if len(sm.ServiceInstanceGroups) < maxSvcInstancePerSvc {
 			return newServiceInstanceMetrics(), false
 		}
-		return ServiceInstanceMetrics{}, true
+		return serviceInstanceMetrics{}, true
 	}
 	return sim, false
 }
 
-func newTransactionMetrics() TransactionMetrics {
-	return TransactionMetrics{
-		Histogram: hdrhistogram.New(),
+func newServiceMetrics() serviceMetrics {
+	return serviceMetrics{
+		ServiceInstanceGroups: make(map[serviceInstanceAggregationKey]serviceInstanceMetrics),
 	}
 }
 
-func newServiceTransactionMetrics() ServiceTransactionMetrics {
-	return ServiceTransactionMetrics{
-		Histogram: hdrhistogram.New(),
+func newServiceInstanceMetrics() serviceInstanceMetrics {
+	return serviceInstanceMetrics{
+		TransactionGroups:        make(map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics),
+		ServiceTransactionGroups: make(map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics),
+		SpanGroups:               make(map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics),
 	}
 }
 
-func newServiceInstanceMetrics() ServiceInstanceMetrics {
-	return ServiceInstanceMetrics{
-		TransactionGroups:        make(map[TransactionAggregationKey]TransactionMetrics),
-		ServiceTransactionGroups: make(map[ServiceTransactionAggregationKey]ServiceTransactionMetrics),
-		SpanGroups:               make(map[SpanAggregationKey]SpanMetrics),
+type constraint struct {
+	counter int
+	limit   int
+}
+
+func newConstraint(initialCount, limit int) *constraint {
+	return &constraint{
+		counter: initialCount,
+		limit:   limit,
 	}
 }
 
-func newServiceMetrics() ServiceMetrics {
-	return ServiceMetrics{
-		ServiceInstanceGroups: make(map[ServiceInstanceAggregationKey]ServiceInstanceMetrics),
-	}
+func (c *constraint) maxed() bool {
+	return c.counter >= c.limit
+}
+
+func (c *constraint) add(delta int) {
+	c.counter += delta
+}
+
+func (c *constraint) value() int {
+	return c.counter
 }

@@ -5,13 +5,11 @@
 package aggregators
 
 import (
-	"encoding/binary"
 	"time"
 
 	"github.com/axiomhq/hyperloglog"
-	"github.com/cespare/xxhash/v2"
 
-	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
+	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
@@ -78,37 +76,45 @@ type CombinedMetricsKey struct {
 	ID             [16]byte
 }
 
-// CombinedMetrics models the value to store the data in LSM tree.
+// GlobalLabels is an intermediate struct used to marshal/unmarshal the
+// provided global labels into a comparable format. The format is used by
+// pebble db to compare service aggregation keys.
+type GlobalLabels struct {
+	Labels        modelpb.Labels
+	NumericLabels modelpb.NumericLabels
+}
+
+// combinedMetrics models the value to store the data in LSM tree.
 // Each unique combined metrics ID stores a combined metrics per aggregation
-// interval. CombinedMetrics encapsulates the aggregated metrics
+// interval. combinedMetrics encapsulates the aggregated metrics
 // as well as the overflow metrics.
-type CombinedMetrics struct {
-	Services map[ServiceAggregationKey]ServiceMetrics
+type combinedMetrics struct {
+	Services map[serviceAggregationKey]serviceMetrics
 
 	// OverflowServices provides a dedicated bucket for collecting
 	// aggregate metrics for all the aggregation groups for all services
 	// that overflowed due to max services limit being reached.
-	OverflowServices Overflow
+	OverflowServices overflow
 
 	// OverflowServiceInstancesEstimator estimates the number of unique service
 	// instance aggregation keys that overflowed due to max services limit or
 	// max service instances per service limit.
 	OverflowServiceInstancesEstimator *hyperloglog.Sketch
 
-	// eventsTotal is the total number of individual events, including
+	// EventsTotal is the total number of individual events, including
 	// all overflows, that were aggregated for this combined metrics. It
 	// is used for internal monitoring purposes and is approximated when
 	// partitioning is enabled.
-	eventsTotal float64
+	EventsTotal float64
 
-	// youngestEventTimestamp is the youngest event that was aggregated
+	// YoungestEventTimestamp is the youngest event that was aggregated
 	// in the combined metrics based on the received timestamp.
-	youngestEventTimestamp time.Time
+	YoungestEventTimestamp uint64
 }
 
-// ServiceAggregationKey models the key used to store service specific
+// serviceAggregationKey models the key used to store service specific
 // aggregation metrics.
-type ServiceAggregationKey struct {
+type serviceAggregationKey struct {
 	Timestamp           time.Time
 	ServiceName         string
 	ServiceEnvironment  string
@@ -116,134 +122,144 @@ type ServiceAggregationKey struct {
 	AgentName           string
 }
 
-// Hash returns a xxhash.Digest after hashing the aggregation key on top of h.
-func (k ServiceAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
-	var buf [8]byte
-	binary.LittleEndian.PutUint64(buf[:], uint64(k.Timestamp.UnixNano()))
-	h.Write(buf[:])
-
-	h.WriteString(k.ServiceName)
-	h.WriteString(k.ServiceEnvironment)
-	h.WriteString(k.ServiceLanguageName)
-	h.WriteString(k.AgentName)
-	return h
-}
-
-// ServiceMetrics models the value to store all the aggregated metrics
+// serviceMetrics models the value to store all the aggregated metrics
 // for a specific service aggregation key.
-type ServiceMetrics struct {
-	ServiceInstanceGroups map[ServiceInstanceAggregationKey]ServiceInstanceMetrics
-	OverflowGroups        Overflow
+type serviceMetrics struct {
+	ServiceInstanceGroups map[serviceInstanceAggregationKey]serviceInstanceMetrics
+	OverflowGroups        overflow
 }
 
-// ServiceInstanceAggregationKey models the key used to store service instance specific
+// serviceInstanceAggregationKey models the key used to store service instance specific
 // aggregation metrics.
-type ServiceInstanceAggregationKey struct {
+type serviceInstanceAggregationKey struct {
 	GlobalLabelsStr string
 }
 
-// Hash returns a xxhash.Digest after hashing the aggregation key on top of h.
-func (k ServiceInstanceAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
-	h.WriteString(k.GlobalLabelsStr)
-	return h
-}
-
-// ServiceInstanceMetrics models the value to store all the aggregated metrics
+// serviceInstanceMetrics models the value to store all the aggregated metrics
 // for a specific service instance aggregation key.
-type ServiceInstanceMetrics struct {
-	TransactionGroups        map[TransactionAggregationKey]TransactionMetrics
-	ServiceTransactionGroups map[ServiceTransactionAggregationKey]ServiceTransactionMetrics
-	SpanGroups               map[SpanAggregationKey]SpanMetrics
+type serviceInstanceMetrics struct {
+	TransactionGroups        map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
+	ServiceTransactionGroups map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
+	SpanGroups               map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics
 }
 
-func insertHash(estimator **hyperloglog.Sketch, hash uint64) {
-	if *estimator == nil {
-		*estimator = hyperloglog.New14()
+func insertHash(to **hyperloglog.Sketch, hash uint64) {
+	if *to == nil {
+		*to = hyperloglog.New14()
 	}
-	(*estimator).InsertHash(hash)
+	(*to).InsertHash(hash)
 }
 
 func mergeEstimator(to **hyperloglog.Sketch, from *hyperloglog.Sketch) {
 	if *to == nil {
 		*to = hyperloglog.New14()
 	}
+	// Ignoring returned error here since the error is only returned if
+	// the precision is set outside bounds which is not possible for our case.
 	(*to).Merge(from)
 }
 
-type OverflowTransaction struct {
-	Metrics   TransactionMetrics
+type overflowTransaction struct {
+	Metrics   *aggregationpb.TransactionMetrics
 	Estimator *hyperloglog.Sketch
 }
 
-func (o *OverflowTransaction) Merge(from *TransactionMetrics, hash uint64) {
-	o.Metrics.Merge(from)
+func (o *overflowTransaction) Merge(
+	from *aggregationpb.TransactionMetrics,
+	hash uint64,
+) {
+	if o.Metrics == nil {
+		o.Metrics = aggregationpb.TransactionMetricsFromVTPool()
+	}
+	mergeTransactionMetrics(o.Metrics, from)
 	insertHash(&o.Estimator, hash)
 }
 
-func (o *OverflowTransaction) MergeOverflow(from *OverflowTransaction) {
+func (o *overflowTransaction) MergeOverflow(from *overflowTransaction) {
 	if from.Estimator != nil {
-		o.Metrics.Merge(&from.Metrics)
+		if o.Metrics == nil {
+			o.Metrics = aggregationpb.TransactionMetricsFromVTPool()
+		}
+		mergeTransactionMetrics(o.Metrics, from.Metrics)
 		mergeEstimator(&o.Estimator, from.Estimator)
 	}
 }
 
-func (o *OverflowTransaction) Empty() bool {
+func (o *overflowTransaction) Empty() bool {
 	return o.Estimator == nil
 }
 
-type OverflowServiceTransaction struct {
-	Metrics   ServiceTransactionMetrics
+type overflowServiceTransaction struct {
+	Metrics   *aggregationpb.ServiceTransactionMetrics
 	Estimator *hyperloglog.Sketch
 }
 
-func (o *OverflowServiceTransaction) Merge(from *ServiceTransactionMetrics, hash uint64) {
-	o.Metrics.Merge(from)
+func (o *overflowServiceTransaction) Merge(
+	from *aggregationpb.ServiceTransactionMetrics,
+	hash uint64,
+) {
+	if o.Metrics == nil {
+		o.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
+	}
+	mergeServiceTransactionMetrics(o.Metrics, from)
 	insertHash(&o.Estimator, hash)
 }
 
-func (o *OverflowServiceTransaction) MergeOverflow(from *OverflowServiceTransaction) {
+func (o *overflowServiceTransaction) MergeOverflow(from *overflowServiceTransaction) {
 	if from.Estimator != nil {
-		o.Metrics.Merge(&from.Metrics)
+		if o.Metrics == nil {
+			o.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
+		}
+		mergeServiceTransactionMetrics(o.Metrics, from.Metrics)
 		mergeEstimator(&o.Estimator, from.Estimator)
 	}
 }
 
-func (o *OverflowServiceTransaction) Empty() bool {
+func (o *overflowServiceTransaction) Empty() bool {
 	return o.Estimator == nil
 }
 
-type OverflowSpan struct {
-	Metrics   SpanMetrics
+type overflowSpan struct {
+	Metrics   *aggregationpb.SpanMetrics
 	Estimator *hyperloglog.Sketch
 }
 
-func (o *OverflowSpan) Merge(from *SpanMetrics, hash uint64) {
-	o.Metrics.Merge(from)
+func (o *overflowSpan) Merge(
+	from *aggregationpb.SpanMetrics,
+	hash uint64,
+) {
+	if o.Metrics == nil {
+		o.Metrics = aggregationpb.SpanMetricsFromVTPool()
+	}
+	mergeSpanMetrics(o.Metrics, from)
 	insertHash(&o.Estimator, hash)
 }
 
-func (o *OverflowSpan) MergeOverflow(from *OverflowSpan) {
+func (o *overflowSpan) MergeOverflow(from *overflowSpan) {
 	if from.Estimator != nil {
-		o.Metrics.Merge(&from.Metrics)
+		if o.Metrics == nil {
+			o.Metrics = aggregationpb.SpanMetricsFromVTPool()
+		}
+		mergeSpanMetrics(o.Metrics, from.Metrics)
 		mergeEstimator(&o.Estimator, from.Estimator)
 	}
 }
 
-func (o *OverflowSpan) Empty() bool {
+func (o *overflowSpan) Empty() bool {
 	return o.Estimator == nil
 }
 
-// Overflow contains transaction and spans overflow metrics and cardinality
+// overflow contains transaction and spans overflow metrics and cardinality
 // estimators for the aggregation group for overflow buckets.
-type Overflow struct {
-	OverflowTransaction        OverflowTransaction
-	OverflowServiceTransaction OverflowServiceTransaction
-	OverflowSpan               OverflowSpan
+type overflow struct {
+	OverflowTransaction        overflowTransaction
+	OverflowServiceTransaction overflowServiceTransaction
+	OverflowSpan               overflowSpan
 }
 
-// TransactionAggregationKey models the key used to store transaction
+// transactionAggregationKey models the key used to store transaction
 // aggregation metrics.
-type TransactionAggregationKey struct {
+type transactionAggregationKey struct {
 	TraceRoot bool
 
 	ContainerID       string
@@ -283,68 +299,8 @@ type TransactionAggregationKey struct {
 	CloudProjectName      string
 }
 
-// Hash returns a xxhash.Digest after hashing the aggregation key on top of h.
-func (k TransactionAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
-	if k.TraceRoot {
-		h.WriteString("1")
-	}
-
-	h.WriteString(k.ContainerID)
-	h.WriteString(k.KubernetesPodName)
-
-	h.WriteString(k.ServiceVersion)
-	h.WriteString(k.ServiceNodeName)
-
-	h.WriteString(k.ServiceRuntimeName)
-	h.WriteString(k.ServiceRuntimeVersion)
-	h.WriteString(k.ServiceLanguageVersion)
-
-	h.WriteString(k.HostHostname)
-	h.WriteString(k.HostName)
-	h.WriteString(k.HostOSPlatform)
-
-	h.WriteString(k.EventOutcome)
-
-	h.WriteString(k.TransactionName)
-	h.WriteString(k.TransactionType)
-	h.WriteString(k.TransactionResult)
-
-	if k.FAASColdstart == nullable.True {
-		h.WriteString("1")
-	}
-	h.WriteString(k.FAASID)
-	h.WriteString(k.FAASName)
-	h.WriteString(k.FAASVersion)
-	h.WriteString(k.FAASTriggerType)
-
-	h.WriteString(k.CloudProvider)
-	h.WriteString(k.CloudRegion)
-	h.WriteString(k.CloudAvailabilityZone)
-	h.WriteString(k.CloudServiceName)
-	h.WriteString(k.CloudAccountID)
-	h.WriteString(k.CloudAccountName)
-	h.WriteString(k.CloudMachineType)
-	h.WriteString(k.CloudProjectID)
-	h.WriteString(k.CloudProjectName)
-	return h
-}
-
-// TransactionMetrics models the aggregated metric for each unique
-// transaction metrics key. TransactionMetrics is designed to use
-// two different data structures depending on the number of transactions
-// getting aggregated. For lower number of transactions (< 255), a slice
-// is used. The slice is promoted to a histogram if the number of entries
-// exceed the limit for the slice data structure.
-type TransactionMetrics struct {
-	Histogram *hdrhistogram.HistogramRepresentation
-}
-
-func (m *TransactionMetrics) Merge(from *TransactionMetrics) {
-	mergeTransactionMetrics(m, from)
-}
-
-// SpanAggregationKey models the key used to store span aggregation metrics.
-type SpanAggregationKey struct {
+// spanAggregationKey models the key used to store span aggregation metrics.
+type spanAggregationKey struct {
 	SpanName string
 	Outcome  string
 
@@ -354,56 +310,8 @@ type SpanAggregationKey struct {
 	Resource string
 }
 
-// Hash returns a xxhash.Digest after hashing the aggregation key on top of h.
-func (k SpanAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
-	h.WriteString(k.SpanName)
-	h.WriteString(k.Outcome)
-
-	h.WriteString(k.TargetType)
-	h.WriteString(k.TargetName)
-
-	h.WriteString(k.Resource)
-	return h
-}
-
-// SpanMetrics models the aggregated metric for each unique span metrics key.
-type SpanMetrics struct {
-	Count float64
-	Sum   float64
-}
-
-func (m *SpanMetrics) Merge(from *SpanMetrics) {
-	mergeSpanMetrics(m, from)
-}
-
-// ServiceTransactionAggregationKey models the key used to store
+// serviceTransactionAggregationKey models the key used to store
 // service transaction aggregation metrics.
-type ServiceTransactionAggregationKey struct {
+type serviceTransactionAggregationKey struct {
 	TransactionType string
-}
-
-// Hash returns a xxhash.Digest after hashing the aggregation key on top of h.
-func (k ServiceTransactionAggregationKey) Hash(h xxhash.Digest) xxhash.Digest {
-	h.WriteString(k.TransactionType)
-	return h
-}
-
-// ServiceTransactionMetrics models the value to store all the aggregated metrics
-// for a specific service transaction aggregation key.
-type ServiceTransactionMetrics struct {
-	Histogram    *hdrhistogram.HistogramRepresentation
-	FailureCount float64
-	SuccessCount float64
-}
-
-func (m *ServiceTransactionMetrics) Merge(from *ServiceTransactionMetrics) {
-	mergeServiceTransactionMetrics(m, from)
-}
-
-// GlobalLabels is an intermediate struct used to marshal/unmarshal the provided
-// global labels into a comparable format. The format is used by pebble db to
-// compare service aggregation keys.
-type GlobalLabels struct {
-	Labels        modelpb.Labels
-	NumericLabels modelpb.NumericLabels
 }

@@ -407,55 +407,6 @@ func (m *SpanMetrics) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
-func (m *CountValue) CloneVT() *CountValue {
-	if m == nil {
-		return (*CountValue)(nil)
-	}
-	r := &CountValue{
-		Count: m.Count,
-		Value: m.Value,
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *CountValue) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *HDRHistogram) CloneVT() *HDRHistogram {
-	if m == nil {
-		return (*HDRHistogram)(nil)
-	}
-	r := &HDRHistogram{
-		LowestTrackableValue:  m.LowestTrackableValue,
-		HighestTrackableValue: m.HighestTrackableValue,
-		SignificantFigures:    m.SignificantFigures,
-	}
-	if rhs := m.Counts; rhs != nil {
-		tmpContainer := make([]int64, len(rhs))
-		copy(tmpContainer, rhs)
-		r.Counts = tmpContainer
-	}
-	if rhs := m.Buckets; rhs != nil {
-		tmpContainer := make([]int32, len(rhs))
-		copy(tmpContainer, rhs)
-		r.Buckets = tmpContainer
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *HDRHistogram) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
 func (m *Overflow) CloneVT() *Overflow {
 	if m == nil {
 		return (*Overflow)(nil)
@@ -488,6 +439,36 @@ func (m *Overflow) CloneVT() *Overflow {
 }
 
 func (m *Overflow) CloneMessageVT() proto.Message {
+	return m.CloneVT()
+}
+
+func (m *HDRHistogram) CloneVT() *HDRHistogram {
+	if m == nil {
+		return (*HDRHistogram)(nil)
+	}
+	r := &HDRHistogram{
+		LowestTrackableValue:  m.LowestTrackableValue,
+		HighestTrackableValue: m.HighestTrackableValue,
+		SignificantFigures:    m.SignificantFigures,
+	}
+	if rhs := m.Counts; rhs != nil {
+		tmpContainer := make([]int64, len(rhs))
+		copy(tmpContainer, rhs)
+		r.Counts = tmpContainer
+	}
+	if rhs := m.Buckets; rhs != nil {
+		tmpContainer := make([]int32, len(rhs))
+		copy(tmpContainer, rhs)
+		r.Buckets = tmpContainer
+	}
+	if len(m.unknownFields) > 0 {
+		r.unknownFields = make([]byte, len(m.unknownFields))
+		copy(r.unknownFields, m.unknownFields)
+	}
+	return r
+}
+
+func (m *HDRHistogram) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -1582,7 +1563,7 @@ func (m *SpanMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	return len(dAtA) - i, nil
 }
 
-func (m *CountValue) MarshalVT() (dAtA []byte, err error) {
+func (m *Overflow) MarshalVT() (dAtA []byte, err error) {
 	if m == nil {
 		return nil, nil
 	}
@@ -1595,12 +1576,12 @@ func (m *CountValue) MarshalVT() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *CountValue) MarshalToVT(dAtA []byte) (int, error) {
+func (m *Overflow) MarshalToVT(dAtA []byte) (int, error) {
 	size := m.SizeVT()
 	return m.MarshalToSizedBufferVT(dAtA[:size])
 }
 
-func (m *CountValue) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
+func (m *Overflow) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m == nil {
 		return 0, nil
 	}
@@ -1612,15 +1593,56 @@ func (m *CountValue) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.Value != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.Value))
+	if len(m.OverflowSpansEstimator) > 0 {
+		i -= len(m.OverflowSpansEstimator)
+		copy(dAtA[i:], m.OverflowSpansEstimator)
+		i = encodeVarint(dAtA, i, uint64(len(m.OverflowSpansEstimator)))
 		i--
-		dAtA[i] = 0x10
+		dAtA[i] = 0x32
 	}
-	if m.Count != 0 {
-		i = encodeVarint(dAtA, i, uint64(m.Count))
+	if len(m.OverflowServiceTransactionsEstimator) > 0 {
+		i -= len(m.OverflowServiceTransactionsEstimator)
+		copy(dAtA[i:], m.OverflowServiceTransactionsEstimator)
+		i = encodeVarint(dAtA, i, uint64(len(m.OverflowServiceTransactionsEstimator)))
 		i--
-		dAtA[i] = 0x8
+		dAtA[i] = 0x2a
+	}
+	if len(m.OverflowTransactionsEstimator) > 0 {
+		i -= len(m.OverflowTransactionsEstimator)
+		copy(dAtA[i:], m.OverflowTransactionsEstimator)
+		i = encodeVarint(dAtA, i, uint64(len(m.OverflowTransactionsEstimator)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if m.OverflowSpans != nil {
+		size, err := m.OverflowSpans.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if m.OverflowServiceTransactions != nil {
+		size, err := m.OverflowServiceTransactions.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0x12
+	}
+	if m.OverflowTransactions != nil {
+		size, err := m.OverflowTransactions.MarshalToSizedBufferVT(dAtA[:i])
+		if err != nil {
+			return 0, err
+		}
+		i -= size
+		i = encodeVarint(dAtA, i, uint64(size))
+		i--
+		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -1711,90 +1733,6 @@ func (m *HDRHistogram) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i = encodeVarint(dAtA, i, uint64(m.LowestTrackableValue))
 		i--
 		dAtA[i] = 0x8
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *Overflow) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *Overflow) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *Overflow) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.OverflowSpansEstimator) > 0 {
-		i -= len(m.OverflowSpansEstimator)
-		copy(dAtA[i:], m.OverflowSpansEstimator)
-		i = encodeVarint(dAtA, i, uint64(len(m.OverflowSpansEstimator)))
-		i--
-		dAtA[i] = 0x32
-	}
-	if len(m.OverflowServiceTransactionsEstimator) > 0 {
-		i -= len(m.OverflowServiceTransactionsEstimator)
-		copy(dAtA[i:], m.OverflowServiceTransactionsEstimator)
-		i = encodeVarint(dAtA, i, uint64(len(m.OverflowServiceTransactionsEstimator)))
-		i--
-		dAtA[i] = 0x2a
-	}
-	if len(m.OverflowTransactionsEstimator) > 0 {
-		i -= len(m.OverflowTransactionsEstimator)
-		copy(dAtA[i:], m.OverflowTransactionsEstimator)
-		i = encodeVarint(dAtA, i, uint64(len(m.OverflowTransactionsEstimator)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if m.OverflowSpans != nil {
-		size, err := m.OverflowSpans.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if m.OverflowServiceTransactions != nil {
-		size, err := m.OverflowServiceTransactions.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.OverflowTransactions != nil {
-		size, err := m.OverflowTransactions.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0xa
 	}
 	return len(dAtA) - i, nil
 }
@@ -2165,48 +2103,6 @@ func SpanMetricsFromVTPool() *SpanMetrics {
 	return vtprotoPool_SpanMetrics.Get().(*SpanMetrics)
 }
 
-var vtprotoPool_CountValue = sync.Pool{
-	New: func() interface{} {
-		return &CountValue{}
-	},
-}
-
-func (m *CountValue) ResetVT() {
-	m.Reset()
-}
-func (m *CountValue) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_CountValue.Put(m)
-	}
-}
-func CountValueFromVTPool() *CountValue {
-	return vtprotoPool_CountValue.Get().(*CountValue)
-}
-
-var vtprotoPool_HDRHistogram = sync.Pool{
-	New: func() interface{} {
-		return &HDRHistogram{}
-	},
-}
-
-func (m *HDRHistogram) ResetVT() {
-	f0 := m.Counts[:0]
-	f1 := m.Buckets[:0]
-	m.Reset()
-	m.Counts = f0
-	m.Buckets = f1
-}
-func (m *HDRHistogram) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_HDRHistogram.Put(m)
-	}
-}
-func HDRHistogramFromVTPool() *HDRHistogram {
-	return vtprotoPool_HDRHistogram.Get().(*HDRHistogram)
-}
-
 var vtprotoPool_Overflow = sync.Pool{
 	New: func() interface{} {
 		return &Overflow{}
@@ -2233,6 +2129,29 @@ func (m *Overflow) ReturnToVTPool() {
 }
 func OverflowFromVTPool() *Overflow {
 	return vtprotoPool_Overflow.Get().(*Overflow)
+}
+
+var vtprotoPool_HDRHistogram = sync.Pool{
+	New: func() interface{} {
+		return &HDRHistogram{}
+	},
+}
+
+func (m *HDRHistogram) ResetVT() {
+	f0 := m.Counts[:0]
+	f1 := m.Buckets[:0]
+	m.Reset()
+	m.Counts = f0
+	m.Buckets = f1
+}
+func (m *HDRHistogram) ReturnToVTPool() {
+	if m != nil {
+		m.ResetVT()
+		vtprotoPool_HDRHistogram.Put(m)
+	}
+}
+func HDRHistogramFromVTPool() *HDRHistogram {
+	return vtprotoPool_HDRHistogram.Get().(*HDRHistogram)
 }
 func (m *CombinedMetrics) SizeVT() (n int) {
 	if m == nil {
@@ -2667,17 +2586,35 @@ func (m *SpanMetrics) SizeVT() (n int) {
 	return n
 }
 
-func (m *CountValue) SizeVT() (n int) {
+func (m *Overflow) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
 	var l int
 	_ = l
-	if m.Count != 0 {
-		n += 1 + sov(uint64(m.Count))
+	if m.OverflowTransactions != nil {
+		l = m.OverflowTransactions.SizeVT()
+		n += 1 + l + sov(uint64(l))
 	}
-	if m.Value != 0 {
-		n += 1 + sov(uint64(m.Value))
+	if m.OverflowServiceTransactions != nil {
+		l = m.OverflowServiceTransactions.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
+	if m.OverflowSpans != nil {
+		l = m.OverflowSpans.SizeVT()
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.OverflowTransactionsEstimator)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.OverflowServiceTransactionsEstimator)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.OverflowSpansEstimator)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2711,40 +2648,6 @@ func (m *HDRHistogram) SizeVT() (n int) {
 			l += sov(uint64(e))
 		}
 		n += 1 + sov(uint64(l)) + l
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *Overflow) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.OverflowTransactions != nil {
-		l = m.OverflowTransactions.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	if m.OverflowServiceTransactions != nil {
-		l = m.OverflowServiceTransactions.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	if m.OverflowSpans != nil {
-		l = m.OverflowSpans.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.OverflowTransactionsEstimator)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.OverflowServiceTransactionsEstimator)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.OverflowSpansEstimator)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -5699,7 +5602,7 @@ func (m *SpanMetrics) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *CountValue) UnmarshalVT(dAtA []byte) error {
+func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -5722,17 +5625,17 @@ func (m *CountValue) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: CountValue: wiretype end group for non-group")
+			return fmt.Errorf("proto: Overflow: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: CountValue: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: Overflow: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Count", wireType)
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowTransactions", wireType)
 			}
-			m.Count = 0
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -5742,16 +5645,33 @@ func (m *CountValue) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Count |= int64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.OverflowTransactions == nil {
+				m.OverflowTransactions = TransactionMetricsFromVTPool()
+			}
+			if err := m.OverflowTransactions.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
 		case 2:
-			if wireType != 0 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Value", wireType)
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceTransactions", wireType)
 			}
-			m.Value = 0
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflow
@@ -5761,11 +5681,166 @@ func (m *CountValue) UnmarshalVT(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				m.Value |= int64(b&0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.OverflowServiceTransactions == nil {
+				m.OverflowServiceTransactions = ServiceTransactionMetricsFromVTPool()
+			}
+			if err := m.OverflowServiceTransactions.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowSpans", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.OverflowSpans == nil {
+				m.OverflowSpans = SpanMetricsFromVTPool()
+			}
+			if err := m.OverflowSpans.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowTransactionsEstimator", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.OverflowTransactionsEstimator = append(m.OverflowTransactionsEstimator[:0], dAtA[iNdEx:postIndex]...)
+			if m.OverflowTransactionsEstimator == nil {
+				m.OverflowTransactionsEstimator = []byte{}
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceTransactionsEstimator", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.OverflowServiceTransactionsEstimator = append(m.OverflowServiceTransactionsEstimator[:0], dAtA[iNdEx:postIndex]...)
+			if m.OverflowServiceTransactionsEstimator == nil {
+				m.OverflowServiceTransactionsEstimator = []byte{}
+			}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowSpansEstimator", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.OverflowSpansEstimator = append(m.OverflowSpansEstimator[:0], dAtA[iNdEx:postIndex]...)
+			if m.OverflowSpansEstimator == nil {
+				m.OverflowSpansEstimator = []byte{}
+			}
+			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -6026,267 +6101,6 @@ func (m *HDRHistogram) UnmarshalVT(dAtA []byte) error {
 			} else {
 				return fmt.Errorf("proto: wrong wireType = %d for field Buckets", wireType)
 			}
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *Overflow) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: Overflow: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: Overflow: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowTransactions", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.OverflowTransactions == nil {
-				m.OverflowTransactions = TransactionMetricsFromVTPool()
-			}
-			if err := m.OverflowTransactions.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceTransactions", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.OverflowServiceTransactions == nil {
-				m.OverflowServiceTransactions = ServiceTransactionMetricsFromVTPool()
-			}
-			if err := m.OverflowServiceTransactions.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowSpans", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.OverflowSpans == nil {
-				m.OverflowSpans = SpanMetricsFromVTPool()
-			}
-			if err := m.OverflowSpans.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowTransactionsEstimator", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.OverflowTransactionsEstimator = append(m.OverflowTransactionsEstimator[:0], dAtA[iNdEx:postIndex]...)
-			if m.OverflowTransactionsEstimator == nil {
-				m.OverflowTransactionsEstimator = []byte{}
-			}
-			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceTransactionsEstimator", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.OverflowServiceTransactionsEstimator = append(m.OverflowServiceTransactionsEstimator[:0], dAtA[iNdEx:postIndex]...)
-			if m.OverflowServiceTransactionsEstimator == nil {
-				m.OverflowServiceTransactionsEstimator = []byte{}
-			}
-			iNdEx = postIndex
-		case 6:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowSpansEstimator", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.OverflowSpansEstimator = append(m.OverflowSpansEstimator[:0], dAtA[iNdEx:postIndex]...)
-			if m.OverflowSpansEstimator == nil {
-				m.OverflowSpansEstimator = []byte{}
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
