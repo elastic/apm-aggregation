@@ -102,9 +102,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 			mergeServiceInstanceGroups(
 				&toSvc,
 				fromSvc.Metrics.ServiceInstanceMetrics,
-				m.constraints.totalTransactionGroups,
-				m.constraints.totalServiceTransactionGroups,
-				m.constraints.totalSpanGroups,
+				m.constraints,
 				m.limits,
 				hash,
 				&m.metrics.OverflowServiceInstancesEstimator,
@@ -117,7 +115,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 func mergeServiceInstanceGroups(
 	to *serviceMetrics,
 	from []*aggregationpb.KeyedServiceInstanceMetrics,
-	totalTransactionGroupsConstraint, totalServiceTransactionGroupsConstraint, totalSpanGroupsConstraint *constraint.Constraint,
+	globalConstraints constraints,
 	limits Limits,
 	hash Hasher,
 	overflowServiceInstancesEstimator **hyperloglog.Sketch,
@@ -148,7 +146,7 @@ func mergeServiceInstanceGroups(
 				len(toSvcIns.TransactionGroups),
 				limits.MaxTransactionGroupsPerService,
 			),
-			totalTransactionGroupsConstraint,
+			globalConstraints.totalTransactionGroups,
 			hash,
 			&to.OverflowGroups.OverflowTransaction,
 		)
@@ -159,7 +157,7 @@ func mergeServiceInstanceGroups(
 				len(toSvcIns.ServiceTransactionGroups),
 				limits.MaxServiceTransactionGroupsPerService,
 			),
-			totalServiceTransactionGroupsConstraint,
+			globalConstraints.totalServiceTransactionGroups,
 			hash,
 			&to.OverflowGroups.OverflowServiceTransaction,
 		)
@@ -170,7 +168,7 @@ func mergeServiceInstanceGroups(
 				len(toSvcIns.SpanGroups),
 				limits.MaxSpanGroupsPerService,
 			),
-			totalSpanGroupsConstraint,
+			globalConstraints.totalSpanGroups,
 			hash,
 			&to.OverflowGroups.OverflowSpan,
 		)
