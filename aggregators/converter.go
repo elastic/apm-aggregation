@@ -38,9 +38,9 @@ var (
 // partitionedMetricsBuilder provides support for building partitioned
 // sets of metrics from an event.
 type partitionedMetricsBuilder struct {
-	partitioner Partitioner
-	hasher      Hasher
-	builders    []*eventMetricsBuilder // partitioned metrics
+	partitions uint16
+	hasher     Hasher
+	builders   []*eventMetricsBuilder // partitioned metrics
 
 	// Event metrics are for exactly one service instance, so we create an
 	// array of a single element and use that for backing the slice in
@@ -66,7 +66,7 @@ type partitionedMetricsBuilder struct {
 func getPartitionedMetricsBuilder(
 	serviceAggregationKey aggregationpb.ServiceAggregationKey,
 	serviceInstanceAggregationKey aggregationpb.ServiceInstanceAggregationKey,
-	partitioner Partitioner,
+	partitions uint16,
 ) *partitionedMetricsBuilder {
 	p, ok := partitionedMetricsBuilderPool.Get().(*partitionedMetricsBuilder)
 	if !ok {
@@ -83,7 +83,7 @@ func getPartitionedMetricsBuilder(
 	p.serviceAggregationKey = serviceAggregationKey
 	p.serviceInstanceAggregationKey = serviceInstanceAggregationKey
 	p.hasher = Hasher{}.Chain(&p.serviceAggregationKey).Chain(&p.serviceInstanceAggregationKey)
-	p.partitioner = partitioner
+	p.partitions = partitions
 	return p
 }
 
@@ -212,7 +212,7 @@ func (p *partitionedMetricsBuilder) addServiceSummaryMetrics() {
 }
 
 func (p *partitionedMetricsBuilder) get(h Hasher) *eventMetricsBuilder {
-	partition := p.partitioner.Partition(h)
+	partition := uint16(h.Sum() % uint64(p.partitions))
 	for _, mb := range p.builders {
 		if mb.partition == partition {
 			return mb
@@ -323,7 +323,7 @@ func (mb *eventMetricsBuilder) release() {
 func EventToCombinedMetrics(
 	e *modelpb.APMEvent,
 	unpartitionedKey CombinedMetricsKey,
-	partitioner Partitioner,
+	partitions uint16,
 	callback func(CombinedMetricsKey, *aggregationpb.CombinedMetrics) error,
 ) error {
 	globalLabels, err := marshalEventGlobalLabels(e)
@@ -342,7 +342,7 @@ func EventToCombinedMetrics(
 			AgentName:           e.GetAgent().GetName(),
 		},
 		aggregationpb.ServiceInstanceAggregationKey{GlobalLabelsStr: globalLabels},
-		partitioner,
+		partitions,
 	)
 	defer pmb.release()
 
