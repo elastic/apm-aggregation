@@ -27,7 +27,7 @@ import (
 
 const (
 	memTableSize           = 16 << 20 // 16 MBs
-	dbCommitThresholdBytes = 7 << 20  // Keep it smaller than half of memtable size
+	dbCommitThresholdBytes = 6 << 20  // Keep it smaller than half of memtable size
 	aggregationIvlKey      = "aggregation_interval"
 )
 
