@@ -216,7 +216,6 @@ func mergeTransactionGroups(
 			globalConstraint.add(1)
 
 			to[tk] = fromTxn.CloneVT()
-			//from[i] = nil
 			continue
 		}
 		mergeKeyedTransactionMetrics(toTxn, fromTxn)
@@ -251,7 +250,6 @@ func mergeServiceTransactionGroups(
 			globalConstraint.add(1)
 
 			to[stk] = fromSvcTxn.CloneVT()
-			//from[i] = nil
 			continue
 		}
 		mergeKeyedServiceTransactionMetrics(toSvcTxn, fromSvcTxn)
@@ -294,7 +292,6 @@ func mergeSpanGroups(
 				globalConstraint.add(1)
 
 				to[spk] = fromSpan.CloneVT()
-				//from[i] = nil
 				continue
 			}
 		}
