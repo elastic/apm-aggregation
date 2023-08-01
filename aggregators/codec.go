@@ -82,14 +82,17 @@ func (k *CombinedMetricsKey) SizeBinary() int {
 // ToProto converts CombinedMetrics to its protobuf representation.
 func (m *combinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 	pb := aggregationpb.CombinedMetricsFromVTPool()
-	if len(m.Services) > cap(pb.ServiceMetrics) {
-		pb.ServiceMetrics = make([]*aggregationpb.KeyedServiceMetrics, 0, len(m.Services))
-	}
 	for k, m := range m.Services {
-		ksm := aggregationpb.KeyedServiceMetricsFromVTPool()
-		ksm.Key = k.ToProto()
-		ksm.Metrics = m.ToProto()
-		pb.ServiceMetrics = append(pb.ServiceMetrics, ksm)
+		if len(pb.ServiceMetrics) == cap(pb.ServiceMetrics) {
+			pb.ServiceMetrics = append(pb.ServiceMetrics, &aggregationpb.KeyedServiceMetrics{})
+		} else {
+			pb.ServiceMetrics = pb.ServiceMetrics[:len(pb.ServiceMetrics)+1]
+			if pb.ServiceMetrics[len(pb.ServiceMetrics)-1] == nil {
+				pb.ServiceMetrics[len(pb.ServiceMetrics)-1] = &aggregationpb.KeyedServiceMetrics{}
+			}
+		}
+		pb.ServiceMetrics[len(pb.ServiceMetrics)-1].Key = k.ToProto()
+		pb.ServiceMetrics[len(pb.ServiceMetrics)-1].Metrics = m.ToProto()
 	}
 	if m.OverflowServiceInstancesEstimator != nil {
 		pb.OverflowServices = m.OverflowServices.ToProto()
@@ -123,14 +126,17 @@ func (k *serviceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKe
 // ToProto converts ServiceMetrics to its protobuf representation.
 func (m *serviceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 	pb := aggregationpb.ServiceMetricsFromVTPool()
-	if len(m.ServiceInstanceGroups) > cap(pb.ServiceInstanceMetrics) {
-		pb.ServiceInstanceMetrics = make([]*aggregationpb.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
-	}
 	for k, m := range m.ServiceInstanceGroups {
-		ksim := aggregationpb.KeyedServiceInstanceMetricsFromVTPool()
-		ksim.Key = k.ToProto()
-		ksim.Metrics = m.ToProto()
-		pb.ServiceInstanceMetrics = append(pb.ServiceInstanceMetrics, ksim)
+		if len(pb.ServiceInstanceMetrics) == cap(pb.ServiceInstanceMetrics) {
+			pb.ServiceInstanceMetrics = append(pb.ServiceInstanceMetrics, &aggregationpb.KeyedServiceInstanceMetrics{})
+		} else {
+			pb.ServiceInstanceMetrics = pb.ServiceInstanceMetrics[:len(pb.ServiceInstanceMetrics)+1]
+			if pb.ServiceInstanceMetrics[len(pb.ServiceInstanceMetrics)-1] == nil {
+				pb.ServiceInstanceMetrics[len(pb.ServiceInstanceMetrics)-1] = &aggregationpb.KeyedServiceInstanceMetrics{}
+			}
+		}
+		pb.ServiceInstanceMetrics[len(pb.ServiceInstanceMetrics)-1].Key = k.ToProto()
+		pb.ServiceInstanceMetrics[len(pb.ServiceInstanceMetrics)-1].Metrics = m.ToProto()
 	}
 	pb.OverflowGroups = m.OverflowGroups.ToProto()
 	return pb
@@ -335,31 +341,35 @@ func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
 
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
 	// i.e. Protobuf formats are equal if and only if the structs are equal
-	if len(gl.Labels) > cap(pb.Labels) {
-		pb.Labels = make([]*aggregationpb.Label, 0, len(gl.Labels))
-	}
 	for k, v := range gl.Labels {
-		l := aggregationpb.LabelFromVTPool()
-		l.Key = k
-		l.Value = v.Value
-		l.Values = v.Values
-
-		pb.Labels = append(pb.Labels, l)
+		if len(pb.Labels) == cap(pb.Labels) {
+			pb.Labels = append(pb.Labels, &aggregationpb.Label{})
+		} else {
+			pb.Labels = pb.Labels[:len(pb.Labels)+1]
+			if pb.Labels[len(pb.Labels)-1] == nil {
+				pb.Labels[len(pb.Labels)-1] = &aggregationpb.Label{}
+			}
+		}
+		pb.Labels[len(pb.Labels)-1].Key = k
+		pb.Labels[len(pb.Labels)-1].Value = v.Value
+		pb.Labels[len(pb.Labels)-1].Values = v.Values
 	}
 	sort.Slice(pb.Labels, func(i, j int) bool {
 		return pb.Labels[i].Key < pb.Labels[j].Key
 	})
 
-	if len(gl.NumericLabels) > cap(pb.NumericLabels) {
-		pb.NumericLabels = make([]*aggregationpb.NumericLabel, 0, len(gl.NumericLabels))
-	}
 	for k, v := range gl.NumericLabels {
-		l := aggregationpb.NumericLabelFromVTPool()
-		l.Key = k
-		l.Value = v.Value
-		l.Values = v.Values
-
-		pb.NumericLabels = append(pb.NumericLabels, l)
+		if len(pb.NumericLabels) == cap(pb.NumericLabels) {
+			pb.NumericLabels = append(pb.NumericLabels, &aggregationpb.NumericLabel{})
+		} else {
+			pb.NumericLabels = pb.NumericLabels[:len(pb.NumericLabels)+1]
+			if pb.NumericLabels[len(pb.NumericLabels)-1] == nil {
+				pb.NumericLabels[len(pb.NumericLabels)-1] = &aggregationpb.NumericLabel{}
+			}
+		}
+		pb.NumericLabels[len(pb.NumericLabels)-1].Key = k
+		pb.NumericLabels[len(pb.NumericLabels)-1].Value = v.Value
+		pb.NumericLabels[len(pb.NumericLabels)-1].Values = v.Values
 	}
 	sort.Slice(pb.NumericLabels, func(i, j int) bool {
 		return pb.NumericLabels[i].Key < pb.NumericLabels[j].Key
