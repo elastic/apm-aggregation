@@ -39,20 +39,30 @@ func TestEventToCombinedMetrics(t *testing.T) {
 	}
 	for _, tc := range []struct {
 		name        string
-		input       func() *modelpb.APMEvent
+		input       func() []*modelpb.APMEvent
 		partitioner Partitioner
 		expected    func() []*aggregationpb.CombinedMetrics
 	}{
 		{
+			name: "nil-input",
+			input: func() []*modelpb.APMEvent {
+				return nil
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return nil
+			},
+		},
+		{
 			name: "with-zero-rep-count-txn",
-			input: func() *modelpb.APMEvent {
+			input: func() []*modelpb.APMEvent {
 				event := baseEvent.CloneVT()
 				event.Transaction = &modelpb.Transaction{
 					Name:                "testtxn",
 					Type:                "testtyp",
 					RepresentativeCount: 0,
 				}
-				return event
+				return []*modelpb.APMEvent{event}
 			},
 			partitioner: NewHashPartitioner(1),
 			expected: func() []*aggregationpb.CombinedMetrics {
@@ -61,14 +71,14 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		},
 		{
 			name: "with-good-txn",
-			input: func() *modelpb.APMEvent {
+			input: func() []*modelpb.APMEvent {
 				event := baseEvent.CloneVT()
 				event.Transaction = &modelpb.Transaction{
 					Name:                "testtxn",
 					Type:                "testtyp",
 					RepresentativeCount: 1,
 				}
-				return event
+				return []*modelpb.APMEvent{event}
 			},
 			partitioner: NewHashPartitioner(1),
 			expected: func() []*aggregationpb.CombinedMetrics {
@@ -93,14 +103,14 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		},
 		{
 			name: "with-zero-rep-count-span",
-			input: func() *modelpb.APMEvent {
+			input: func() []*modelpb.APMEvent {
 				event := baseEvent.CloneVT()
 				event.Span = &modelpb.Span{
 					Name:                "testspan",
 					Type:                "testtyp",
 					RepresentativeCount: 0,
 				}
-				return event
+				return []*modelpb.APMEvent{event}
 			},
 			partitioner: NewHashPartitioner(1),
 			expected: func() []*aggregationpb.CombinedMetrics {
@@ -109,14 +119,14 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		},
 		{
 			name: "with-no-exit-span",
-			input: func() *modelpb.APMEvent {
+			input: func() []*modelpb.APMEvent {
 				event := baseEvent.CloneVT()
 				event.Span = &modelpb.Span{
 					Name:                "testspan",
 					Type:                "testtyp",
 					RepresentativeCount: 1,
 				}
-				return event
+				return []*modelpb.APMEvent{event}
 			},
 			partitioner: NewHashPartitioner(1),
 			expected: func() []*aggregationpb.CombinedMetrics {
@@ -125,7 +135,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		},
 		{
 			name: "with-good-span-svc-target",
-			input: func() *modelpb.APMEvent {
+			input: func() []*modelpb.APMEvent {
 				event := baseEvent.CloneVT()
 				event.Span = &modelpb.Span{
 					Name:                "testspan",
@@ -138,7 +148,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 				// Current test structs are hardcoded to use 1ns for spans
 				event.Event.Duration = durationpb.New(time.Nanosecond)
-				return event
+				return []*modelpb.APMEvent{event}
 			},
 			partitioner: NewHashPartitioner(1),
 			expected: func() []*aggregationpb.CombinedMetrics {
@@ -161,7 +171,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		},
 		{
 			name: "with-good-span-dest-svc",
-			input: func() *modelpb.APMEvent {
+			input: func() []*modelpb.APMEvent {
 				event := baseEvent.CloneVT()
 				event.Span = &modelpb.Span{
 					Name:                "testspan",
@@ -173,7 +183,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				}
 				// Current test structs are hardcoded to use 1ns for spans
 				event.Event.Duration = durationpb.New(time.Nanosecond)
-				return event
+				return []*modelpb.APMEvent{event}
 			},
 			partitioner: NewHashPartitioner(1),
 			expected: func() []*aggregationpb.CombinedMetrics {
@@ -195,13 +205,13 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		},
 		{
 			name: "with-metricset",
-			input: func() *modelpb.APMEvent {
+			input: func() []*modelpb.APMEvent {
 				event := baseEvent.CloneVT()
 				event.Metricset = &modelpb.Metricset{
 					Name:     "testmetricset",
 					Interval: "1m",
 				}
-				return event
+				return []*modelpb.APMEvent{event}
 			},
 			partitioner: NewHashPartitioner(1),
 			expected: func() []*aggregationpb.CombinedMetrics {
@@ -219,10 +229,10 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		},
 		{
 			name: "with-log",
-			input: func() *modelpb.APMEvent {
+			input: func() []*modelpb.APMEvent {
 				event := baseEvent.CloneVT()
 				event.Log = &modelpb.Log{}
-				return event
+				return []*modelpb.APMEvent{event}
 			},
 			partitioner: NewHashPartitioner(1),
 			expected: func() []*aggregationpb.CombinedMetrics {
@@ -235,6 +245,60 @@ func TestEventToCombinedMetrics(t *testing.T) {
 							ServiceName: "test"}).
 						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 						GetProto(),
+				}
+			},
+		},
+		{
+			name: "with-success-txn-followed-by-unknown-txn",
+			input: func() []*modelpb.APMEvent {
+				success := baseEvent.CloneVT()
+				success.Transaction = &modelpb.Transaction{
+					Name:                "testtxn1",
+					Type:                "testtyp1",
+					RepresentativeCount: 1,
+				}
+				unknown := baseEvent.CloneVT()
+				unknown.Event.Outcome = "unknown"
+				unknown.Transaction = &modelpb.Transaction{
+					Name:                "testtxn2",
+					Type:                "testtyp2",
+					RepresentativeCount: 1,
+				}
+				return []*modelpb.APMEvent{success, unknown}
+			},
+			partitioner: NewHashPartitioner(1),
+			expected: func() []*aggregationpb.CombinedMetrics {
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(serviceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+						AddTransaction(transactionAggregationKey{
+							TransactionName: "testtxn1",
+							TransactionType: "testtyp1",
+							EventOutcome:    "success",
+						}).
+						AddServiceTransaction(serviceTransactionAggregationKey{
+							TransactionType: "testtyp1",
+						}).GetProto(),
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(serviceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+						AddTransaction(transactionAggregationKey{
+							TransactionName: "testtxn2",
+							TransactionType: "testtyp2",
+							EventOutcome:    "unknown",
+						}).
+						AddServiceTransaction(serviceTransactionAggregationKey{
+							TransactionType: "testtyp2",
+						}, WithEventOutcome("unknown")).GetProto(),
 				}
 			},
 		},
@@ -253,8 +317,10 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				actual = append(actual, m.CloneVT())
 				return nil
 			}
-			err := EventToCombinedMetrics(tc.input(), cmk, tc.partitioner, collector)
-			require.NoError(t, err)
+			for _, e := range tc.input() {
+				err := EventToCombinedMetrics(e, cmk, tc.partitioner, collector)
+				require.NoError(t, err)
+			}
 			assert.Empty(t, cmp.Diff(
 				tc.expected(), actual,
 				cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {

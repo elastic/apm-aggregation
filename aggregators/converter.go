@@ -164,6 +164,9 @@ func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(e *modelpb.APME
 	case "success":
 		mb.serviceTransactionMetrics.SuccessCount = count
 		mb.serviceTransactionMetrics.FailureCount = 0
+	default:
+		mb.serviceTransactionMetrics.SuccessCount = 0
+		mb.serviceTransactionMetrics.FailureCount = 0
 	}
 	mb.keyedServiceTransactionMetricsSlice = mb.keyedServiceTransactionMetricsArray[:]
 }
@@ -272,6 +275,13 @@ func getEventMetricsBuilder(partition uint16) *eventMetricsBuilder {
 	mb, ok := eventMetricsBuilderPool.Get().(*eventMetricsBuilder)
 	if ok {
 		mb.partition = partition
+		// Explicitly reset instead of invoking `Reset` to avoid extra cost due to
+		// additional protobuf specfic resetting logic implemented by `Reset`.
+		mb.serviceTransactionMetrics = aggregationpb.ServiceTransactionMetrics{}
+		mb.transactionMetrics = aggregationpb.TransactionMetrics{}
+		for i := range mb.spanMetrics {
+			mb.spanMetrics[i] = aggregationpb.SpanMetrics{}
+		}
 		mb.transactionHDRHistogramRepresentation.CountsRep.Reset()
 		mb.keyedServiceTransactionMetricsSlice = mb.keyedServiceTransactionMetricsSlice[:0]
 		mb.keyedTransactionMetricsSlice = mb.keyedTransactionMetricsSlice[:0]
