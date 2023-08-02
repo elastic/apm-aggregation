@@ -403,8 +403,12 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 		// Fast path to optimize for cases where len(from.Buckets) << len(to.Buckets)
 		// Binary search for all from.Buckets in to.Buckets for fewer comparisons,
 		// mergeHistogram will be O(m lg n) where m = fromLen and n = toLen.
-		for fromIdx := 0; fromIdx < fromLen; fromIdx++ {
-			toIdx, found := sort.Find(toLen, func(toIdx int) int {
+		searchToLen := toLen
+		for fromIdx := fromLen - 1; fromIdx >= 0; fromIdx-- {
+			// Instead of searching in to.Buckets[0:toLen] each time,
+			// make use of the result of the previous pass since from.Buckets[i] > from.Buckets[i-1],
+			// such that the search space can be reduced to to.Buckets[0:searchToLen].
+			toIdx, found := sort.Find(searchToLen, func(toIdx int) int {
 				return int(from.Buckets[fromIdx] - to.Buckets[toIdx])
 			})
 			if found {
@@ -413,6 +417,7 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 			} else {
 				extra++
 			}
+			searchToLen = toIdx
 		}
 		if extra == 0 {
 			return

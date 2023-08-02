@@ -1147,31 +1147,31 @@ func TestMergeHistogram(t *testing.T) {
 		{
 			name: "from_between_to",
 			to: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 3000},
-				Counts:  []int64{1, 3},
+				Buckets: []int32{1000, 4000, 5000},
+				Counts:  []int64{1, 4, 5},
 			},
 			from: &aggregationpb.HDRHistogram{
-				Buckets: []int32{2000},
-				Counts:  []int64{2},
+				Buckets: []int32{2000, 3000},
+				Counts:  []int64{2, 3},
 			},
 			expected: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 2000, 3000},
-				Counts:  []int64{1, 2, 3},
+				Buckets: []int32{1000, 2000, 3000, 4000, 5000},
+				Counts:  []int64{1, 2, 3, 4, 5},
 			},
 		},
 		{
 			name: "to_between_from",
 			to: &aggregationpb.HDRHistogram{
-				Buckets: []int32{2000},
-				Counts:  []int64{2},
+				Buckets: []int32{2000, 3000},
+				Counts:  []int64{2, 3},
 			},
 			from: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 3000},
-				Counts:  []int64{1, 3},
+				Buckets: []int32{1000, 4000, 5000},
+				Counts:  []int64{1, 4, 5},
 			},
 			expected: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 2000, 3000},
-				Counts:  []int64{1, 2, 3},
+				Buckets: []int32{1000, 2000, 3000, 4000, 5000},
+				Counts:  []int64{1, 2, 3, 4, 5},
 			},
 		},
 		{
