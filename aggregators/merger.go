@@ -5,11 +5,11 @@
 package aggregators
 
 import (
-	"io"
-
 	"github.com/axiomhq/hyperloglog"
 	"github.com/cespare/xxhash/v2"
 	"golang.org/x/exp/slices"
+	"io"
+	"sort"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/constraint"
@@ -392,6 +392,34 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 	if len(to.Buckets) == 0 {
 		to.Buckets = append(to.Buckets, from.Buckets...)
 		to.Counts = append(to.Counts, from.Counts...)
+		return
+	}
+
+	li, lj := len(to.Buckets), len(from.Buckets)
+
+	var extra int
+	for j := 0; j < lj; j++ {
+		i, found := sort.Find(li, func(i int) int {
+			// Avoid int overflow by comparing instead of subtracting
+			y := from.Buckets[j]
+			x := to.Buckets[i]
+			if y == x {
+				return 0
+			} else if y > x {
+				return 1
+			} else {
+				return -1
+			}
+		})
+		if found {
+			to.Counts[i] += from.Counts[j]
+			from.Counts[j] = 0
+		} else {
+			extra++
+		}
+	}
+
+	if extra == 0 {
 		return
 	}
 
