@@ -113,6 +113,7 @@ func writeUint64(h *xxhash.Digest, v uint64) {
 				panic(fmt.Errorf("unhandled field %s.%s (%v)", name, field.Name(), field.Type()))
 			}
 		}
-		fmt.Fprintln(f, "	return h\n}\n")
+		fmt.Fprintln(f, "	return h\n}")
+		fmt.Fprintln(f)
 	}
 }
