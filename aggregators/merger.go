@@ -417,7 +417,7 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 			} else {
 				extra++
 			}
-			// Invariance:
+			// Invariants:
 			// to.Buckets[toIdx] >= from.Buckets[fromIdx] (defined by sort.Find)
 			// from.Buckets[i-1] < from.Buckets[i] (buckets are strictly increasing)
 			// to.Buckets[i-1] < to.Buckets[i]  (buckets are strictly increasing)
