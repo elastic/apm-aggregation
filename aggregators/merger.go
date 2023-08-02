@@ -397,13 +397,14 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 		return
 	}
 
-	var extra int
 	toLen, fromLen := len(to.Buckets), len(from.Buckets)
-	if fromLen < toLen { // Heuristics to trade between O(m lg n) and O(n + m).
+	// Heuristics to decide whether to use the fast path.
+	if fromLen < toLen && from.Buckets[0] >= to.Buckets[0] && from.Buckets[fromLen-1] <= to.Buckets[toLen-1] {
 		// Fast path to optimize for cases where len(from.Buckets) << len(to.Buckets)
 		// Binary search for all from.Buckets in to.Buckets for fewer comparisons,
 		// mergeHistogram will be O(m lg n) where m = fromLen and n = toLen.
 		searchToLen := toLen
+		var fallback bool
 		for fromIdx := fromLen - 1; fromIdx >= 0; fromIdx-- {
 			// Instead of searching in to.Buckets[0:toLen] each time,
 			// make use of the result of the previous pass since from.Buckets[i] > from.Buckets[i-1],
@@ -411,14 +412,15 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 			toIdx, found := sort.Find(searchToLen, func(toIdx int) int {
 				return int(from.Buckets[fromIdx] - to.Buckets[toIdx])
 			})
-			if found {
-				to.Counts[toIdx] += from.Counts[fromIdx]
-				from.Counts[fromIdx] = 0
-			} else {
-				extra++
+			if !found {
+				fallback = true
+				break
 			}
+
+			to.Counts[toIdx] += from.Counts[fromIdx]
+			from.Counts[fromIdx] = 0
 			// Invariants:
-			// to.Buckets[toIdx] >= from.Buckets[fromIdx] (defined by sort.Find)
+			// to.Buckets[toIdx] == from.Buckets[fromIdx] (because we fallback immediately when not found)
 			// from.Buckets[i-1] < from.Buckets[i] (buckets are strictly increasing)
 			// to.Buckets[i-1] < to.Buckets[i]  (buckets are strictly increasing)
 			//
@@ -428,29 +430,32 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 			// Edge case: where from.Buckets[fromIdx-1] > to.Buckets[toIdx-1], sort.Find will return (toIdx, false).
 			searchToLen = toIdx
 		}
-		if extra == 0 {
+		if !fallback {
+			// from.Buckets is a subset of to.Buckets.
+			// No further merging is needed.
 			return
 		}
-	} else {
-		// Slow path with runtime O(n + m).
-		requiredLen := toLen + fromLen
-		for toIdx, fromIdx := 0, 0; toIdx < toLen && fromIdx < fromLen; {
-			v := to.Buckets[toIdx] - from.Buckets[fromIdx]
-			switch {
-			case v == 0:
-				// For every bucket that is common, we need one less bucket in final slice
-				requiredLen--
-				toIdx++
-				fromIdx++
-			case v < 0:
-				toIdx++
-			case v > 0:
-				fromIdx++
-			}
-		}
-		extra = requiredLen - toLen
 	}
 
+	// Determine the number of extra buckets needed so we can grow the slice in one go.
+	requiredLen := toLen + fromLen
+	for toIdx, fromIdx := 0, 0; toIdx < toLen && fromIdx < fromLen; {
+		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
+		switch {
+		case v == 0:
+			// For every bucket that is common, we need one less bucket in final slice
+			requiredLen--
+			toIdx++
+			fromIdx++
+		case v < 0:
+			toIdx++
+		case v > 0:
+			fromIdx++
+		}
+	}
+	extra := requiredLen - toLen
+
+	// Merge the slices.
 	toIdx, fromIdx := toLen-1, fromLen-1
 	to.Buckets = slices.Grow(to.Buckets, extra)[:toLen+extra]
 	to.Counts = slices.Grow(to.Counts, extra)[:toLen+extra]
