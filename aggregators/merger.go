@@ -8,10 +8,12 @@ import (
 	"io"
 
 	"github.com/axiomhq/hyperloglog"
+	"github.com/cespare/xxhash/v2"
 	"golang.org/x/exp/slices"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/constraint"
+	"github.com/elastic/apm-aggregation/aggregators/internal/protohash"
 )
 
 type combinedMetricsMerger struct {
@@ -83,7 +85,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 	//         of the _to_ combined metrics.
 	for i := range from.ServiceMetrics {
 		fromSvc := from.ServiceMetrics[i]
-		hash := Hasher{}.Chain(fromSvc.Key)
+		serviceKeyHash := protohash.HashServiceAggregationKey(xxhash.Digest{}, fromSvc.Key)
 		var sk serviceAggregationKey
 		sk.FromProto(fromSvc.Key)
 		toSvc, svcOverflow := getServiceMetrics(&m.metrics, sk, m.limits.MaxServices)
@@ -91,9 +93,9 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 			mergeOverflow(&m.metrics.OverflowServices, fromSvc.Metrics.OverflowGroups)
 			for j := range fromSvc.Metrics.ServiceInstanceMetrics {
 				ksim := fromSvc.Metrics.ServiceInstanceMetrics[j]
-				sikHash := hash.Chain(ksim.Key)
-				mergeToOverflowFromSIM(&m.metrics.OverflowServices, ksim, sikHash)
-				insertHash(&m.metrics.OverflowServiceInstancesEstimator, sikHash.Sum())
+				serviceInstanceKeyHash := protohash.HashServiceInstanceAggregationKey(serviceKeyHash, ksim.Key)
+				mergeToOverflowFromSIM(&m.metrics.OverflowServices, ksim, serviceInstanceKeyHash)
+				insertHash(&m.metrics.OverflowServiceInstancesEstimator, serviceInstanceKeyHash.Sum64())
 			}
 			continue
 		}
@@ -104,7 +106,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 				fromSvc.Metrics.ServiceInstanceMetrics,
 				m.constraints,
 				m.limits,
-				hash,
+				serviceKeyHash,
 				&m.metrics.OverflowServiceInstancesEstimator,
 			)
 		}
@@ -117,14 +119,14 @@ func mergeServiceInstanceGroups(
 	from []*aggregationpb.KeyedServiceInstanceMetrics,
 	globalConstraints constraints,
 	limits Limits,
-	hash Hasher,
+	hash xxhash.Digest,
 	overflowServiceInstancesEstimator **hyperloglog.Sketch,
 ) {
 	for i := range from {
 		fromSvcIns := from[i]
 		var sik serviceInstanceAggregationKey
 		sik.FromProto(fromSvcIns.Key)
-		sikHash := hash.Chain(fromSvcIns.Key)
+		sikHash := protohash.HashServiceInstanceAggregationKey(hash, fromSvcIns.Key)
 
 		toSvcIns, overflowed := getServiceInstanceMetrics(to, sik, limits.MaxServiceInstanceGroupsPerService)
 		if overflowed {
@@ -135,7 +137,7 @@ func mergeServiceInstanceGroups(
 			)
 			insertHash(
 				overflowServiceInstancesEstimator,
-				sikHash.Sum(),
+				sikHash.Sum64(),
 			)
 			continue
 		}
@@ -182,7 +184,7 @@ func mergeTransactionGroups(
 	to map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics,
 	from []*aggregationpb.KeyedTransactionMetrics,
 	perSvcConstraint, globalConstraint *constraint.Constraint,
-	hash Hasher,
+	hash xxhash.Digest,
 	overflowTo *overflowTransaction,
 ) {
 	for i := range from {
@@ -193,10 +195,8 @@ func mergeTransactionGroups(
 		if !ok {
 			overflowed := perSvcConstraint.Maxed() || globalConstraint.Maxed()
 			if overflowed {
-				overflowTo.Merge(
-					fromTxn.Metrics,
-					hash.Chain(fromTxn.Key).Sum(),
-				)
+				fromTxnKeyHash := protohash.HashTransactionAggregationKey(hash, fromTxn.Key)
+				overflowTo.Merge(fromTxn.Metrics, fromTxnKeyHash.Sum64())
 				continue
 			}
 			perSvcConstraint.Add(1)
@@ -217,7 +217,7 @@ func mergeServiceTransactionGroups(
 	to map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics,
 	from []*aggregationpb.KeyedServiceTransactionMetrics,
 	perSvcConstraint, globalConstraint *constraint.Constraint,
-	hash Hasher,
+	hash xxhash.Digest,
 	overflowTo *overflowServiceTransaction,
 ) {
 	for i := range from {
@@ -228,10 +228,8 @@ func mergeServiceTransactionGroups(
 		if !ok {
 			overflowed := perSvcConstraint.Maxed() || globalConstraint.Maxed()
 			if overflowed {
-				overflowTo.Merge(
-					fromSvcTxn.Metrics,
-					hash.Chain(fromSvcTxn.Key).Sum(),
-				)
+				fromSvcTxnKeyHash := protohash.HashServiceTransactionAggregationKey(hash, fromSvcTxn.Key)
+				overflowTo.Merge(fromSvcTxn.Metrics, fromSvcTxnKeyHash.Sum64())
 				continue
 			}
 			perSvcConstraint.Add(1)
@@ -251,7 +249,7 @@ func mergeSpanGroups(
 	to map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics,
 	from []*aggregationpb.KeyedSpanMetrics,
 	perSvcConstraint, globalConstraint *constraint.Constraint,
-	hash Hasher,
+	hash xxhash.Digest,
 	overflowTo *overflowSpan,
 ) {
 	for i := range from {
@@ -271,10 +269,8 @@ func mergeSpanGroups(
 			if !ok {
 				overflowed := perSvcConstraint.Maxed() || globalConstraint.Maxed()
 				if overflowed {
-					overflowTo.Merge(
-						fromSpan.Metrics,
-						hash.Chain(fromSpan.Key).Sum(),
-					)
+					fromSpanKeyHash := protohash.HashSpanAggregationKey(hash, fromSpan.Key)
+					overflowTo.Merge(fromSpan.Metrics, fromSpanKeyHash.Sum64())
 					continue
 				}
 				perSvcConstraint.Add(1)
@@ -292,28 +288,22 @@ func mergeSpanGroups(
 func mergeToOverflowFromSIM(
 	to *overflow,
 	from *aggregationpb.KeyedServiceInstanceMetrics,
-	hash Hasher,
+	hash xxhash.Digest,
 ) {
 	if from.Metrics == nil {
 		return
 	}
 	for _, ktm := range from.Metrics.TransactionMetrics {
-		to.OverflowTransaction.Merge(
-			ktm.Metrics,
-			hash.Chain(ktm.Key).Sum(),
-		)
+		ktmKeyHash := protohash.HashTransactionAggregationKey(hash, ktm.Key)
+		to.OverflowTransaction.Merge(ktm.Metrics, ktmKeyHash.Sum64())
 	}
 	for _, kstm := range from.Metrics.ServiceTransactionMetrics {
-		to.OverflowServiceTransaction.Merge(
-			kstm.Metrics,
-			hash.Chain(kstm.Key).Sum(),
-		)
+		kstmKeyHash := protohash.HashServiceTransactionAggregationKey(hash, kstm.Key)
+		to.OverflowServiceTransaction.Merge(kstm.Metrics, kstmKeyHash.Sum64())
 	}
 	for _, ksm := range from.Metrics.SpanMetrics {
-		to.OverflowSpan.Merge(
-			ksm.Metrics,
-			hash.Chain(ksm.Key).Sum(),
-		)
+		ksmKeyHash := protohash.HashSpanAggregationKey(hash, ksm.Key)
+		to.OverflowSpan.Merge(ksm.Metrics, ksmKeyHash.Sum64())
 	}
 }
 

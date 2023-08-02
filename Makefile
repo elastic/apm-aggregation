@@ -47,4 +47,5 @@ gen-proto: $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_VTPROTO) $(PROTOC)
 	--go-vtproto_opt=features=marshal+unmarshal+size+pool+clone \
 	$(PROTOC_VT_STRUCTS) \
 	$(wildcard proto/*.proto)
+	go generate ./aggregators/internal/protohash
 	$(MAKE) fmt
