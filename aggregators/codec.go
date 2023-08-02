@@ -14,6 +14,7 @@ import (
 	"time"
 
 	"github.com/axiomhq/hyperloglog"
+	"golang.org/x/exp/slices"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
@@ -82,14 +83,15 @@ func (k *CombinedMetricsKey) SizeBinary() int {
 // ToProto converts CombinedMetrics to its protobuf representation.
 func (m *combinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 	pb := aggregationpb.CombinedMetricsFromVTPool()
-	if len(m.Services) > cap(pb.ServiceMetrics) {
-		pb.ServiceMetrics = make([]*aggregationpb.KeyedServiceMetrics, 0, len(m.Services))
-	}
+	pb.ServiceMetrics = slices.Grow(pb.ServiceMetrics, len(m.Services))[:len(m.Services)]
+	var i int
 	for k, m := range m.Services {
-		ksm := aggregationpb.KeyedServiceMetricsFromVTPool()
-		ksm.Key = k.ToProto()
-		ksm.Metrics = m.ToProto()
-		pb.ServiceMetrics = append(pb.ServiceMetrics, ksm)
+		if pb.ServiceMetrics[i] == nil {
+			pb.ServiceMetrics[i] = &aggregationpb.KeyedServiceMetrics{}
+		}
+		pb.ServiceMetrics[i].Key = k.ToProto()
+		pb.ServiceMetrics[i].Metrics = m.ToProto()
+		i++
 	}
 	if m.OverflowServiceInstancesEstimator != nil {
 		pb.OverflowServices = m.OverflowServices.ToProto()
@@ -123,14 +125,15 @@ func (k *serviceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKe
 // ToProto converts ServiceMetrics to its protobuf representation.
 func (m *serviceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 	pb := aggregationpb.ServiceMetricsFromVTPool()
-	if len(m.ServiceInstanceGroups) > cap(pb.ServiceInstanceMetrics) {
-		pb.ServiceInstanceMetrics = make([]*aggregationpb.KeyedServiceInstanceMetrics, 0, len(m.ServiceInstanceGroups))
-	}
+	pb.ServiceInstanceMetrics = slices.Grow(pb.ServiceInstanceMetrics, len(m.ServiceInstanceGroups))[:len(m.ServiceInstanceGroups)]
+	var i int
 	for k, m := range m.ServiceInstanceGroups {
-		ksim := aggregationpb.KeyedServiceInstanceMetricsFromVTPool()
-		ksim.Key = k.ToProto()
-		ksim.Metrics = m.ToProto()
-		pb.ServiceInstanceMetrics = append(pb.ServiceInstanceMetrics, ksim)
+		if pb.ServiceInstanceMetrics[i] == nil {
+			pb.ServiceInstanceMetrics[i] = &aggregationpb.KeyedServiceInstanceMetrics{}
+		}
+		pb.ServiceInstanceMetrics[i].Key = k.ToProto()
+		pb.ServiceInstanceMetrics[i].Metrics = m.ToProto()
+		i++
 	}
 	pb.OverflowGroups = m.OverflowGroups.ToProto()
 	return pb
@@ -151,24 +154,22 @@ func (k *serviceInstanceAggregationKey) FromProto(pb *aggregationpb.ServiceInsta
 // ToProto converts ServiceInstanceMetrics to its protobuf representation.
 func (m *serviceInstanceMetrics) ToProto() *aggregationpb.ServiceInstanceMetrics {
 	pb := aggregationpb.ServiceInstanceMetricsFromVTPool()
-	if len(m.TransactionGroups) > cap(pb.TransactionMetrics) {
-		pb.TransactionMetrics = make([]*aggregationpb.KeyedTransactionMetrics, 0, len(m.TransactionGroups))
-	}
+
+	pb.TransactionMetrics = slices.Grow(pb.TransactionMetrics, len(m.TransactionGroups))
 	for _, m := range m.TransactionGroups {
 		pb.TransactionMetrics = append(pb.TransactionMetrics, m)
 	}
-	if len(m.ServiceTransactionGroups) > cap(pb.ServiceTransactionMetrics) {
-		pb.ServiceTransactionMetrics = make([]*aggregationpb.KeyedServiceTransactionMetrics, 0, len(m.ServiceTransactionGroups))
-	}
+
+	pb.ServiceTransactionMetrics = slices.Grow(pb.ServiceTransactionMetrics, len(m.ServiceTransactionGroups))
 	for _, m := range m.ServiceTransactionGroups {
 		pb.ServiceTransactionMetrics = append(pb.ServiceTransactionMetrics, m)
 	}
-	if len(m.SpanGroups) > cap(pb.SpanMetrics) {
-		pb.SpanMetrics = make([]*aggregationpb.KeyedSpanMetrics, 0, len(m.SpanGroups))
-	}
+
+	pb.SpanMetrics = slices.Grow(pb.SpanMetrics, len(m.SpanGroups))
 	for _, m := range m.SpanGroups {
 		pb.SpanMetrics = append(pb.SpanMetrics, m)
 	}
+
 	return pb
 }
 
@@ -335,31 +336,31 @@ func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
 
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
 	// i.e. Protobuf formats are equal if and only if the structs are equal
-	if len(gl.Labels) > cap(pb.Labels) {
-		pb.Labels = make([]*aggregationpb.Label, 0, len(gl.Labels))
-	}
+	pb.Labels = slices.Grow(pb.Labels, len(gl.Labels))[:len(gl.Labels)]
+	var i int
 	for k, v := range gl.Labels {
-		l := aggregationpb.LabelFromVTPool()
-		l.Key = k
-		l.Value = v.Value
-		l.Values = v.Values
-
-		pb.Labels = append(pb.Labels, l)
+		if pb.Labels[i] == nil {
+			pb.Labels[i] = &aggregationpb.Label{}
+		}
+		pb.Labels[i].Key = k
+		pb.Labels[i].Value = v.Value
+		pb.Labels[i].Values = v.Values
+		i++
 	}
 	sort.Slice(pb.Labels, func(i, j int) bool {
 		return pb.Labels[i].Key < pb.Labels[j].Key
 	})
 
-	if len(gl.NumericLabels) > cap(pb.NumericLabels) {
-		pb.NumericLabels = make([]*aggregationpb.NumericLabel, 0, len(gl.NumericLabels))
-	}
+	pb.NumericLabels = slices.Grow(pb.NumericLabels, len(gl.NumericLabels))[:len(gl.NumericLabels)]
+	i = 0
 	for k, v := range gl.NumericLabels {
-		l := aggregationpb.NumericLabelFromVTPool()
-		l.Key = k
-		l.Value = v.Value
-		l.Values = v.Values
-
-		pb.NumericLabels = append(pb.NumericLabels, l)
+		if pb.NumericLabels[i] == nil {
+			pb.NumericLabels[i] = &aggregationpb.NumericLabel{}
+		}
+		pb.NumericLabels[i].Key = k
+		pb.NumericLabels[i].Value = v.Value
+		pb.NumericLabels[i].Values = v.Values
+		i++
 	}
 	sort.Slice(pb.NumericLabels, func(i, j int) bool {
 		return pb.NumericLabels[i].Key < pb.NumericLabels[j].Key
