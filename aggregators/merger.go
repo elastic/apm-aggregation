@@ -429,7 +429,7 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 		case v == 0:
 			to.Counts[toIdx] += from.Counts[fromIdx]
 			fromIdx++
-		case v < 0:
+		case v < 0: // to.Buckets[toIdx] > from.Buckets[fromIdx]
 			to.Buckets[toIdx], from.Buckets[fromIdx] = from.Buckets[fromIdx], to.Buckets[toIdx]
 			to.Counts[toIdx], from.Counts[fromIdx] = from.Counts[fromIdx], to.Counts[toIdx]
 		case v > 0:
