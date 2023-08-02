@@ -60,7 +60,7 @@ func (bg *batchGroup) getBatch() *pebble.Batch {
 	bg.mu.Lock()
 	defer bg.mu.Unlock()
 
-	if bg.cache.Len() > 0 {
+	if bg.cache.Len() > 0 && bg.cache.Peek().Len() < dbCommitThresholdBytes {
 		return bg.cache.Pop()
 	}
 
@@ -70,15 +70,6 @@ func (bg *batchGroup) getBatch() *pebble.Batch {
 
 func (bg *batchGroup) releaseBatch(b *pebble.Batch) error {
 	if b == nil {
-		return nil
-	}
-	if b.Len() >= dbCommitThresholdBytes {
-		if err := b.Commit(pebble.Sync); err != nil {
-			return fmt.Errorf("failed to commit pebble batch: %w", err)
-		}
-		if err := b.Close(); err != nil {
-			return fmt.Errorf("failed to close pebble batch: %w", err)
-		}
 		return nil
 	}
 
@@ -127,6 +118,10 @@ func newPQ(maxSize int) *pq {
 
 func (pq *pq) Push(b *pebble.Batch) {
 	heap.Push(&pq.q, b)
+}
+
+func (pq *pq) Peek() *pebble.Batch {
+	return pq.q[0]
 }
 
 func (pq *pq) Pop() *pebble.Batch {
