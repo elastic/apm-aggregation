@@ -13,7 +13,7 @@ import (
 	"github.com/cockroachdb/pebble"
 )
 
-const dbCommitThresholdBytes = 10 * 1024 * 1024 // commit every 10MB
+const dbCommitThresholdBytes = 10 << 20
 
 // batchGroup creates a cache of pebble.Batch to allow for multiple batches to be
 // used concurrently. The batchGroup scales up based on demand.
