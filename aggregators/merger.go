@@ -417,6 +417,15 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 			} else {
 				extra++
 			}
+			// Invariance:
+			// to.Buckets[toIdx] >= from.Buckets[fromIdx] (defined by sort.Find)
+			// from.Buckets[i-1] < from.Buckets[i] (buckets are strictly increasing)
+			// to.Buckets[i-1] < to.Buckets[i]  (buckets are strictly increasing)
+			//
+			// Therefore:
+			// from.Buckets[fromIdx-1] < to.Buckets[toIdx]
+			// In the next pass, we can safely search in to.Buckets[0:toIdx], i.e. calling sort.Find(toIdx, ...).
+			// Edge case: where from.Buckets[fromIdx-1] > to.Buckets[toIdx-1], sort.Find will return (toIdx, false).
 			searchToLen = toIdx
 		}
 		if extra == 0 {
