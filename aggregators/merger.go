@@ -5,11 +5,12 @@
 package aggregators
 
 import (
+	"io"
+	"sort"
+
 	"github.com/axiomhq/hyperloglog"
 	"github.com/cespare/xxhash/v2"
 	"golang.org/x/exp/slices"
-	"io"
-	"sort"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/constraint"
