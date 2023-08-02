@@ -6,6 +6,7 @@ package aggregators
 
 import (
 	"io"
+	"sort"
 
 	"github.com/axiomhq/hyperloglog"
 	"github.com/cespare/xxhash/v2"
@@ -396,8 +397,49 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 		return
 	}
 
-	var toIdx, fromIdx int
 	toLen, fromLen := len(to.Buckets), len(from.Buckets)
+	// Heuristics to decide whether to use the fast path.
+	if fromLen < (toLen>>1) && from.Buckets[0] >= to.Buckets[0] && from.Buckets[fromLen-1] <= to.Buckets[toLen-1] {
+		// Fast path to optimize for cases where len(from.Buckets) << len(to.Buckets)
+		// Binary search for all from.Buckets in to.Buckets for fewer comparisons,
+		// mergeHistogram will be O(M lg N) where M = fromLen and N = toLen.
+		searchToLen := toLen
+		var fallback bool
+		for fromIdx := fromLen - 1; fromIdx >= 0; fromIdx-- {
+			// Instead of searching in to.Buckets[0:toLen] each time,
+			// make use of the result of the previous pass since from.Buckets[i] > from.Buckets[i-1],
+			// such that the search space can be reduced to to.Buckets[0:searchToLen].
+			fromVal := from.Buckets[fromIdx]
+			toIdx, found := sort.Find(searchToLen, func(toIdx int) int {
+				return int(fromVal - to.Buckets[toIdx])
+			})
+			if !found {
+				fallback = true
+				break
+			}
+
+			to.Counts[toIdx] += from.Counts[fromIdx]
+			from.Counts[fromIdx] = 0
+			// Invariants:
+			// to.Buckets[toIdx] == from.Buckets[fromIdx] (because we fallback immediately when not found)
+			// from.Buckets[i-1] < from.Buckets[i] (buckets are strictly increasing)
+			// to.Buckets[i-1] < to.Buckets[i]  (buckets are strictly increasing)
+			//
+			// Therefore:
+			// from.Buckets[fromIdx-1] < to.Buckets[toIdx]
+			// In the next pass, we can safely search in to.Buckets[0:toIdx], i.e. calling sort.Find(toIdx, ...).
+			// Edge case: where from.Buckets[fromIdx-1] > to.Buckets[toIdx-1], sort.Find will return (toIdx, false).
+			searchToLen = toIdx
+		}
+		if !fallback {
+			// from.Buckets is a subset of to.Buckets.
+			// No further merging is needed.
+			return
+		}
+	}
+
+	// Single pass O(N + M) merge.
+	var toIdx, fromIdx int
 	for toIdx, fromIdx = 0, 0; toIdx < toLen && fromIdx < fromLen; toIdx++ {
 		v := from.Buckets[fromIdx] - to.Buckets[toIdx]
 		switch {
