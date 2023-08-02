@@ -115,7 +115,7 @@ func New(opts ...Option) (*Aggregator, error) {
 		processingTime: time.Now().Truncate(cfg.AggregationIntervals[0]),
 		closed:         make(chan struct{}),
 		metrics:        metrics,
-		batchGroup:     newBatchGroup(maxBatchGroupSize, pb),
+		batchGroup:     newBatchGroup(maxBatchGroupSize, pb, writeOptions),
 	}, nil
 }
 
@@ -236,7 +236,7 @@ func (a *Aggregator) Run(ctx context.Context) error {
 		a.processingTime = to
 		cachedEventsStats := a.cachedEvents.loadAndDelete(to)
 		batchGroup := a.batchGroup
-		a.batchGroup = newBatchGroup(maxBatchGroupSize, a.db)
+		a.batchGroup = newBatchGroup(maxBatchGroupSize, a.db, a.writeOptions)
 		a.mu.Unlock()
 
 		if err := a.commitAndHarvest(ctx, batchGroup, to, cachedEventsStats); err != nil {

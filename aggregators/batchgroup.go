@@ -20,17 +20,19 @@ const dbCommitThresholdBytes = 10 << 20
 //
 // TODO @lahsivjar: Allow scaledown of the group.
 type batchGroup struct {
-	mu      sync.Mutex
-	db      *pebble.DB
-	cache   *pq
-	maxSize int
+	mu           sync.Mutex
+	db           *pebble.DB
+	cache        *pq
+	maxSize      int
+	writeOptions *pebble.WriteOptions
 }
 
-func newBatchGroup(maxSize int, db *pebble.DB) *batchGroup {
+func newBatchGroup(maxSize int, db *pebble.DB, writeOptions *pebble.WriteOptions) *batchGroup {
 	return &batchGroup{
-		db:      db,
-		cache:   newPQ(maxSize),
-		maxSize: maxSize,
+		db:           db,
+		cache:        newPQ(maxSize),
+		maxSize:      maxSize,
+		writeOptions: writeOptions,
 	}
 }
 
@@ -43,7 +45,7 @@ func (bg *batchGroup) commitAll() error {
 
 	var errs []error
 	bg.cache.ForEachWithPop(func(b *pebble.Batch) {
-		if err := b.Commit(pebble.Sync); err != nil {
+		if err := b.Commit(bg.writeOptions); err != nil {
 			errs = append(errs, fmt.Errorf("failed to commit pebble batch: %w", err))
 		}
 		if err := b.Close(); err != nil {
