@@ -1219,6 +1219,21 @@ func TestMergeHistogram(t *testing.T) {
 				Counts:  []int64{1},
 			},
 		},
+		{
+			name: "single_from_exist",
+			to: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 2000, 3000},
+				Counts:  []int64{1, 2, 3},
+			},
+			from: &aggregationpb.HDRHistogram{
+				Buckets: []int32{3000},
+				Counts:  []int64{4},
+			},
+			expected: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1000, 2000, 3000},
+				Counts:  []int64{1, 2, 7},
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			mergeHistogram(tc.to, tc.from)
