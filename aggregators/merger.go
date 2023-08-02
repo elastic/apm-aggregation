@@ -395,55 +395,49 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 		return
 	}
 
-	li, lj := len(to.Buckets), len(from.Buckets)
-
 	var extra int
-	for j := 0; j < lj; j++ {
-		i, found := sort.Find(li, func(i int) int {
-			// Avoid int overflow by comparing instead of subtracting
-			y := from.Buckets[j]
-			x := to.Buckets[i]
-			if y == x {
-				return 0
-			} else if y > x {
-				return 1
+	toLen, fromLen := len(to.Buckets), len(from.Buckets)
+	if fromLen < toLen { // Heuristics to trade between O(m lg n) and O(n + m).
+		// Fast path to optimize for cases where len(from.Buckets) << len(to.Buckets)
+		// Binary search for all from.Buckets in to.Buckets for fewer comparisons,
+		// mergeHistogram will be O(m lg n) where m = fromLen and n = toLen.
+		for fromIdx := 0; fromIdx < fromLen; fromIdx++ {
+			toIdx, found := sort.Find(toLen, func(toIdx int) int {
+				return int(from.Buckets[fromIdx] - to.Buckets[toIdx])
+			})
+			if found {
+				to.Counts[toIdx] += from.Counts[fromIdx]
+				from.Counts[fromIdx] = 0
 			} else {
-				return -1
+				extra++
 			}
-		})
-		if found {
-			to.Counts[i] += from.Counts[j]
-			from.Counts[j] = 0
-		} else {
-			extra++
 		}
-	}
-
-	if extra == 0 {
-		return
-	}
-
-	requiredLen := len(to.Buckets) + len(from.Buckets)
-	for toIdx, fromIdx := 0, 0; toIdx < len(to.Buckets) && fromIdx < len(from.Buckets); {
-		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
-		switch {
-		case v == 0:
-			// For every bucket that is common, we need one less bucket in final slice
-			requiredLen--
-			toIdx++
-			fromIdx++
-		case v < 0:
-			toIdx++
-		case v > 0:
-			fromIdx++
+		if extra == 0 {
+			return
 		}
+	} else {
+		// Slow path with runtime O(n + m).
+		requiredLen := toLen + fromLen
+		for toIdx, fromIdx := 0, 0; toIdx < toLen && fromIdx < fromLen; {
+			v := to.Buckets[toIdx] - from.Buckets[fromIdx]
+			switch {
+			case v == 0:
+				// For every bucket that is common, we need one less bucket in final slice
+				requiredLen--
+				toIdx++
+				fromIdx++
+			case v < 0:
+				toIdx++
+			case v > 0:
+				fromIdx++
+			}
+		}
+		extra = requiredLen - toLen
 	}
 
-	toIdx, fromIdx := len(to.Buckets)-1, len(from.Buckets)-1
-	to.Buckets = slices.Grow(to.Buckets, requiredLen-len(to.Buckets))
-	to.Counts = slices.Grow(to.Counts, requiredLen-len(to.Counts))
-	to.Buckets = to.Buckets[:requiredLen]
-	to.Counts = to.Counts[:requiredLen]
+	toIdx, fromIdx := toLen-1, fromLen-1
+	to.Buckets = slices.Grow(to.Buckets, extra)[:toLen+extra]
+	to.Counts = slices.Grow(to.Counts, extra)[:toLen+extra]
 	for idx := len(to.Buckets) - 1; idx >= 0; idx-- {
 		if fromIdx < 0 {
 			break
