@@ -384,6 +384,7 @@ func mergeSpanMetrics(to, from *aggregationpb.SpanMetrics) {
 // mergeHistogram merges two proto representation of HDRHistogram. The
 // merge assumes both histograms are created with same arguments and
 // their representations are sorted by bucket.
+// Caution: this function mutates from.Buckets and from.Counts.
 func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 	if len(from.Buckets) == 0 {
 		return
@@ -395,54 +396,26 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 		return
 	}
 
-	requiredLen := len(to.Buckets) + len(from.Buckets)
-	for toIdx, fromIdx := 0, 0; toIdx < len(to.Buckets) && fromIdx < len(from.Buckets); {
-		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
-		switch {
-		case v == 0:
-			// For every bucket that is common, we need one less bucket in final slice
-			requiredLen--
-			toIdx++
-			fromIdx++
-		case v < 0:
-			toIdx++
-		case v > 0:
-			fromIdx++
-		}
-	}
-
-	toIdx, fromIdx := len(to.Buckets)-1, len(from.Buckets)-1
-	to.Buckets = slices.Grow(to.Buckets, requiredLen-len(to.Buckets))
-	to.Counts = slices.Grow(to.Counts, requiredLen-len(to.Counts))
-	to.Buckets = to.Buckets[:requiredLen]
-	to.Counts = to.Counts[:requiredLen]
-	for idx := len(to.Buckets) - 1; idx >= 0; idx-- {
-		if fromIdx < 0 {
-			break
-		}
-		if toIdx < 0 {
-			to.Counts[idx] = from.Counts[fromIdx]
-			to.Buckets[idx] = from.Buckets[fromIdx]
-			fromIdx--
-			continue
-		}
-		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
+	var toIdx, fromIdx int
+	toLen, fromLen := len(to.Buckets), len(from.Buckets)
+	for toIdx, fromIdx = 0, 0; toIdx < toLen && fromIdx < fromLen; toIdx++ {
+		v := from.Buckets[fromIdx] - to.Buckets[toIdx]
 		switch {
 		case v == 0:
 			to.Counts[toIdx] += from.Counts[fromIdx]
-			to.Counts[idx] = to.Counts[toIdx]
-			to.Buckets[idx] = to.Buckets[toIdx]
-			toIdx--
-			fromIdx--
-		case v > 0:
-			to.Counts[idx] = to.Counts[toIdx]
-			to.Buckets[idx] = to.Buckets[toIdx]
-			toIdx--
+			fromIdx++
 		case v < 0:
-			to.Counts[idx] = from.Counts[fromIdx]
-			to.Buckets[idx] = from.Buckets[fromIdx]
-			fromIdx--
+			to.Buckets[toIdx], from.Buckets[fromIdx] = from.Buckets[fromIdx], to.Buckets[toIdx]
+			to.Counts[toIdx], from.Counts[fromIdx] = from.Counts[fromIdx], to.Counts[toIdx]
+		case v > 0:
 		}
+	}
+	extra := fromLen - fromIdx
+	if extra > 0 {
+		to.Buckets = slices.Grow(to.Buckets, extra)[:toLen+extra]
+		to.Counts = slices.Grow(to.Counts, extra)[:toLen+extra]
+		copy(to.Buckets[toLen:], from.Buckets[fromIdx:])
+		copy(to.Counts[toLen:], from.Counts[fromIdx:])
 	}
 }
 
