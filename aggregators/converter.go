@@ -994,8 +994,7 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 		return nil, nil
 	}
 
-	pb := aggregationpb.GlobalLabelsFromVTPool()
-	defer pb.ReturnToVTPool()
+	var pb *aggregationpb.GlobalLabels
 
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
 	// i.e. Protobuf formats are equal if and only if the structs are equal
@@ -1003,6 +1002,11 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 		if !v.Global {
 			continue
 		}
+
+		if pb == nil {
+			pb = aggregationpb.GlobalLabelsFromVTPool()
+		}
+
 		if len(pb.Labels) == cap(pb.Labels) {
 			pb.Labels = append(pb.Labels, &aggregationpb.Label{})
 		} else {
@@ -1015,14 +1019,21 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 		pb.Labels[len(pb.Labels)-1].Value = v.Value
 		pb.Labels[len(pb.Labels)-1].Values = v.Values
 	}
-	sort.Slice(pb.Labels, func(i, j int) bool {
-		return pb.Labels[i].Key < pb.Labels[j].Key
-	})
+	if pb != nil {
+		sort.Slice(pb.Labels, func(i, j int) bool {
+			return pb.Labels[i].Key < pb.Labels[j].Key
+		})
+	}
 
 	for k, v := range e.NumericLabels {
 		if !v.Global {
 			continue
 		}
+
+		if pb == nil {
+			pb = aggregationpb.GlobalLabelsFromVTPool()
+		}
+
 		if len(pb.NumericLabels) == cap(pb.NumericLabels) {
 			pb.NumericLabels = append(pb.NumericLabels, &aggregationpb.NumericLabel{})
 		} else {
@@ -1035,10 +1046,16 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 		pb.NumericLabels[len(pb.NumericLabels)-1].Value = v.Value
 		pb.NumericLabels[len(pb.NumericLabels)-1].Values = v.Values
 	}
-	sort.Slice(pb.NumericLabels, func(i, j int) bool {
-		return pb.NumericLabels[i].Key < pb.NumericLabels[j].Key
-	})
+	if pb != nil {
+		sort.Slice(pb.NumericLabels, func(i, j int) bool {
+			return pb.NumericLabels[i].Key < pb.NumericLabels[j].Key
+		})
+	}
 
+	if pb == nil {
+		return nil, nil
+	}
+	defer pb.ReturnToVTPool()
 	return pb.MarshalVT()
 }
 
