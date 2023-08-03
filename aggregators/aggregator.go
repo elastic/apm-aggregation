@@ -233,12 +233,19 @@ func (a *Aggregator) Run(ctx context.Context) error {
 		a.mu.Lock()
 		a.processingTime = to
 		cachedEventsStats := a.cachedEvents.loadAndDelete(to)
-		batchGroup := a.batchGroup
-		a.batchGroup = newBatchGroup(maxBatchGroupSize, a.db, a.writeOptions)
+		batches := a.batchGroup.takeActive()
 		a.mu.Unlock()
 
-		if err := a.commitAndHarvest(ctx, batchGroup, to, cachedEventsStats); err != nil {
-			a.cfg.Logger.Warn("failed to commit and harvest metrics", zap.Error(err))
+		for batch := batches; batch != nil; batch = batch.next {
+			if err := batch.b.Commit(a.writeOptions); err != nil {
+				a.cfg.Logger.Warn("failed to commit batch", zap.Error(err))
+			}
+			batch.b.Reset()
+		}
+		a.batchGroup.returnEmpty(batches)
+
+		if err := a.harvest(ctx, to, cachedEventsStats); err != nil {
+			a.cfg.Logger.Warn("failed to harvest aggregated metrics", zap.Error(err))
 		}
 		to = to.Add(a.cfg.AggregationIntervals[0])
 		timer.Reset(time.Until(to.Add(a.cfg.HarvestDelay)))
@@ -273,9 +280,12 @@ func (a *Aggregator) Close(ctx context.Context) error {
 
 	if a.db != nil {
 		a.cfg.Logger.Info("running final aggregation")
-		if err := a.batchGroup.commitAll(); err != nil {
-			span.RecordError(err)
-			return fmt.Errorf("failed to commit batch group: %w", err)
+		batches := a.batchGroup.takeActive()
+		for batch := batches; batch != nil; batch = batch.next {
+			if err := batch.b.Commit(a.writeOptions); err != nil {
+				return fmt.Errorf("failed to commit batch group: %w", err)
+			}
+			batch.b.Reset()
 		}
 		var errs []error
 		for _, ivl := range a.cfg.AggregationIntervals {
@@ -335,44 +345,23 @@ func (a *Aggregator) aggregate(
 	cmk CombinedMetricsKey,
 	cm *aggregationpb.CombinedMetrics,
 ) (int, error) {
-	batch := a.batchGroup.getBatch()
-	defer a.batchGroup.releaseBatch(batch)
-
-	op := batch.MergeDeferred(cmk.SizeBinary(), cm.SizeVT())
-	if err := cmk.MarshalBinaryToSizedBuffer(op.Key); err != nil {
-		return 0, fmt.Errorf("failed to marshal combined metrics key: %w", err)
+	cmSize := cm.SizeVT()
+	if err := a.batchGroup.withBatch(ctx, func(batch *pebble.Batch) error {
+		op := batch.MergeDeferred(cmk.SizeBinary(), cmSize)
+		if err := cmk.MarshalBinaryToSizedBuffer(op.Key); err != nil {
+			return fmt.Errorf("failed to marshal combined metrics key: %w", err)
+		}
+		if _, err := cm.MarshalToSizedBufferVT(op.Value); err != nil {
+			return fmt.Errorf("failed to marshal combined metrics: %w", err)
+		}
+		if err := op.Finish(); err != nil {
+			return fmt.Errorf("failed to finalize merge operation: %w", err)
+		}
+		return nil
+	}); err != nil {
+		return 0, err
 	}
-	if _, err := cm.MarshalToSizedBufferVT(op.Value); err != nil {
-		return 0, fmt.Errorf("failed to marshal combined metrics: %w", err)
-	}
-	if err := op.Finish(); err != nil {
-		return 0, fmt.Errorf("failed to finalize merge operation: %w", err)
-	}
-
-	return cm.SizeVT(), nil
-}
-
-func (a *Aggregator) commitAndHarvest(
-	ctx context.Context,
-	batch *batchGroup,
-	to time.Time,
-	cachedEventsStats map[time.Duration]map[[16]byte]float64,
-) error {
-	ctx, span := a.cfg.Tracer.Start(ctx, "commitAndHarvest")
-	defer span.End()
-
-	var errs []error
-	if err := batch.commitAll(); err != nil {
-		errs = append(errs, err)
-	}
-	if err := a.harvest(ctx, to, cachedEventsStats); err != nil {
-		span.RecordError(err)
-		errs = append(errs, fmt.Errorf("failed to harvest aggregated metrics: %w", err))
-	}
-	if len(errs) > 0 {
-		return errors.Join(errs...)
-	}
-	return nil
+	return cmSize, nil
 }
 
 // harvest collects the mature metrics for all aggregation intervals and

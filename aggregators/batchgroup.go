@@ -5,138 +5,154 @@
 package aggregators
 
 import (
-	"container/heap"
-	"errors"
+	"context"
 	"fmt"
 	"sync"
 
 	"github.com/cockroachdb/pebble"
+	"golang.org/x/sync/semaphore"
 )
 
-const dbCommitThresholdBytes = 10 << 20
+const maxBatchSizeBytes = 10 * 1024 * 1024 // 10MB
 
-// batchGroup creates a cache of pebble.Batch to allow for multiple batches to be
-// used concurrently. The batchGroup scales up based on demand.
-//
-// TODO @lahsivjar: Allow scaledown of the group.
+// batchGroup creates a fixed set of pebble.Batches to allow for
+// multiple batches to be used concurrently.
 type batchGroup struct {
-	mu           sync.Mutex
 	db           *pebble.DB
-	cache        *pq
-	maxSize      int
 	writeOptions *pebble.WriteOptions
+
+	// mu synchronises access to the batch lists.
+	mu sync.Mutex
+	// because we maintain a fixed number of batches, withBatch
+	// must wait for a batch when they are all in use. available
+	// tracks how many batches are currently available for use.
+	available *semaphore.Weighted
+	active    *batchList
+	empty     *batchList
+	full      *batchList
 }
 
-func newBatchGroup(maxSize int, db *pebble.DB, writeOptions *pebble.WriteOptions) *batchGroup {
-	return &batchGroup{
+func newBatchGroup(size int64, db *pebble.DB, writeOptions *pebble.WriteOptions) *batchGroup {
+	g := &batchGroup{
 		db:           db,
-		cache:        newPQ(maxSize),
-		maxSize:      maxSize,
 		writeOptions: writeOptions,
+		available:    semaphore.NewWeighted(size),
 	}
-}
 
-// commitAll commits all the currently available batch groups. The caller must ensure
-// that all batches are returned when commitAll is called and no new batches are
-// requested before this call finishes.
-func (bg *batchGroup) commitAll() error {
-	bg.mu.Lock()
-	defer bg.mu.Unlock()
-
-	var errs []error
-	bg.cache.ForEachWithPop(func(b *pebble.Batch) {
-		if err := b.Commit(bg.writeOptions); err != nil {
-			errs = append(errs, fmt.Errorf("failed to commit pebble batch: %w", err))
+	var last *batchList
+	for i := int64(0); i < size; i++ {
+		g.empty = &batchList{
+			next: last,
+			b:    db.NewBatch(),
 		}
-		if err := b.Close(); err != nil {
-			errs = append(errs, fmt.Errorf("failed to close pebble batch: %w", err))
+		last = g.empty
+	}
+	return g
+}
+
+// takeActive removes and returns all non-empty batches from the group.
+func (g *batchGroup) takeActive() *batchList {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+
+	var n int64
+	var head, tail *batchList
+	if g.full != nil {
+		n = 1
+		head, tail = g.full, g.full
+		for tail.next != nil {
+			n++
+			tail = tail.next
 		}
-	})
-	if len(errs) > 0 {
-		return fmt.Errorf("failed to commit batch group: %w", errors.Join(errs...))
+		g.full = nil
 	}
-	return nil
-}
-
-func (bg *batchGroup) getBatch() *pebble.Batch {
-	bg.mu.Lock()
-	defer bg.mu.Unlock()
-
-	if bg.cache.Len() > 0 && bg.cache.Peek().Len() < dbCommitThresholdBytes {
-		return bg.cache.Pop()
+	if g.active != nil {
+		if head == nil {
+			n++
+			head, tail = g.active, g.active
+		} else {
+			tail.next = g.active
+		}
+		for tail.next != nil {
+			n++
+			tail = tail.next
+		}
+		g.active = nil
 	}
-
-	// TODO: Limit the max number of batch that can be created.
-	return bg.db.NewBatch()
+	g.available.Acquire(context.Background(), n)
+	return head
 }
 
-func (bg *batchGroup) releaseBatch(b *pebble.Batch) error {
-	if b == nil {
-		return nil
+// returnEmpty returns empty batches to the group.
+func (g *batchGroup) returnEmpty(head *batchList) {
+	if head == nil {
+		return
 	}
+	g.mu.Lock()
+	defer g.mu.Unlock()
 
-	bg.mu.Lock()
-	defer bg.mu.Unlock()
-
-	bg.cache.Push(b)
-	return nil
-}
-
-type pq struct {
-	q queue
-}
-
-type queue []*pebble.Batch
-
-func (q queue) Len() int {
-	return len(q)
-}
-
-func (q queue) Less(i, j int) bool {
-	return q[i].Len() < q[j].Len()
-}
-
-func (q queue) Swap(i, j int) {
-	q[i], q[j] = q[j], q[i]
-}
-
-func (q *queue) Push(x interface{}) {
-	*q = append(*q, x.(*pebble.Batch))
-}
-
-func (q *queue) Pop() interface{} {
-	old := *q
-	n := len(old)
-	x := old[n-1]
-	*q = old[0 : n-1]
-	return x
-}
-
-func newPQ(maxSize int) *pq {
-	return &pq{
-		q: make([]*pebble.Batch, 0, maxSize),
+	var n int64 = 1
+	tail := head
+	for tail.next != nil {
+		tail = tail.next
+		n++
 	}
+	tail.next = g.empty
+	g.empty = head
+	g.available.Release(n)
 }
 
-func (pq *pq) Push(b *pebble.Batch) {
-	heap.Push(&pq.q, b)
-}
+func (g *batchGroup) withBatch(ctx context.Context, f func(*pebble.Batch) error) error {
+	var commitBatch bool
+	var batch *batchList
 
-func (pq *pq) Peek() *pebble.Batch {
-	return pq.q[0]
-}
-
-func (pq *pq) Pop() *pebble.Batch {
-	raw := heap.Pop(&pq.q)
-	return raw.(*pebble.Batch)
-}
-
-func (pq *pq) ForEachWithPop(f func(*pebble.Batch)) {
-	for pq.Len() > 0 {
-		f(pq.Pop())
+	if err := g.available.Acquire(ctx, 1); err != nil {
+		return err
 	}
+	defer g.available.Release(1)
+
+	// If there's an active batch (non-empty, but also not full), use that.
+	// Otherwise use an empty batch if there is one, and failing that take
+	// a full batch and commit it before use. In general we prefer to write
+	// fewer batches, and defer committing until harvest time where possible.
+	g.mu.Lock()
+	if g.active != nil {
+		batch = g.active
+		g.active = batch.next
+		batch.next = nil
+	} else if g.empty != nil {
+		batch = g.empty
+		g.empty = batch.next
+		batch.next = nil
+	} else if g.full != nil {
+		batch = g.full
+		g.full = batch.next
+		batch.next = nil
+		commitBatch = true
+	}
+	g.mu.Unlock()
+
+	defer func() {
+		g.mu.Lock()
+		if batch.b.Len() < maxBatchSizeBytes {
+			batch.next = g.active
+			g.active = batch
+		} else {
+			batch.next = g.full
+			g.full = batch
+		}
+		g.mu.Unlock()
+	}()
+	if commitBatch {
+		if err := batch.b.Commit(g.writeOptions); err != nil {
+			return fmt.Errorf("failed to commit batch: %w", err)
+		}
+		batch.b.Reset()
+	}
+	return f(batch.b)
 }
 
-func (pq *pq) Len() int {
-	return pq.q.Len()
+type batchList struct {
+	next *batchList
+	b    *pebble.Batch
 }
