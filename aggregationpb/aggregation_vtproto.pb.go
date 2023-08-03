@@ -89,11 +89,6 @@ func (m *ServiceAggregationKey) CloneVT() *ServiceAggregationKey {
 		ServiceLanguageName: m.ServiceLanguageName,
 		AgentName:           m.AgentName,
 	}
-	if rhs := m.GlobalLabelsStr; rhs != nil {
-		tmpBytes := make([]byte, len(rhs))
-		copy(tmpBytes, rhs)
-		r.GlobalLabelsStr = tmpBytes
-	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -627,13 +622,6 @@ func (m *ServiceAggregationKey) MarshalToSizedBufferVT(dAtA []byte) (int, error)
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.GlobalLabelsStr) > 0 {
-		i -= len(m.GlobalLabelsStr)
-		copy(dAtA[i:], m.GlobalLabelsStr)
-		i = encodeVarint(dAtA, i, uint64(len(m.GlobalLabelsStr)))
-		i--
-		dAtA[i] = 0x32
 	}
 	if len(m.AgentName) > 0 {
 		i -= len(m.AgentName)
@@ -1756,9 +1744,8 @@ var vtprotoPool_CombinedMetrics = sync.Pool{
 }
 
 func (m *CombinedMetrics) ResetVT() {
-	for k, mm := range m.ServiceMetrics {
-		mm.ReturnToVTPool()
-		m.ServiceMetrics[k] = nil
+	for _, mm := range m.ServiceMetrics {
+		mm.ResetVT()
 	}
 	f0 := m.ServiceMetrics[:0]
 	m.OverflowServices.ReturnToVTPool()
@@ -1805,9 +1792,7 @@ var vtprotoPool_ServiceAggregationKey = sync.Pool{
 }
 
 func (m *ServiceAggregationKey) ResetVT() {
-	f0 := m.GlobalLabelsStr[:0]
 	m.Reset()
-	m.GlobalLabelsStr = f0
 }
 func (m *ServiceAggregationKey) ReturnToVTPool() {
 	if m != nil {
@@ -1826,9 +1811,8 @@ var vtprotoPool_ServiceMetrics = sync.Pool{
 }
 
 func (m *ServiceMetrics) ResetVT() {
-	for k, mm := range m.ServiceInstanceMetrics {
-		mm.ReturnToVTPool()
-		m.ServiceInstanceMetrics[k] = nil
+	for _, mm := range m.ServiceInstanceMetrics {
+		mm.ResetVT()
 	}
 	f0 := m.ServiceInstanceMetrics[:0]
 	m.OverflowGroups.ReturnToVTPool()
@@ -1873,19 +1857,16 @@ var vtprotoPool_ServiceInstanceMetrics = sync.Pool{
 }
 
 func (m *ServiceInstanceMetrics) ResetVT() {
-	for k, mm := range m.TransactionMetrics {
-		mm.ReturnToVTPool()
-		m.TransactionMetrics[k] = nil
+	for _, mm := range m.TransactionMetrics {
+		mm.ResetVT()
 	}
 	f0 := m.TransactionMetrics[:0]
-	for k, mm := range m.ServiceTransactionMetrics {
-		mm.ReturnToVTPool()
-		m.ServiceTransactionMetrics[k] = nil
+	for _, mm := range m.ServiceTransactionMetrics {
+		mm.ResetVT()
 	}
 	f1 := m.ServiceTransactionMetrics[:0]
-	for k, mm := range m.SpanMetrics {
-		mm.ReturnToVTPool()
-		m.SpanMetrics[k] = nil
+	for _, mm := range m.SpanMetrics {
+		mm.ResetVT()
 	}
 	f2 := m.SpanMetrics[:0]
 	m.Reset()
@@ -2223,10 +2204,6 @@ func (m *ServiceAggregationKey) SizeVT() (n int) {
 		n += 1 + l + sov(uint64(l))
 	}
 	l = len(m.AgentName)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.GlobalLabelsStr)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -3149,40 +3126,6 @@ func (m *ServiceAggregationKey) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.AgentName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 6:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field GlobalLabelsStr", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.GlobalLabelsStr = append(m.GlobalLabelsStr[:0], dAtA[iNdEx:postIndex]...)
-			if m.GlobalLabelsStr == nil {
-				m.GlobalLabelsStr = []byte{}
-			}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex

@@ -24,7 +24,6 @@ message ServiceAggregationKey {
   string service_environment = 3;
   string service_language_name = 4;
   string agent_name = 5;
-  bytes global_labels_str = 6;
 }
 
 message ServiceMetrics {

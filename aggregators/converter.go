@@ -14,8 +14,11 @@ import (
 	"google.golang.org/protobuf/types/known/durationpb"
 	"google.golang.org/protobuf/types/known/timestamppb"
 
+	"github.com/cespare/xxhash/v2"
+
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
+	"github.com/elastic/apm-aggregation/aggregators/internal/protohash"
 	tspb "github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
 	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
@@ -38,9 +41,9 @@ var (
 // partitionedMetricsBuilder provides support for building partitioned
 // sets of metrics from an event.
 type partitionedMetricsBuilder struct {
-	partitions uint16
-	hasher     Hasher
-	builders   []*eventMetricsBuilder // partitioned metrics
+	partitions          uint16
+	serviceInstanceHash xxhash.Digest
+	builders            []*eventMetricsBuilder // partitioned metrics
 
 	// Event metrics are for exactly one service instance, so we create an
 	// array of a single element and use that for backing the slice in
@@ -82,7 +85,10 @@ func getPartitionedMetricsBuilder(
 	}
 	p.serviceAggregationKey = serviceAggregationKey
 	p.serviceInstanceAggregationKey = serviceInstanceAggregationKey
-	p.hasher = Hasher{}.Chain(&p.serviceAggregationKey).Chain(&p.serviceInstanceAggregationKey)
+	p.serviceInstanceHash = protohash.HashServiceInstanceAggregationKey(
+		protohash.HashServiceAggregationKey(xxhash.Digest{}, &p.serviceAggregationKey),
+		&p.serviceInstanceAggregationKey,
+	)
 	p.partitions = partitions
 	return p
 }
@@ -131,8 +137,9 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 func (p *partitionedMetricsBuilder) addTransactionMetrics(e *modelpb.APMEvent, count float64, duration time.Duration) {
 	var key aggregationpb.TransactionAggregationKey
 	setTransactionKey(e, &key)
+	hash := protohash.HashTransactionAggregationKey(p.serviceInstanceHash, &key)
 
-	mb := p.get(p.hasher.Chain(&key))
+	mb := p.get(hash)
 	mb.transactionAggregationKey = key
 
 	hdr := hdrhistogram.New()
@@ -145,8 +152,9 @@ func (p *partitionedMetricsBuilder) addTransactionMetrics(e *modelpb.APMEvent, c
 func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(e *modelpb.APMEvent, count float64, duration time.Duration) {
 	var key aggregationpb.ServiceTransactionAggregationKey
 	setServiceTransactionKey(e, &key)
+	hash := protohash.HashServiceTransactionAggregationKey(p.serviceInstanceHash, &key)
 
-	mb := p.get(p.hasher.Chain(&key))
+	mb := p.get(hash)
 	mb.serviceTransactionAggregationKey = key
 
 	if mb.transactionMetrics.Histogram == nil {
@@ -174,8 +182,9 @@ func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(e *modelpb.APME
 func (p *partitionedMetricsBuilder) addDroppedSpanStatsMetrics(dss *modelpb.DroppedSpanStats, repCount float64) {
 	var key aggregationpb.SpanAggregationKey
 	setDroppedSpanStatsKey(dss, &key)
+	hash := protohash.HashSpanAggregationKey(p.serviceInstanceHash, &key)
 
-	mb := p.get(p.hasher.Chain(&key))
+	mb := p.get(hash)
 	i := len(mb.keyedSpanMetricsSlice)
 	if i == len(mb.keyedSpanMetricsArray) {
 		// No more capacity. The spec says that when 128 dropped span
@@ -194,8 +203,9 @@ func (p *partitionedMetricsBuilder) addDroppedSpanStatsMetrics(dss *modelpb.Drop
 func (p *partitionedMetricsBuilder) addSpanMetrics(e *modelpb.APMEvent, repCount float64) {
 	var key aggregationpb.SpanAggregationKey
 	setSpanKey(e, &key)
+	hash := protohash.HashSpanAggregationKey(p.serviceInstanceHash, &key)
 
-	mb := p.get(p.hasher.Chain(&key))
+	mb := p.get(hash)
 	i := len(mb.keyedSpanMetricsSlice)
 	mb.spanAggregationKey[i] = key
 	setSpanMetrics(e, repCount, &mb.spanMetrics[i])
@@ -208,11 +218,11 @@ func (p *partitionedMetricsBuilder) addServiceSummaryMetrics() {
 	// There are no actual metric values, we're just want to
 	// create documents for the dimensions, so we can build a
 	// list of services.
-	_ = p.get(p.hasher)
+	_ = p.get(p.serviceInstanceHash)
 }
 
-func (p *partitionedMetricsBuilder) get(h Hasher) *eventMetricsBuilder {
-	partition := uint16(h.Sum() % uint64(p.partitions))
+func (p *partitionedMetricsBuilder) get(h xxhash.Digest) *eventMetricsBuilder {
+	partition := uint16(h.Sum64() % uint64(p.partitions))
 	for _, mb := range p.builders {
 		if mb.partition == partition {
 			return mb
