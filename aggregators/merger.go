@@ -421,25 +421,39 @@ func mergeHistogram(to, from *aggregationpb.HDRHistogram) {
 		return
 	}
 
-	requiredLen := toLen + fromLen
+	// Merge histograms in 2 passes to minimize comparisons.
+	// 1st pass:
+	// Sum up the counts if their buckets are equal.
+	// After 1st pass, `from` should only contain buckets that don't exist in `to`.
+	fromWriteIdx := 0
 	for toIdx, fromIdx := 0, 0; toIdx < toLen && fromIdx < fromLen; {
+		// Invariant: in each iteration, either toIdx, fromIdx, or both will increment.
 		v := to.Buckets[toIdx] - from.Buckets[fromIdx]
 		switch {
 		case v == 0:
-			// For every bucket that is common, we need one less bucket in final slice
-			requiredLen--
+			to.Counts[toIdx] += from.Counts[fromIdx]
 			toIdx++
 			fromIdx++
-		case v < 0:
+		case v < 0: // to.Buckets[toIdx] < from.Buckets[fromIdx]
 			toIdx++
-		case v > 0:
+		case v > 0: // from.Buckets[fromIdx] < to.Buckets[toIdx]
+			// Preserve this entry because they need to be inserted to `to` in 2nd pass
+			from.Buckets[fromWriteIdx] = from.Buckets[fromIdx]
+			from.Counts[fromWriteIdx] = from.Counts[fromIdx]
+
 			fromIdx++
+			fromWriteIdx++
 		}
 	}
+	fromLen = fromWriteIdx
+	from.Buckets = from.Buckets[:fromWriteIdx]
+	from.Counts = from.Counts[:fromWriteIdx]
 
+	// 2nd pass:
+	// Insert the `from` buckets to their appropriate positions.
 	toIdx, fromIdx := toLen-1, fromLen-1
-	to.Buckets = slices.Grow(to.Buckets, requiredLen-toLen)[:requiredLen]
-	to.Counts = slices.Grow(to.Counts, requiredLen-toLen)[:requiredLen]
+	to.Buckets = slices.Grow(to.Buckets, fromLen)[:toLen+fromLen]
+	to.Counts = slices.Grow(to.Counts, fromLen)[:toLen+fromLen]
 	for idx := len(to.Buckets) - 1; idx >= 0; idx-- {
 		if fromIdx < 0 {
 			break
