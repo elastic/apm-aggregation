@@ -26,7 +26,6 @@ import (
 )
 
 const (
-	memTableSize      = 32 << 20 // 32 MBs
 	aggregationIvlKey = "aggregation_interval"
 	maxBatchGroupSize = 100 // TODO: scale with memory?
 )
@@ -87,7 +86,6 @@ func New(opts ...Option) (*Aggregator, error) {
 				return &merger, nil
 			},
 		},
-		MemTableSize: memTableSize,
 	}
 	writeOptions := pebble.Sync
 	if cfg.InMemory {
