@@ -538,15 +538,16 @@ func (a *Aggregator) processHarvest(
 	aggIvl time.Duration,
 ) (harvestStats, error) {
 	var hs harvestStats
+	// cm is not released back to the pool, it is upto the caller to release cm
+	// back to the pool by using the Processor callback.
 	cm := aggregationpb.CombinedMetricsFromVTPool()
-	defer cm.ReturnToVTPool()
 	if err := cm.UnmarshalVT(cmb); err != nil {
 		return hs, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
+	hs.eventsTotal = cm.EventsTotal
+	hs.youngestEventTimestamp = timestamppb.PBTimestampToTime(cm.YoungestEventTimestamp)
 	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
 		return hs, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
-	hs.eventsTotal = cm.EventsTotal
-	hs.youngestEventTimestamp = timestamppb.PBTimestampToTime(cm.YoungestEventTimestamp)
 	return hs, nil
 }

@@ -1201,7 +1201,8 @@ func newTestBatchForBenchmark() *modelpb.Batch {
 }
 
 func noOpProcessor() Processor {
-	return func(_ context.Context, _ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics, _ time.Duration) error {
+	return func(_ context.Context, _ CombinedMetricsKey, cm *aggregationpb.CombinedMetrics, _ time.Duration) error {
+		cm.ReturnToVTPool()
 		return nil
 	}
 }
@@ -1213,7 +1214,7 @@ func combinedMetricsProcessor(out chan<- *aggregationpb.CombinedMetrics) Process
 		cm *aggregationpb.CombinedMetrics,
 		_ time.Duration,
 	) error {
-		out <- cm.CloneVT()
+		out <- cm
 		return nil
 	}
 }
@@ -1225,6 +1226,7 @@ func sliceProcessor(slice *[]*modelpb.APMEvent) Processor {
 		cm *aggregationpb.CombinedMetrics,
 		aggregationIvl time.Duration,
 	) error {
+		defer cm.ReturnToVTPool()
 		batch, err := CombinedMetricsToBatch(cm, cmk.ProcessingTime, aggregationIvl)
 		if err != nil {
 			return err
