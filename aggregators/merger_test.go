@@ -1115,6 +1115,36 @@ func TestMergeHistogramEquiv(t *testing.T) {
 				}
 			},
 		},
+		// There may be special fast paths for single value from,
+		// and since we get them quite often,
+		// we have the following test cases for it.
+		{
+			name: "random_to_single_value_from_hit",
+			recordFunc: func(h1, h2 *hdrhistogram.HistogramRepresentation) {
+				var v, c int64
+				for i := 0; i < 1_000_000; i++ {
+					v = rand.Int63n(3_600_000_000)
+					c = rand.Int63n(1_000)
+					h1.RecordValues(v, c)
+				}
+				c = rand.Int63n(1_000)
+				h2.RecordValues(v, c)
+			},
+		},
+		{
+			name: "random_to_single_value_from_miss",
+			recordFunc: func(h1, h2 *hdrhistogram.HistogramRepresentation) {
+				for i := 0; i < 1_000_000; i++ {
+					v := rand.Int63n(3_600_000_000)
+					c := rand.Int63n(1_000)
+					h1.RecordValues(v, c)
+
+				}
+				v := rand.Int63n(3_600_000_000)
+				c := rand.Int63n(1_000)
+				h2.RecordValues(v, c)
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test assumes histogram representation Merge is correct
@@ -1190,7 +1220,7 @@ func TestMergeHistogram(t *testing.T) {
 			},
 		},
 		{
-			name: "single_value_exist",
+			name: "single_value_from_hit",
 			to: &aggregationpb.HDRHistogram{
 				Buckets: []int32{1, 2, 3},
 				Counts:  []int64{1, 2, 3},
@@ -1205,7 +1235,7 @@ func TestMergeHistogram(t *testing.T) {
 			},
 		},
 		{
-			name: "single_value_not_exist",
+			name: "single_value_from_miss",
 			to: &aggregationpb.HDRHistogram{
 				Buckets: []int32{1, 2, 4},
 				Counts:  []int64{1, 2, 4},
