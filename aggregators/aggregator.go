@@ -547,11 +547,11 @@ func (a *Aggregator) processHarvest(
 	// Processor has the permission to mutate or release the passed combined metrics
 	// so we cannot use the CombinedMetrics after Processor is called.
 	eventsTotal := cm.EventsTotal
-	youngestEventTs := timestamppb.PBTimestampToTime(cm.YoungestEventTimestamp)
+	youngestEventTS := timestamppb.PBTimestampToTime(cm.YoungestEventTimestamp)
 	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
 		return hs, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
 	hs.eventsTotal = eventsTotal
-	hs.youngestEventTimestamp = youngestEventTs
+	hs.youngestEventTimestamp = youngestEventTS
 	return hs, nil
 }
