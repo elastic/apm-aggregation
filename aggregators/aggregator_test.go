@@ -1201,7 +1201,7 @@ func newTestBatchForBenchmark() *modelpb.Batch {
 }
 
 func noOpProcessor() Processor {
-	return func(_ context.Context, _ CombinedMetricsKey, cm *aggregationpb.CombinedMetrics, _ time.Duration) error {
+	return func(_ context.Context, _ CombinedMetricsKey, _ *aggregationpb.CombinedMetrics, _ time.Duration) error {
 		return nil
 	}
 }
