@@ -751,3 +751,81 @@ func getTestGlobalLabelsStr(t *testing.T, s string) string {
 	}
 	return gls
 }
+
+func TestMarshalEventGlobalLabels(t *testing.T) {
+	e := &modelpb.APMEvent{
+		Labels: modelpb.Labels{
+			"tag1": &modelpb.LabelValue{
+				Value:  "1",
+				Values: nil,
+				Global: false,
+			},
+			"tag2": &modelpb.LabelValue{
+				Value:  "2",
+				Values: nil,
+				Global: true,
+			},
+			"tag3": &modelpb.LabelValue{
+				Value:  "",
+				Values: []string{"a", "b"},
+				Global: false,
+			},
+			"tag4": &modelpb.LabelValue{
+				Value:  "",
+				Values: []string{"c", "d"},
+				Global: true,
+			},
+		},
+		NumericLabels: modelpb.NumericLabels{
+			"tag1": &modelpb.NumericLabelValue{
+				Value:  1.1,
+				Values: nil,
+				Global: false,
+			},
+			"tag2": &modelpb.NumericLabelValue{
+				Value:  2.2,
+				Values: nil,
+				Global: true,
+			},
+			"tag3": &modelpb.NumericLabelValue{
+				Value:  0,
+				Values: []float64{3.3, 4.4},
+				Global: false,
+			},
+			"tag4": &modelpb.NumericLabelValue{
+				Value:  0,
+				Values: []float64{5.5, 6.6},
+				Global: true,
+			},
+		},
+	}
+	b, err := marshalEventGlobalLabels(e)
+	require.NoError(t, err)
+	gl := GlobalLabels{}
+	err = gl.UnmarshalBinary(b)
+	require.NoError(t, err)
+	assert.Equal(t, modelpb.Labels{
+		"tag2": &modelpb.LabelValue{
+			Value:  "2",
+			Values: nil,
+			Global: true,
+		},
+		"tag4": &modelpb.LabelValue{
+			Value:  "",
+			Values: []string{"c", "d"},
+			Global: true,
+		},
+	}, gl.Labels)
+	assert.Equal(t, modelpb.NumericLabels{
+		"tag2": &modelpb.NumericLabelValue{
+			Value:  2.2,
+			Values: nil,
+			Global: true,
+		},
+		"tag4": &modelpb.NumericLabelValue{
+			Value:  0,
+			Values: []float64{5.5, 6.6},
+			Global: true,
+		},
+	}, gl.NumericLabels)
+}
