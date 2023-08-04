@@ -1115,6 +1115,36 @@ func TestMergeHistogramEquiv(t *testing.T) {
 				}
 			},
 		},
+		// There may be special fast paths for single value from,
+		// and since we get them quite often,
+		// we have the following test cases for it.
+		{
+			name: "random_to_single_value_from_hit",
+			recordFunc: func(h1, h2 *hdrhistogram.HistogramRepresentation) {
+				var v, c int64
+				for i := 0; i < 1_000_000; i++ {
+					v = rand.Int63n(3_600_000_000)
+					c = rand.Int63n(1_000)
+					h1.RecordValues(v, c)
+				}
+				c = rand.Int63n(1_000)
+				h2.RecordValues(v, c)
+			},
+		},
+		{
+			name: "random_to_single_value_from_miss",
+			recordFunc: func(h1, h2 *hdrhistogram.HistogramRepresentation) {
+				for i := 0; i < 1_000_000; i++ {
+					v := rand.Int63n(3_600_000_000)
+					c := rand.Int63n(1_000)
+					h1.RecordValues(v, c)
+
+				}
+				v := rand.Int63n(3_600_000_000)
+				c := rand.Int63n(1_000)
+				h2.RecordValues(v, c)
+			},
+		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			// Test assumes histogram representation Merge is correct
@@ -1145,48 +1175,18 @@ func TestMergeHistogram(t *testing.T) {
 		expected *aggregationpb.HDRHistogram
 	}{
 		{
-			name: "from_between_to",
+			name: "non_single_value",
 			to: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 3000},
-				Counts:  []int64{1, 3},
+				Buckets: []int32{1, 3, 5, 7, 9},
+				Counts:  []int64{1, 3, 5, 7, 9},
 			},
 			from: &aggregationpb.HDRHistogram{
-				Buckets: []int32{2000},
-				Counts:  []int64{2},
+				Buckets: []int32{2, 4, 5, 8},
+				Counts:  []int64{2, 4, 5, 8},
 			},
 			expected: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 2000, 3000},
-				Counts:  []int64{1, 2, 3},
-			},
-		},
-		{
-			name: "to_between_from",
-			to: &aggregationpb.HDRHistogram{
-				Buckets: []int32{2000},
-				Counts:  []int64{2},
-			},
-			from: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 3000},
-				Counts:  []int64{1, 3},
-			},
-			expected: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 2000, 3000},
-				Counts:  []int64{1, 2, 3},
-			},
-		},
-		{
-			name: "merge_counts",
-			to: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 2000},
-				Counts:  []int64{1, 2},
-			},
-			from: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 2000},
-				Counts:  []int64{1, 2},
-			},
-			expected: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000, 2000},
-				Counts:  []int64{2, 4},
+				Buckets: []int32{1, 2, 3, 4, 5, 7, 8, 9},
+				Counts:  []int64{1, 2, 3, 4, 10, 7, 8, 9},
 			},
 		},
 		{
@@ -1196,18 +1196,18 @@ func TestMergeHistogram(t *testing.T) {
 				Counts:  []int64{},
 			},
 			from: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000},
+				Buckets: []int32{1},
 				Counts:  []int64{1},
 			},
 			expected: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000},
+				Buckets: []int32{1},
 				Counts:  []int64{1},
 			},
 		},
 		{
 			name: "empty_from",
 			to: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000},
+				Buckets: []int32{1},
 				Counts:  []int64{1},
 			},
 			from: &aggregationpb.HDRHistogram{
@@ -1215,8 +1215,38 @@ func TestMergeHistogram(t *testing.T) {
 				Counts:  []int64{},
 			},
 			expected: &aggregationpb.HDRHistogram{
-				Buckets: []int32{1000},
+				Buckets: []int32{1},
 				Counts:  []int64{1},
+			},
+		},
+		{
+			name: "single_value_from_hit",
+			to: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1, 2, 3},
+				Counts:  []int64{1, 2, 3},
+			},
+			from: &aggregationpb.HDRHistogram{
+				Buckets: []int32{3},
+				Counts:  []int64{4},
+			},
+			expected: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1, 2, 3},
+				Counts:  []int64{1, 2, 7},
+			},
+		},
+		{
+			name: "single_value_from_miss",
+			to: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1, 2, 4},
+				Counts:  []int64{1, 2, 4},
+			},
+			from: &aggregationpb.HDRHistogram{
+				Buckets: []int32{3},
+				Counts:  []int64{3},
+			},
+			expected: &aggregationpb.HDRHistogram{
+				Buckets: []int32{1, 2, 3, 4},
+				Counts:  []int64{1, 2, 3, 4},
 			},
 		},
 	} {

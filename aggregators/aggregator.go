@@ -543,10 +543,14 @@ func (a *Aggregator) processHarvest(
 	if err := cm.UnmarshalVT(cmb); err != nil {
 		return hs, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
+	// Processor can mutate the CombinedMetrics, so we cannot rely on the
+	// CombinedMetrics after Processor is called.
+	eventsTotal := cm.EventsTotal
+	youngestEventTS := timestamppb.PBTimestampToTime(cm.YoungestEventTimestamp)
 	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
 		return hs, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
-	hs.eventsTotal = cm.EventsTotal
-	hs.youngestEventTimestamp = timestamppb.PBTimestampToTime(cm.YoungestEventTimestamp)
+	hs.eventsTotal = eventsTotal
+	hs.youngestEventTimestamp = youngestEventTS
 	return hs, nil
 }
