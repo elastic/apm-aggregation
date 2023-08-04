@@ -23,6 +23,14 @@ import (
 	"github.com/elastic/apm-data/model/modelpb"
 )
 
+// CombinedMetricsKeyEncodedSize gives the encoded size gives the size of
+// CombinedMetricsKey in bytes. The size is used as follows:
+// - 2 bytes for interval encoding
+// - 8 bytes for timestamp encoding
+// - 16 bytes for ID encoding
+// - 2 bytes for partition ID
+const CombinedMetricsKeyEncodedSize = 28
+
 // MarshalBinaryToSizedBuffer will marshal the combined metrics key into
 // its binary representation. The encoded byte slice will be used as a
 // key in pebbledb. To ensure efficient sorting and time range based
@@ -33,7 +41,7 @@ import (
 // ID first and then ordered by the partition ID.
 func (k *CombinedMetricsKey) MarshalBinaryToSizedBuffer(data []byte) error {
 	ivlSeconds := uint16(k.Interval.Seconds())
-	if len(data) != k.SizeBinary() {
+	if len(data) != CombinedMetricsKeyEncodedSize {
 		return errors.New("failed to marshal due to incorrect sized buffer")
 	}
 	var offset int
@@ -71,13 +79,18 @@ func (k *CombinedMetricsKey) UnmarshalBinary(data []byte) error {
 }
 
 // SizeBinary returns the size of the byte array required to encode
-// combined metrics key.
+// combined metrics key. Encoded size for CombinedMetricsKey is constant
+// and alternatively the constant CombinedMetricsKeyEncodedSize can be used.
 func (k *CombinedMetricsKey) SizeBinary() int {
-	// 2 bytes for interval encoding
-	// 8 bytes for timestamp encoding
-	// 16 bytes for ID encoding
-	// 2 bytes for partition ID
-	return 2 + 8 + 16 + 2
+	return CombinedMetricsKeyEncodedSize
+}
+
+// GetEncodedCombinedMetricsKeyWithoutPartitionID is a util function to
+// remove partition bits from an encoded CombinedMetricsKey.
+func GetEncodedCombinedMetricsKeyWithoutPartitionID(src []byte) []byte {
+	var buf [CombinedMetricsKeyEncodedSize]byte
+	copy(buf[:CombinedMetricsKeyEncodedSize-2], src)
+	return buf[:]
 }
 
 // ToProto converts CombinedMetrics to its protobuf representation.
