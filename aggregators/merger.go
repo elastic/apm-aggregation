@@ -5,6 +5,7 @@
 package aggregators
 
 import (
+	"fmt"
 	"io"
 
 	"github.com/axiomhq/hyperloglog"
@@ -85,6 +86,9 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 	//         of the _to_ combined metrics.
 	for i := range from.ServiceMetrics {
 		fromSvc := from.ServiceMetrics[i]
+		if fromSvc.Key == nil {
+			fmt.Printf("FROM AGGREGATOR %+v\n", fromSvc)
+		}
 		serviceKeyHash := protohash.HashServiceAggregationKey(xxhash.Digest{}, fromSvc.Key)
 		var sk serviceAggregationKey
 		sk.FromProto(fromSvc.Key)

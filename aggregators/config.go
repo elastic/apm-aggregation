@@ -23,8 +23,10 @@ import (
 const instrumentationName = "aggregators"
 
 // Processor defines handling of the aggregated metrics post harvest.
-// CombinedMetrics passed to the processor should be released back to
-// the pool by calling `ReturnToVTPool`.
+// CombinedMetrics passed to the processor is pooled and it is released
+// back to the pool after processor has returned. If the processor mutates
+// the CombinedMetrics such that it can no longer access the pooled objects,
+// then the Processor should release the objects back to the pool.
 type Processor func(
 	ctx context.Context,
 	cmk CombinedMetricsKey,
@@ -78,8 +80,11 @@ func WithLimits(limits Limits) Option {
 
 // WithProcessor configures the processor for handling of the aggregated
 // metrics post harvest. Processor is called for each decoded combined
-// metrics after they are harvested. Combined metrics should be returned
-// to the pool after Processor is done with it by calling `ReturnToVTPool`.
+// metrics after they are harvested. CombinedMetrics passed to the
+// processor is pooled and it is releasd back to the pool after processor
+// has returned. If the processor mutates the CombinedMetrics such that it
+// can no longer access the pooled objects, then the Processor should
+// release the objects back to the pool.
 func WithProcessor(processor Processor) Option {
 	return func(c Config) Config {
 		c.Processor = processor
