@@ -1005,19 +1005,21 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 
 		if pb == nil {
 			pb = aggregationpb.GlobalLabelsFromVTPool()
+			defer pb.ReturnToVTPool()
 		}
 
-		if len(pb.Labels) == cap(pb.Labels) {
+		i := len(pb.Labels)
+		if i == cap(pb.Labels) {
 			pb.Labels = append(pb.Labels, &aggregationpb.Label{})
 		} else {
-			pb.Labels = pb.Labels[:len(pb.Labels)+1]
-			if pb.Labels[len(pb.Labels)-1] == nil {
-				pb.Labels[len(pb.Labels)-1] = &aggregationpb.Label{}
+			pb.Labels = pb.Labels[:i+1]
+			if pb.Labels[i] == nil {
+				pb.Labels[i] = &aggregationpb.Label{}
 			}
 		}
-		pb.Labels[len(pb.Labels)-1].Key = k
-		pb.Labels[len(pb.Labels)-1].Value = v.Value
-		pb.Labels[len(pb.Labels)-1].Values = v.Values
+		pb.Labels[i].Key = k
+		pb.Labels[i].Value = v.Value
+		pb.Labels[i].Values = v.Values
 	}
 	if pb != nil {
 		sort.Slice(pb.Labels, func(i, j int) bool {
@@ -1032,19 +1034,21 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 
 		if pb == nil {
 			pb = aggregationpb.GlobalLabelsFromVTPool()
+			defer pb.ReturnToVTPool()
 		}
 
-		if len(pb.NumericLabels) == cap(pb.NumericLabels) {
+		i := len(pb.NumericLabels)
+		if i == cap(pb.NumericLabels) {
 			pb.NumericLabels = append(pb.NumericLabels, &aggregationpb.NumericLabel{})
 		} else {
-			pb.NumericLabels = pb.NumericLabels[:len(pb.NumericLabels)+1]
-			if pb.NumericLabels[len(pb.NumericLabels)-1] == nil {
-				pb.NumericLabels[len(pb.NumericLabels)-1] = &aggregationpb.NumericLabel{}
+			pb.NumericLabels = pb.NumericLabels[:i+1]
+			if pb.NumericLabels[i] == nil {
+				pb.NumericLabels[i] = &aggregationpb.NumericLabel{}
 			}
 		}
-		pb.NumericLabels[len(pb.NumericLabels)-1].Key = k
-		pb.NumericLabels[len(pb.NumericLabels)-1].Value = v.Value
-		pb.NumericLabels[len(pb.NumericLabels)-1].Values = v.Values
+		pb.NumericLabels[i].Key = k
+		pb.NumericLabels[i].Value = v.Value
+		pb.NumericLabels[i].Values = v.Values
 	}
 	if pb != nil {
 		sort.Slice(pb.NumericLabels, func(i, j int) bool {
@@ -1055,7 +1059,6 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 	if pb == nil {
 		return nil, nil
 	}
-	defer pb.ReturnToVTPool()
 	return pb.MarshalVT()
 }
 
