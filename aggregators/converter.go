@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"sync"
 	"time"
 
@@ -989,26 +990,76 @@ func overflowSpanMetricsToAPMEvent(
 }
 
 func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
-	var gl GlobalLabels
+	if len(e.Labels) == 0 && len(e.NumericLabels) == 0 {
+		return nil, nil
+	}
+
+	var pb *aggregationpb.GlobalLabels
+
+	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
+	// i.e. Protobuf formats are equal if and only if the structs are equal
 	for k, v := range e.Labels {
 		if !v.Global {
 			continue
 		}
-		if (&gl).Labels == nil {
-			(&gl).Labels = make(modelpb.Labels)
+
+		if pb == nil {
+			pb = aggregationpb.GlobalLabelsFromVTPool()
+			defer pb.ReturnToVTPool()
 		}
-		gl.Labels[k] = v
+
+		i := len(pb.Labels)
+		if i == cap(pb.Labels) {
+			pb.Labels = append(pb.Labels, &aggregationpb.Label{})
+		} else {
+			pb.Labels = pb.Labels[:i+1]
+			if pb.Labels[i] == nil {
+				pb.Labels[i] = &aggregationpb.Label{}
+			}
+		}
+		pb.Labels[i].Key = k
+		pb.Labels[i].Value = v.Value
+		pb.Labels[i].Values = v.Values
 	}
+	if pb != nil {
+		sort.Slice(pb.Labels, func(i, j int) bool {
+			return pb.Labels[i].Key < pb.Labels[j].Key
+		})
+	}
+
 	for k, v := range e.NumericLabels {
 		if !v.Global {
 			continue
 		}
-		if (&gl).NumericLabels == nil {
-			(&gl).NumericLabels = make(modelpb.NumericLabels)
+
+		if pb == nil {
+			pb = aggregationpb.GlobalLabelsFromVTPool()
+			defer pb.ReturnToVTPool()
 		}
-		gl.NumericLabels[k] = v
+
+		i := len(pb.NumericLabels)
+		if i == cap(pb.NumericLabels) {
+			pb.NumericLabels = append(pb.NumericLabels, &aggregationpb.NumericLabel{})
+		} else {
+			pb.NumericLabels = pb.NumericLabels[:i+1]
+			if pb.NumericLabels[i] == nil {
+				pb.NumericLabels[i] = &aggregationpb.NumericLabel{}
+			}
+		}
+		pb.NumericLabels[i].Key = k
+		pb.NumericLabels[i].Value = v.Value
+		pb.NumericLabels[i].Values = v.Values
 	}
-	return gl.MarshalBinary()
+	if pb != nil {
+		sort.Slice(pb.NumericLabels, func(i, j int) bool {
+			return pb.NumericLabels[i].Key < pb.NumericLabels[j].Key
+		})
+	}
+
+	if pb == nil {
+		return nil, nil
+	}
+	return pb.MarshalVT()
 }
 
 func setTransactionKey(e *modelpb.APMEvent, key *aggregationpb.TransactionAggregationKey) {
