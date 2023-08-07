@@ -401,6 +401,15 @@ func CombinedMetricsToBatch(
 	// service_summary overflow metric
 	if len(cm.OverflowServiceInstancesEstimator) > 0 {
 		batchSize++
+		if len(cm.OverflowServices.OverflowTransactionsEstimator) > 0 {
+			batchSize++
+		}
+		if len(cm.OverflowServices.OverflowServiceTransactionsEstimator) > 0 {
+			batchSize++
+		}
+		if len(cm.OverflowServices.OverflowSpansEstimator) > 0 {
+			batchSize++
+		}
 	}
 
 	for _, ksm := range cm.ServiceMetrics {
@@ -437,7 +446,7 @@ func CombinedMetricsToBatch(
 			var gl GlobalLabels
 			err := gl.UnmarshalBinary(sik.GlobalLabelsStr)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("failed to unmarshal global labels: %w", err)
 			}
 			getBaseEventWithLabels := func() *modelpb.APMEvent {
 				event := getBaseEvent(sk)
