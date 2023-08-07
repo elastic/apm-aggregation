@@ -150,12 +150,6 @@ func (a *Aggregator) AggregateBatch(
 			if err != nil {
 				errs = append(errs, err)
 				failBytes += int64(bytesIn)
-				attrSet := attribute.NewSet(append(
-					cmIDAttrs,
-					attribute.String(aggregationIvlKey, formatDuration(ivl)),
-					telemetry.WithFailure(),
-				)...)
-				a.metrics.EventsProcessed.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 			} else {
 				successBytes += int64(bytesIn)
 			}
@@ -206,16 +200,16 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	default:
 	}
 
-	bytesIn, err := a.aggregate(ctx, cmk, cm)
-	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
-	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
-
 	var attrSet attribute.Set
+	bytesIn, err := a.aggregate(ctx, cmk, cm)
 	if err != nil {
 		attrSet = attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...)
 	} else {
 		attrSet = attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...)
 	}
+
+	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
+	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
 	a.metrics.BytesProcessed.Add(ctx, int64(bytesIn), metric.WithAttributeSet(attrSet))
 	a.metrics.RequestsCount.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 	return err
