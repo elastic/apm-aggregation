@@ -616,9 +616,8 @@ func TestCombinedMetricsKeyOrdered(t *testing.T) {
 		Interval:       ivl,
 		ID:             cmID,
 	}
-	marshaledBufferSize := before.SizeBinary()
-	beforeBytes := make([]byte, marshaledBufferSize)
-	afterBytes := make([]byte, marshaledBufferSize)
+	beforeBytes := make([]byte, CombinedMetricsKeyEncodedSize)
+	afterBytes := make([]byte, CombinedMetricsKeyEncodedSize)
 
 	for i := 0; i < 10; i++ {
 		ts = ts.Add(time.Minute)
@@ -668,9 +667,8 @@ func TestCombinedMetricsKeyOrderedByProjectID(t *testing.T) {
 	}
 
 	before := keys[0]
-	marshaledBufferSize := before.SizeBinary()
-	beforeBytes := make([]byte, marshaledBufferSize)
-	afterBytes := make([]byte, marshaledBufferSize)
+	beforeBytes := make([]byte, CombinedMetricsKeyEncodedSize)
+	afterBytes := make([]byte, CombinedMetricsKeyEncodedSize)
 
 	for i := 1; i < len(keys); i++ {
 		ts = ts.Add(time.Minute)
