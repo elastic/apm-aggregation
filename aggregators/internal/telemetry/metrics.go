@@ -28,7 +28,6 @@ const (
 type Metrics struct {
 	// Synchronous metrics used to record aggregation measurements.
 
-	RequestsCount     metric.Int64Counter
 	BytesProcessed    metric.Int64Counter
 	EventsProcessed   metric.Float64Counter
 	MinQueuedDelay    metric.Float64Histogram
@@ -68,14 +67,6 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	meter := cfg.Meter
 
 	// Aggregator metrics
-	i.RequestsCount, err = meter.Int64Counter(
-		"aggregator.requests.count",
-		metric.WithDescription("Number of aggregation requests. Dimensions are used to report the outcome"),
-		metric.WithUnit(countUnit),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric for requests total: %w", err)
-	}
 	i.BytesProcessed, err = meter.Int64Counter(
 		"events.processed.bytes",
 		metric.WithDescription("Number of bytes processed by the aggregators"),

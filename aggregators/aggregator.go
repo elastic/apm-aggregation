@@ -169,7 +169,6 @@ func (a *Aggregator) AggregateBatch(
 		attrSet = attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...)
 	}
 	a.metrics.BytesProcessed.Add(ctx, successBytes, metric.WithAttributeSet(attrSet))
-	a.metrics.RequestsCount.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 	return err
 }
 
@@ -211,7 +210,6 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
 	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
 	a.metrics.BytesProcessed.Add(ctx, int64(bytesIn), metric.WithAttributeSet(attrSet))
-	a.metrics.RequestsCount.Add(ctx, 1, metric.WithAttributeSet(attrSet))
 	return err
 }
 

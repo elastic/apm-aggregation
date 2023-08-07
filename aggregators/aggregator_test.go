@@ -156,8 +156,7 @@ func TestAggregateBatch(t *testing.T) {
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
-				"aggregator.requests.count": {Value: 1},
-				"events.processed.bytes":    {Value: 138250},
+				"events.processed.bytes": {Value: 138250},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -771,8 +770,7 @@ func TestHarvest(t *testing.T) {
 		require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
-				"aggregator.requests.count": {Value: 1},
-				"events.processed.bytes":    {Value: 270},
+				"events.processed.bytes": {Value: 270},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
