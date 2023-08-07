@@ -838,7 +838,7 @@ func svcTxnMetricsToAPMEvent(
 		baseEvent.Event.SuccessCount = modelpb.SummaryMetricFromVTPool()
 	}
 	baseEvent.Event.SuccessCount.Count =
-		int64(math.Round(metrics.SuccessCount + metrics.FailureCount))
+		uint64(math.Round(metrics.SuccessCount + metrics.FailureCount))
 	baseEvent.Event.SuccessCount.Sum = math.Round(metrics.SuccessCount)
 }
 
@@ -863,7 +863,7 @@ func spanMetricsToAPMEvent(
 		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
 	}
 	baseEvent.Metricset.Name = spanMetricsetName
-	baseEvent.Metricset.DocCount = int64(math.Round(metrics.Count))
+	baseEvent.Metricset.DocCount = uint64(math.Round(metrics.Count))
 	baseEvent.Metricset.Interval = intervalStr
 
 	if baseEvent.Span == nil {
@@ -880,7 +880,7 @@ func spanMetricsToAPMEvent(
 			modelpb.AggregatedDurationFromVTPool()
 	}
 	baseEvent.Span.DestinationService.ResponseTime.Count =
-		int64(math.Round(metrics.Count))
+		uint64(math.Round(metrics.Count))
 	baseEvent.Span.DestinationService.ResponseTime.Sum =
 		durationpb.New(time.Duration(math.Round(metrics.Sum)))
 
@@ -995,7 +995,7 @@ func overflowSpanMetricsToAPMEvent(
 		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
 	}
 	baseEvent.Metricset.Samples = append(baseEvent.Metricset.Samples, sample)
-	baseEvent.Metricset.DocCount = int64(overflowCount)
+	baseEvent.Metricset.DocCount = overflowCount
 }
 
 func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
