@@ -313,14 +313,14 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
-							DocCount: int64(count),
+							DocCount: uint64(count),
 						},
 						Span: &modelpb.Span{
 							Name: "service-A:" + destinationX,
 							DestinationService: &modelpb.DestinationService{
 								Resource: destinationX,
 								ResponseTime: &modelpb.AggregatedDuration{
-									Count: int64(count),
+									Count: uint64(count),
 									Sum:   durationpb.New(time.Duration(count) * duration),
 								},
 							},
@@ -341,14 +341,14 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
-							DocCount: int64(count),
+							DocCount: uint64(count),
 						},
 						Span: &modelpb.Span{
 							Name: "service-A:" + destinationZ,
 							DestinationService: &modelpb.DestinationService{
 								Resource: destinationZ,
 								ResponseTime: &modelpb.AggregatedDuration{
-									Count: int64(count),
+									Count: uint64(count),
 									Sum:   durationpb.New(time.Duration(count) * duration),
 								},
 							},
@@ -369,14 +369,14 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
-							DocCount: int64(3 * count),
+							DocCount: uint64(3 * count),
 						},
 						Span: &modelpb.Span{
 							Name: "service-A:" + destinationZ,
 							DestinationService: &modelpb.DestinationService{
 								Resource: destinationZ,
 								ResponseTime: &modelpb.AggregatedDuration{
-									Count: int64(3 * count),
+									Count: uint64(3 * count),
 									Sum:   durationpb.New(time.Duration(3*count) * duration),
 								},
 							},
@@ -397,14 +397,14 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
-							DocCount: int64(count),
+							DocCount: uint64(count),
 						},
 						Span: &modelpb.Span{
 							Name: "service-B:" + destinationZ,
 							DestinationService: &modelpb.DestinationService{
 								Resource: destinationZ,
 								ResponseTime: &modelpb.AggregatedDuration{
-									Count: int64(count),
+									Count: uint64(count),
 									Sum:   durationpb.New(time.Duration(count) * duration),
 								},
 							},
@@ -455,13 +455,13 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
-							DocCount: int64(count),
+							DocCount: uint64(count),
 						},
 						Span: &modelpb.Span{
 							Name: "service-A:",
 							DestinationService: &modelpb.DestinationService{
 								ResponseTime: &modelpb.AggregatedDuration{
-									Count: int64(count),
+									Count: uint64(count),
 									Sum:   durationpb.New(time.Duration(count) * duration),
 								},
 							},
@@ -500,14 +500,14 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
-							DocCount: int64(count),
+							DocCount: uint64(count),
 						},
 						Span: &modelpb.Span{
 							Name: "service-A:" + destinationZ,
 							DestinationService: &modelpb.DestinationService{
 								Resource: destinationZ,
 								ResponseTime: &modelpb.AggregatedDuration{
-									Count: int64(count),
+									Count: uint64(count),
 									Sum:   durationpb.New(time.Duration(count) * duration),
 								},
 							},
@@ -896,7 +896,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 				},
 				DurationHistogram: &modelpb.Histogram{
 					Values: []float64{100351},
-					Counts: []int64{1},
+					Counts: []uint64{1},
 				},
 			},
 			Service: &modelpb.Service{
@@ -952,7 +952,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 				},
 				DurationHistogram: &modelpb.Histogram{
 					Values: []float64{100351},
-					Counts: []int64{1},
+					Counts: []uint64{1},
 				},
 			},
 			Service: &modelpb.Service{
