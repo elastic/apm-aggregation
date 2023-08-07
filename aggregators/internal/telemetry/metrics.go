@@ -10,6 +10,7 @@ import (
 	"fmt"
 
 	"github.com/cockroachdb/pebble"
+	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
 )
 
@@ -27,13 +28,11 @@ const (
 type Metrics struct {
 	// Synchronous metrics used to record aggregation measurements.
 
-	RequestsTotal   metric.Int64Counter
-	RequestsFailed  metric.Int64Counter
-	BytesIngested   metric.Int64Counter
-	EventsTotal     metric.Float64Counter
-	EventsProcessed metric.Float64Counter
-	MinQueuedDelay  metric.Float64Histogram
-	ProcessingDelay metric.Float64Histogram
+	RequestsCount     metric.Int64Counter
+	BytesProcessed    metric.Int64Counter
+	EventsProcessed   metric.Float64Counter
+	MinQueuedDelay    metric.Float64Histogram
+	ProcessingLatency metric.Float64Histogram
 
 	// Asynchronous metrics used to get pebble metrics and
 	// record measurements. These are kept unexported as they are
@@ -69,56 +68,40 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	meter := cfg.Meter
 
 	// Aggregator metrics
-	i.RequestsTotal, err = meter.Int64Counter(
-		"aggregator.requests.total",
-		metric.WithDescription("Total number of aggregation requests"),
+	i.RequestsCount, err = meter.Int64Counter(
+		"aggregator.requests.count",
+		metric.WithDescription("Number of aggregation requests. Dimensions are used to report the outcome"),
 		metric.WithUnit(countUnit),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for requests total: %w", err)
 	}
-	i.RequestsFailed, err = meter.Int64Counter(
-		"aggregator.requests.failed",
-		metric.WithDescription("Total number of aggregation requests failed, including partial failures"),
-		metric.WithUnit(countUnit),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric for requests failed: %w", err)
-	}
-	i.BytesIngested, err = meter.Int64Counter(
-		"aggregator.bytes.ingested",
-		metric.WithDescription("Number of bytes ingested by the aggregators"),
+	i.BytesProcessed, err = meter.Int64Counter(
+		"events.processed.bytes",
+		metric.WithDescription("Number of bytes processed by the aggregators"),
 		metric.WithUnit(bytesUnit),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for bytes processed: %w", err)
 	}
-	i.EventsTotal, err = meter.Float64Counter(
-		"aggregator.events.total",
-		metric.WithDescription("Total number of APM Events requested for aggregation per aggregation interval"),
-		metric.WithUnit(countUnit),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric for events total: %w", err)
-	}
 	i.EventsProcessed, err = meter.Float64Counter(
-		"aggregator.events.processed",
-		metric.WithDescription("APM Events successfully aggregated by the aggregator per aggregation interval"),
+		"events.processed.count",
+		metric.WithDescription("Number of processed APM Events. Dimensions are used to report the outcome"),
 		metric.WithUnit(countUnit),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for events processed: %w", err)
 	}
 	i.MinQueuedDelay, err = meter.Float64Histogram(
-		"events.queued-delay",
+		"events.processed.queued-latency",
 		metric.WithDescription("Records total duration for aggregating a batch w.r.t. its youngest member"),
 		metric.WithUnit(durationUnit),
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for queued delay: %w", err)
 	}
-	i.ProcessingDelay, err = meter.Float64Histogram(
-		"events.processing-delay",
+	i.ProcessingLatency, err = meter.Float64Histogram(
+		"events.processed.latency",
 		metric.WithDescription("Records the processing delays, removes expected delays due to aggregation intervals"),
 		metric.WithUnit(durationUnit),
 	)
@@ -298,4 +281,19 @@ func (i *Metrics) registerCallback(meter metric.Meter, provider pebbleProvider) 
 		i.pebbleKeysTombstones,
 	)
 	return
+}
+
+// WithSuccess returns an attribute representing a successful event outcome.
+func WithSuccess() attribute.KeyValue {
+	return WithOutcome("success")
+}
+
+// WithFailure returns an attribute representing a failed event outcome.
+func WithFailure() attribute.KeyValue {
+	return WithOutcome("failure")
+}
+
+// WithOutcome returns an attribute for event outcome.
+func WithOutcome(outcome string) attribute.KeyValue {
+	return attribute.String("outcome", outcome)
 }
