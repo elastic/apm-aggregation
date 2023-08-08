@@ -158,17 +158,21 @@ func (a *Aggregator) AggregateBatch(
 	}
 
 	var (
-		err     error
-		attrSet attribute.Set
+		err        error
+		attrSetOpt metric.MeasurementOption
 	)
 	if len(errs) > 0 {
-		attrSet = attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...)
-		a.metrics.BytesProcessed.Add(ctx, failBytes, metric.WithAttributeSet(attrSet))
+		attrSetOpt = metric.WithAttributeSet(
+			attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...),
+		)
+		a.metrics.BytesProcessed.Add(ctx, failBytes, attrSetOpt)
 		err = fmt.Errorf("failed batch aggregation:\n%w", errors.Join(errs...))
 	} else {
-		attrSet = attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...)
+		attrSetOpt = metric.WithAttributeSet(
+			attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...),
+		)
 	}
-	a.metrics.BytesProcessed.Add(ctx, successBytes, metric.WithAttributeSet(attrSet))
+	a.metrics.BytesProcessed.Add(ctx, successBytes, attrSetOpt)
 	return err
 }
 
@@ -199,17 +203,21 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	default:
 	}
 
-	var attrSet attribute.Set
+	var attrSetOpt metric.MeasurementOption
 	bytesIn, err := a.aggregate(ctx, cmk, cm)
 	if err != nil {
-		attrSet = attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...)
+		attrSetOpt = metric.WithAttributeSet(
+			attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...),
+		)
 	} else {
-		attrSet = attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...)
+		attrSetOpt = metric.WithAttributeSet(
+			attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...),
+		)
 	}
 
 	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
 	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
-	a.metrics.BytesProcessed.Add(ctx, int64(bytesIn), metric.WithAttributeSet(attrSet))
+	a.metrics.BytesProcessed.Add(ctx, int64(bytesIn), attrSetOpt)
 	return err
 }
 
@@ -495,11 +503,13 @@ func (a *Aggregator) harvestForInterval(
 		}
 		cmCount++
 
-		attrSet := attribute.NewSet(append(
-			a.cfg.CombinedMetricsIDToKVs(cmk.ID),
-			ivlAttr,
-			telemetry.WithSuccess(),
-		)...)
+		attrSetOpt := metric.WithAttributeSet(
+			attribute.NewSet(append(
+				a.cfg.CombinedMetricsIDToKVs(cmk.ID),
+				ivlAttr,
+				telemetry.WithSuccess(),
+			)...),
+		)
 		// processingDelay is normalized by subtracting aggregation interval and
 		// harvest delay, both of which are expected delays. Normalization helps
 		// us to use the lower (higher resolution) range of the histogram for the
@@ -515,20 +525,11 @@ func (a *Aggregator) harvestForInterval(
 		// Negative values are possible at edges due to delays in running the
 		// harvest loop or time sync issues between agents and server.
 		queuedDelay := time.Since(harvestStats.youngestEventTimestamp).Seconds()
-		a.metrics.MinQueuedDelay.Record(
-			ctx, queuedDelay,
-			metric.WithAttributeSet(attrSet),
-		)
-		a.metrics.ProcessingLatency.Record(
-			ctx, processingDelay,
-			metric.WithAttributeSet(attrSet),
-		)
+		a.metrics.MinQueuedDelay.Record(ctx, queuedDelay, attrSetOpt)
+		a.metrics.ProcessingLatency.Record(ctx, processingDelay, attrSetOpt)
 		// Events harvested have been successfully processed, publish these
 		// as success. Update the map to keep track of events failed.
-		a.metrics.EventsProcessed.Add(
-			ctx, harvestStats.eventsTotal,
-			metric.WithAttributeSet(attrSet),
-		)
+		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, attrSetOpt)
 		cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
 	}
 	err := a.db.DeleteRange(lb, ub, a.writeOptions)
@@ -551,15 +552,14 @@ func (a *Aggregator) harvestForInterval(
 			)
 			continue
 		}
-		attrSet := attribute.NewSet(append(
-			a.cfg.CombinedMetricsIDToKVs(cmID),
-			ivlAttr,
-			telemetry.WithFailure(),
-		)...)
-		a.metrics.EventsProcessed.Add(
-			ctx, eventsTotal,
-			metric.WithAttributeSet(attrSet),
+		attrSetOpt := metric.WithAttributeSet(
+			attribute.NewSet(append(
+				a.cfg.CombinedMetricsIDToKVs(cmID),
+				ivlAttr,
+				telemetry.WithFailure(),
+			)...),
 		)
+		a.metrics.EventsProcessed.Add(ctx, eventsTotal, attrSetOpt)
 	}
 	return cmCount, err
 }
