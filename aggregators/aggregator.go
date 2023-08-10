@@ -541,8 +541,11 @@ func (a *Aggregator) harvestForInterval(
 	}
 
 	// All remaining events in the cached events map should be failed events.
-	// Record these events with a failuer outcome.
+	// Record these events with a failure outcome.
 	for cmID, eventsTotal := range cachedEventsStats {
+		if eventsTotal == 0 {
+			continue
+		}
 		if eventsTotal < 0 {
 			a.cfg.Logger.Warn(
 				"unexpectedly failed to harvest all collected events",
