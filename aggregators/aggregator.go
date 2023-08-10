@@ -157,22 +157,16 @@ func (a *Aggregator) AggregateBatch(
 		a.cachedEvents.add(ivl, id, float64(len(*b)))
 	}
 
-	var (
-		err        error
-		attrSetOpt metric.MeasurementOption
-	)
+	var err error
 	if len(errs) > 0 {
-		attrSetOpt = metric.WithAttributeSet(
+		a.metrics.BytesProcessed.Add(ctx, failBytes, metric.WithAttributeSet(
 			attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...),
-		)
-		a.metrics.BytesProcessed.Add(ctx, failBytes, attrSetOpt)
+		))
 		err = fmt.Errorf("failed batch aggregation:\n%w", errors.Join(errs...))
-	} else {
-		attrSetOpt = metric.WithAttributeSet(
-			attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...),
-		)
 	}
-	a.metrics.BytesProcessed.Add(ctx, successBytes, attrSetOpt)
+	a.metrics.BytesProcessed.Add(ctx, successBytes, metric.WithAttributeSet(
+		attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...),
+	))
 	return err
 }
 
