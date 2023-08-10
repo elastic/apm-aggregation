@@ -419,8 +419,22 @@ func TestAggregateSpanMetrics(t *testing.T) {
 			inputs: []input{
 				{serviceName: "service-A", agentName: "java", outcome: "success", representativeCount: 1},
 			},
-			getExpectedEvents: func(_ time.Time, _, _ time.Duration, _ int) []*modelpb.APMEvent {
-				return nil
+			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, _ int) []*modelpb.APMEvent {
+				return []*modelpb.APMEvent{
+					{
+						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Agent:     &modelpb.Agent{Name: "java"},
+						Service: &modelpb.Service{
+							Name: "service-A",
+						},
+						Metricset: &modelpb.Metricset{
+							Name:     "service_summary",
+							Interval: formatDuration(ivl),
+						},
+						Labels:        defaultLabels,
+						NumericLabels: defaultNumericLabels,
+					},
+				}
 			},
 		}, {
 			name: "with no destination and a service target",

@@ -359,6 +359,9 @@ func EventToCombinedMetrics(
 
 	pmb.processEvent(e)
 	if len(pmb.builders) == 0 {
+		// This is unexpected state as any APMEvent must result in atleast the
+		// service summary metric. If such a state happens then it would indicate
+		// a bug in `processEvent`.
 		return fmt.Errorf("service summary metric must be produced for any event")
 	}
 
