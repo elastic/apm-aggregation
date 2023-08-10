@@ -110,7 +110,7 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 	case modelpb.TransactionEventType:
 		repCount := e.GetTransaction().GetRepresentativeCount()
 		if repCount <= 0 {
-			// BUG we should add a service summary metric
+			p.addServiceSummaryMetrics()
 			return
 		}
 		duration := e.GetEvent().GetDuration().AsDuration()
@@ -124,7 +124,7 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 		repCount := e.GetSpan().GetRepresentativeCount()
 		destSvc := e.GetSpan().GetDestinationService().GetResource()
 		if repCount <= 0 || (target == nil && destSvc == "") {
-			// BUG we should add a service summary metric
+			p.addServiceSummaryMetrics()
 			return
 		}
 		p.addSpanMetrics(e, repCount)
@@ -359,8 +359,10 @@ func EventToCombinedMetrics(
 
 	pmb.processEvent(e)
 	if len(pmb.builders) == 0 {
-		// BUG we should _always_ create a service summary metric.
-		return nil
+		// This is unexpected state as any APMEvent must result in atleast the
+		// service summary metric. If such a state happens then it would indicate
+		// a bug in `processEvent`.
+		return fmt.Errorf("service summary metric must be produced for any event")
 	}
 
 	// Approximate events total by uniformly distributing the events total
