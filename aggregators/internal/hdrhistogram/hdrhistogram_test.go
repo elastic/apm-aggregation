@@ -34,17 +34,17 @@ func TestMerge(t *testing.T) {
 }
 
 func TestBuckets(t *testing.T) {
-	buckets := func(h *hdrhistogram.Histogram) (int64, []int64, []float64) {
+	buckets := func(h *hdrhistogram.Histogram) (uint64, []uint64, []float64) {
 		distribution := h.Distribution()
-		counts := make([]int64, 0, len(distribution))
+		counts := make([]uint64, 0, len(distribution))
 		values := make([]float64, 0, len(distribution))
 
-		var totalCount int64
+		var totalCount uint64
 		for _, b := range distribution {
 			if b.Count <= 0 {
 				continue
 			}
-			count := int64(math.Round(float64(b.Count) / histogramCountScale))
+			count := uint64(math.Round(float64(b.Count) / histogramCountScale))
 			counts = append(counts, count)
 			values = append(values, float64(b.To))
 			totalCount += count

@@ -685,7 +685,7 @@ func createTestServiceTransactionMetric(
 		Event: &modelpb.Event{
 			SuccessCount: &modelpb.SummaryMetric{
 				// test code generates all success events
-				Count: int64(count),
+				Count: uint64(count),
 				Sum:   float64(count),
 			},
 		},
@@ -720,7 +720,7 @@ func createTestSpanMetric(
 			Name:     "service_destination",
 			Interval: formatDuration(ivl),
 			Samples:  metricsetSamples,
-			DocCount: int64(count),
+			DocCount: uint64(count),
 		},
 		Service: &modelpb.Service{
 			Name:   svcName,
@@ -732,7 +732,7 @@ func createTestSpanMetric(
 				Resource: span.Resource,
 				ResponseTime: &modelpb.AggregatedDuration{
 					// test code generates 1 count for 1 ns
-					Count: int64(count),
+					Count: uint64(count),
 					Sum:   durationpb.New(time.Duration(count)),
 				},
 			},

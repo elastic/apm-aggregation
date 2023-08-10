@@ -23,11 +23,32 @@ func TestCombinedMetricsKey(t *testing.T) {
 		ProcessingTime: time.Now().Truncate(time.Minute),
 		ID:             EncodeToCombinedMetricsKeyID(t, "ab01"),
 	}
-	data := make([]byte, expected.SizeBinary())
+	data := make([]byte, CombinedMetricsKeyEncodedSize)
 	assert.NoError(t, expected.MarshalBinaryToSizedBuffer(data))
 	var actual CombinedMetricsKey
 	assert.NoError(t, (&actual).UnmarshalBinary(data))
 	assert.Empty(t, cmp.Diff(expected, actual))
+}
+
+func TestGetEncodedCombinedMetricsKeyWithoutPartitionID(t *testing.T) {
+	key := CombinedMetricsKey{
+		Interval:       time.Minute,
+		ProcessingTime: time.Now().Truncate(time.Minute),
+		ID:             EncodeToCombinedMetricsKeyID(t, "ab01"),
+		PartitionID:    11,
+	}
+	var encoded [CombinedMetricsKeyEncodedSize]byte
+	assert.NoError(t, key.MarshalBinaryToSizedBuffer(encoded[:]))
+
+	key.PartitionID = 0
+	var expected [CombinedMetricsKeyEncodedSize]byte
+	assert.NoError(t, key.MarshalBinaryToSizedBuffer(expected[:]))
+
+	assert.Equal(
+		t,
+		expected[:],
+		GetEncodedCombinedMetricsKeyWithoutPartitionID(encoded[:]),
+	)
 }
 
 func TestGlobalLabels(t *testing.T) {

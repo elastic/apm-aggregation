@@ -117,11 +117,11 @@ func (h *HistogramRepresentation) Merge(from *HistogramRepresentation) {
 
 // Buckets converts the histogram into ordered slices of counts
 // and values per bar along with the total count.
-func (h *HistogramRepresentation) Buckets() (int64, []int64, []float64) {
-	counts := make([]int64, 0, h.CountsRep.Len())
+func (h *HistogramRepresentation) Buckets() (uint64, []uint64, []float64) {
+	counts := make([]uint64, 0, h.CountsRep.Len())
 	values := make([]float64, 0, h.CountsRep.Len())
 
-	var totalCount int64
+	var totalCount uint64
 	var prevBucket int32
 	iter := h.iterator()
 	iter.nextCountAtIdx()
@@ -130,7 +130,7 @@ func (h *HistogramRepresentation) Buckets() (int64, []int64, []float64) {
 			return
 		}
 		if iter.advance(int(bucket - prevBucket)) {
-			count := int64(math.Round(float64(scaledCounts) / histogramCountScale))
+			count := uint64(math.Round(float64(scaledCounts) / histogramCountScale))
 			counts = append(counts, count)
 			values = append(values, float64(iter.highestEquivalentValue))
 			totalCount += count

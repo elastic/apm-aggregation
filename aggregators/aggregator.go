@@ -475,8 +475,8 @@ func (a *Aggregator) harvestForInterval(
 		Interval:       ivl,
 		ProcessingTime: end,
 	}
-	lb := make([]byte, from.SizeBinary())
-	ub := make([]byte, to.SizeBinary())
+	lb := make([]byte, CombinedMetricsKeyEncodedSize)
+	ub := make([]byte, CombinedMetricsKeyEncodedSize)
 	from.MarshalBinaryToSizedBuffer(lb)
 	to.MarshalBinaryToSizedBuffer(ub)
 
