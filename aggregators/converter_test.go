@@ -66,7 +66,16 @@ func TestEventToCombinedMetrics(t *testing.T) {
 			},
 			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
-				return nil
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(serviceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+						GetProto(),
+				}
 			},
 		},
 		{
@@ -114,7 +123,16 @@ func TestEventToCombinedMetrics(t *testing.T) {
 			},
 			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
-				return nil
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(serviceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+						GetProto(),
+				}
 			},
 		},
 		{
@@ -130,7 +148,16 @@ func TestEventToCombinedMetrics(t *testing.T) {
 			},
 			partitions: 1,
 			expected: func() []*aggregationpb.CombinedMetrics {
-				return nil
+				return []*aggregationpb.CombinedMetrics{
+					NewTestCombinedMetrics(
+						WithEventsTotal(1),
+						WithYoungestEventTimestamp(receivedTS)).
+						AddServiceMetrics(serviceAggregationKey{
+							Timestamp:   ts.Truncate(time.Minute),
+							ServiceName: "test"}).
+						AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
+						GetProto(),
+				}
 			},
 		},
 		{
