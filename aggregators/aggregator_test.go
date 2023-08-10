@@ -156,23 +156,23 @@ func TestAggregateBatch(t *testing.T) {
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
-				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 138250},
+				"events.processed.bytes": {Value: 138250},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
+				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
 			},
 		},
 		{
 			Samples: map[string]apmmodel.Metric{
-				"aggregator.events.total":     {Value: float64(len(batch))},
-				"aggregator.events.processed": {Value: float64(len(batch))},
-				"events.processing-delay":     {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
-				"events.queued-delay":         {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
+				"events.processed.count":          {Value: float64(len(batch))},
+				"events.processed.latency":        {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
+				"events.processed.queued-latency": {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: aggregationIvlKey, Value: formatDuration(aggIvl)},
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
+				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
 			},
 		},
 	}
@@ -782,24 +782,24 @@ func TestHarvest(t *testing.T) {
 		require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
-				"aggregator.requests.total": {Value: 1},
-				"aggregator.bytes.ingested": {Value: 270},
+				"events.processed.bytes": {Value: 270},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
+				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
 			},
 		})
 		for _, ivl := range ivls {
 			expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 				Samples: map[string]apmmodel.Metric{
-					"aggregator.events.total":     {Value: float64(len(batch))},
-					"aggregator.events.processed": {Value: float64(len(batch))},
-					"events.processing-delay":     {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
-					"events.queued-delay":         {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
+					"events.processed.count":          {Value: float64(len(batch))},
+					"events.processed.latency":        {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
+					"events.processed.queued-latency": {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
 				},
 				Labels: apmmodel.StringMap{
 					apmmodel.StringMapItem{Key: aggregationIvlKey, Value: ivl.String()},
 					apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
+					apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
 				},
 			})
 		}

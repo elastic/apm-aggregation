@@ -137,8 +137,10 @@ func (a *Aggregator) AggregateBatch(
 	default:
 	}
 
-	var errs []error
-	var totalBytesIn int64
+	var (
+		errs                    []error
+		successBytes, failBytes int64
+	)
 	cmk := CombinedMetricsKey{ID: id}
 	for _, ivl := range a.cfg.AggregationIntervals {
 		cmk.ProcessingTime = a.processingTime.Truncate(ivl)
@@ -147,20 +149,25 @@ func (a *Aggregator) AggregateBatch(
 			bytesIn, err := a.aggregateAPMEvent(ctx, cmk, e)
 			if err != nil {
 				errs = append(errs, err)
+				failBytes += int64(bytesIn)
+			} else {
+				successBytes += int64(bytesIn)
 			}
-			totalBytesIn += int64(bytesIn)
 		}
 		a.cachedEvents.add(ivl, id, float64(len(*b)))
 	}
 
-	cmIDAttrSet := attribute.NewSet(cmIDAttrs...)
-	a.metrics.RequestsTotal.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
-	a.metrics.BytesIngested.Add(ctx, totalBytesIn, metric.WithAttributeSet(cmIDAttrSet))
+	var err error
 	if len(errs) > 0 {
-		a.metrics.RequestsFailed.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
-		return fmt.Errorf("failed batch aggregation:\n%w", errors.Join(errs...))
+		a.metrics.BytesProcessed.Add(ctx, failBytes, metric.WithAttributeSet(
+			attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...),
+		))
+		err = fmt.Errorf("failed batch aggregation:\n%w", errors.Join(errs...))
 	}
-	return nil
+	a.metrics.BytesProcessed.Add(ctx, successBytes, metric.WithAttributeSet(
+		attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...),
+	))
+	return err
 }
 
 // AggregateCombinedMetrics aggregates partial metrics into a bigger aggregate.
@@ -190,16 +197,21 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	default:
 	}
 
+	var attrSetOpt metric.MeasurementOption
 	bytesIn, err := a.aggregate(ctx, cmk, cm)
-	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
+	if err != nil {
+		attrSetOpt = metric.WithAttributeSet(
+			attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...),
+		)
+	} else {
+		attrSetOpt = metric.WithAttributeSet(
+			attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...),
+		)
+	}
 
 	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
-	cmIDAttrSet := attribute.NewSet(cmIDAttrs...)
-	a.metrics.RequestsTotal.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
-	a.metrics.BytesIngested.Add(ctx, int64(bytesIn), metric.WithAttributeSet(cmIDAttrSet))
-	if err != nil {
-		a.metrics.RequestsFailed.Add(ctx, 1, metric.WithAttributeSet(cmIDAttrSet))
-	}
+	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
+	a.metrics.BytesProcessed.Add(ctx, int64(bytesIn), attrSetOpt)
 	return err
 }
 
@@ -462,17 +474,6 @@ func (a *Aggregator) harvestForInterval(
 	from.MarshalBinaryToSizedBuffer(lb)
 	to.MarshalBinaryToSizedBuffer(ub)
 
-	// caching and publishing events total metrics at this point helps reduce
-	// the time gap between total and processed metrics to a max of the lowest
-	// aggregation interval. This gap can be introduced if L1 aggregators are
-	// stopped when the L2 aggregator is waiting for harvest delay leading to
-	// premature harvest as part of the graceful shutdown process.
-	ivlAttr := attribute.String(aggregationIvlKey, formatDuration(ivl))
-	for cmID, eventsTotal := range cachedEventsStats {
-		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmID), ivlAttr)
-		a.metrics.EventsTotal.Add(ctx, eventsTotal, metric.WithAttributes(attrs...))
-	}
-
 	iter := snap.NewIter(&pebble.IterOptions{
 		LowerBound: lb,
 		UpperBound: ub,
@@ -482,6 +483,7 @@ func (a *Aggregator) harvestForInterval(
 
 	var errs []error
 	var cmCount int
+	ivlAttr := attribute.String(aggregationIvlKey, formatDuration(ivl))
 	for iter.First(); iter.Valid(); iter.Next() {
 		var cmk CombinedMetricsKey
 		if err := cmk.UnmarshalBinary(iter.Key()); err != nil {
@@ -495,8 +497,13 @@ func (a *Aggregator) harvestForInterval(
 		}
 		cmCount++
 
-		attrs := append(a.cfg.CombinedMetricsIDToKVs(cmk.ID), ivlAttr)
-		attrSet := metric.WithAttributeSet(attribute.NewSet(attrs...))
+		attrSetOpt := metric.WithAttributeSet(
+			attribute.NewSet(append(
+				a.cfg.CombinedMetricsIDToKVs(cmk.ID),
+				ivlAttr,
+				telemetry.WithSuccess(),
+			)...),
+		)
 		// processingDelay is normalized by subtracting aggregation interval and
 		// harvest delay, both of which are expected delays. Normalization helps
 		// us to use the lower (higher resolution) range of the histogram for the
@@ -512,9 +519,12 @@ func (a *Aggregator) harvestForInterval(
 		// Negative values are possible at edges due to delays in running the
 		// harvest loop or time sync issues between agents and server.
 		queuedDelay := time.Since(harvestStats.youngestEventTimestamp).Seconds()
-		a.metrics.MinQueuedDelay.Record(ctx, queuedDelay, attrSet)
-		a.metrics.ProcessingDelay.Record(ctx, processingDelay, attrSet)
-		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, attrSet)
+		a.metrics.MinQueuedDelay.Record(ctx, queuedDelay, attrSetOpt)
+		a.metrics.ProcessingLatency.Record(ctx, processingDelay, attrSetOpt)
+		// Events harvested have been successfully processed, publish these
+		// as success. Update the map to keep track of events failed.
+		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, attrSetOpt)
+		cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
 	}
 	err := a.db.DeleteRange(lb, ub, a.writeOptions)
 	if len(errs) > 0 {
@@ -522,6 +532,31 @@ func (a *Aggregator) harvestForInterval(
 			"failed to process %d out of %d metrics:\n%w",
 			len(errs), cmCount, errors.Join(errs...),
 		))
+	}
+
+	// All remaining events in the cached events map should be failed events.
+	// Record these events with a failure outcome.
+	for cmID, eventsTotal := range cachedEventsStats {
+		if eventsTotal == 0 {
+			continue
+		}
+		if eventsTotal < 0 {
+			a.cfg.Logger.Warn(
+				"unexpectedly failed to harvest all collected events",
+				zap.Duration("aggregation_interval_ns", ivl),
+				zap.ByteString("id", cmID[:]),
+				zap.Float64("remaining_events", eventsTotal),
+			)
+			continue
+		}
+		attrSetOpt := metric.WithAttributeSet(
+			attribute.NewSet(append(
+				a.cfg.CombinedMetricsIDToKVs(cmID),
+				ivlAttr,
+				telemetry.WithFailure(),
+			)...),
+		)
+		a.metrics.EventsProcessed.Add(ctx, eventsTotal, attrSetOpt)
 	}
 	return cmCount, err
 }
