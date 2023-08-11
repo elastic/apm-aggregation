@@ -18,7 +18,6 @@ import (
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
-	"github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
 	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
@@ -118,7 +117,7 @@ func (m *combinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 // ToProto converts ServiceAggregationKey to its protobuf representation.
 func (k *serviceAggregationKey) ToProto() *aggregationpb.ServiceAggregationKey {
 	pb := aggregationpb.ServiceAggregationKeyFromVTPool()
-	pb.Timestamp = timestamppb.TimeToPBTimestamp(k.Timestamp)
+	pb.Timestamp = modelpb.FromTime(k.Timestamp)
 	pb.ServiceName = k.ServiceName
 	pb.ServiceEnvironment = k.ServiceEnvironment
 	pb.ServiceLanguageName = k.ServiceLanguageName
@@ -128,7 +127,7 @@ func (k *serviceAggregationKey) ToProto() *aggregationpb.ServiceAggregationKey {
 
 // FromProto converts protobuf representation to ServiceAggregationKey.
 func (k *serviceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKey) {
-	k.Timestamp = timestamppb.PBTimestampToTime(pb.Timestamp)
+	k.Timestamp = modelpb.ToTime(pb.Timestamp)
 	k.ServiceName = pb.ServiceName
 	k.ServiceEnvironment = pb.ServiceEnvironment
 	k.ServiceLanguageName = pb.ServiceLanguageName

@@ -14,7 +14,7 @@ import (
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-aggregation/aggregators/internal/protohash"
-	"github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
+	"github.com/elastic/apm-data/model/modelpb"
 )
 
 type TestCombinedMetricsCfg struct {
@@ -123,7 +123,7 @@ func NewTestCombinedMetrics(opts ...TestCombinedMetricsOpt) *TestCombinedMetrics
 	}
 	var cm combinedMetrics
 	cm.EventsTotal = cfg.eventsTotal
-	cm.YoungestEventTimestamp = timestamppb.TimeToPBTimestamp(cfg.youngestEventTimestamp)
+	cm.YoungestEventTimestamp = modelpb.FromTime(cfg.youngestEventTimestamp)
 	cm.Services = make(map[serviceAggregationKey]serviceMetrics)
 	return (*TestCombinedMetrics)(&cm)
 }
