@@ -33,7 +33,6 @@ import (
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
@@ -70,7 +69,7 @@ func TestAggregateBatch(t *testing.T) {
 			Event: &modelpb.Event{
 				Outcome:  "success",
 				Duration: durationpb.New(eventDuration),
-				Received: timestamppb.New(ts),
+				Received: modelpb.FromTime(ts),
 			},
 			Transaction: &modelpb.Transaction{
 				Name:                fmt.Sprintf("foo%d", i%uniqueEventCount),
@@ -92,7 +91,7 @@ func TestAggregateBatch(t *testing.T) {
 		batch = append(batch, &modelpb.APMEvent{
 			Event: &modelpb.Event{
 				Duration: durationpb.New(eventDuration),
-				Received: timestamppb.New(ts),
+				Received: modelpb.FromTime(ts),
 			},
 			Span: &modelpb.Span{
 				Name:                fmt.Sprintf("bar%d", i%uniqueEventCount),
@@ -276,7 +275,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
 				return []*modelpb.APMEvent{
 					{
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -288,7 +287,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Labels:        defaultLabels,
 						NumericLabels: defaultNumericLabels,
 					}, {
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "python"},
 						Service: &modelpb.Service{
 							Name: "service-B",
@@ -300,7 +299,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Labels:        defaultLabels,
 						NumericLabels: defaultNumericLabels,
 					}, {
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -328,7 +327,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Labels:        defaultLabels,
 						NumericLabels: defaultNumericLabels,
 					}, {
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -356,7 +355,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Labels:        defaultLabels,
 						NumericLabels: defaultNumericLabels,
 					}, {
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -384,7 +383,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Labels:        defaultLabels,
 						NumericLabels: defaultNumericLabels,
 					}, {
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "python"},
 						Service: &modelpb.Service{
 							Name: "service-B",
@@ -422,7 +421,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, _ int) []*modelpb.APMEvent {
 				return []*modelpb.APMEvent{
 					{
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -444,7 +443,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
 				return []*modelpb.APMEvent{
 					{
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -456,7 +455,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Labels:        defaultLabels,
 						NumericLabels: defaultNumericLabels,
 					}, {
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -493,7 +492,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 			getExpectedEvents: func(ts time.Time, duration, ivl time.Duration, count int) []*modelpb.APMEvent {
 				return []*modelpb.APMEvent{
 					{
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -505,7 +504,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Labels:        defaultLabels,
 						NumericLabels: defaultNumericLabels,
 					}, {
-						Timestamp: timestamppb.New(ts.Truncate(ivl)),
+						Timestamp: modelpb.FromTime(ts.Truncate(ivl)),
 						Agent:     &modelpb.Agent{Name: "java"},
 						Service: &modelpb.Service{
 							Name: "service-A",
@@ -892,7 +891,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 
 	expected := []*modelpb.APMEvent{
 		{
-			Timestamp: timestamppb.New(time.Unix(0, 0).UTC()),
+			Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
 			Event: &modelpb.Event{
 				SuccessCount: &modelpb.SummaryMetric{
 					Count: 1,
@@ -932,7 +931,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 			},
 		},
 		{
-			Timestamp: timestamppb.New(time.Unix(0, 0).UTC()),
+			Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
 			Service: &modelpb.Service{
 				Name: "svc",
 			},
@@ -951,7 +950,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 			},
 		},
 		{
-			Timestamp: timestamppb.New(time.Unix(0, 0).UTC()),
+			Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
 			Event: &modelpb.Event{
 				SuccessCount: &modelpb.SummaryMetric{
 					Count: 1,
@@ -1326,7 +1325,7 @@ func makeSpan(
 	numericLabels modelpb.NumericLabels,
 ) *modelpb.APMEvent {
 	event := &modelpb.APMEvent{
-		Timestamp: timestamppb.New(ts),
+		Timestamp: modelpb.FromTime(ts),
 		Agent:     &modelpb.Agent{Name: agentName},
 		Service:   &modelpb.Service{Name: serviceName},
 		Event: &modelpb.Event{

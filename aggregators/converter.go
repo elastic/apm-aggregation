@@ -13,14 +13,12 @@ import (
 	"time"
 
 	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/cespare/xxhash/v2"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
 	"github.com/elastic/apm-aggregation/aggregators/internal/protohash"
-	tspb "github.com/elastic/apm-aggregation/aggregators/internal/timestamppb"
 	"github.com/elastic/apm-aggregation/aggregators/nullable"
 	"github.com/elastic/apm-data/model/modelpb"
 )
@@ -344,8 +342,8 @@ func EventToCombinedMetrics(
 
 	pmb := getPartitionedMetricsBuilder(
 		aggregationpb.ServiceAggregationKey{
-			Timestamp: tspb.TimeToPBTimestamp(
-				e.GetTimestamp().AsTime().Truncate(unpartitionedKey.Interval),
+			Timestamp: modelpb.FromTime(
+				modelpb.ToTime(e.GetTimestamp()).Truncate(unpartitionedKey.Interval),
 			),
 			ServiceName:         e.GetService().GetName(),
 			ServiceEnvironment:  e.GetService().GetEnvironment(),
@@ -368,7 +366,7 @@ func EventToCombinedMetrics(
 	// Approximate events total by uniformly distributing the events total
 	// amongst the partitioned key values.
 	pmb.combinedMetrics.EventsTotal = 1 / float64(len(pmb.builders))
-	pmb.combinedMetrics.YoungestEventTimestamp = tspb.TimeToPBTimestamp(e.GetEvent().GetReceived().AsTime())
+	pmb.combinedMetrics.YoungestEventTimestamp = e.GetEvent().GetReceived()
 
 	var errs []error
 	for _, mb := range pmb.builders {
@@ -602,7 +600,7 @@ func setDroppedSpanStatsMetrics(dss *modelpb.DroppedSpanStats, repCount float64,
 
 func getBaseEvent(key *aggregationpb.ServiceAggregationKey) *modelpb.APMEvent {
 	event := modelpb.APMEventFromVTPool()
-	event.Timestamp = timestamppb.New(tspb.PBTimestampToTime(key.Timestamp))
+	event.Timestamp = key.Timestamp
 	event.Metricset = modelpb.MetricsetFromVTPool()
 	event.Service = modelpb.ServiceFromVTPool()
 	event.Service.Name = key.ServiceName
@@ -903,7 +901,7 @@ func overflowServiceMetricsToAPMEvent(
 	// Overflow metrics use the processing time as their timestamp rather than
 	// the event time. This makes sure that they can be associated with the
 	// appropriate time when the event volume caused them to overflow.
-	baseEvent.Timestamp = timestamppb.New(processingTime)
+	baseEvent.Timestamp = modelpb.FromTime(processingTime)
 	serviceMetricsToAPMEvent(baseEvent, intervalStr)
 
 	sample := modelpb.MetricsetSampleFromVTPool()
@@ -934,7 +932,7 @@ func overflowTxnMetricsToAPMEvent(
 	// Overflow metrics use the processing time as their timestamp rather than
 	// the event time. This makes sure that they can be associated with the
 	// appropriate time when the event volume caused them to overflow.
-	baseEvent.Timestamp = timestamppb.New(processingTime)
+	baseEvent.Timestamp = modelpb.FromTime(processingTime)
 	overflowKey := &aggregationpb.TransactionAggregationKey{
 		TransactionName: overflowBucketName,
 	}
@@ -959,7 +957,7 @@ func overflowSvcTxnMetricsToAPMEvent(
 	// Overflow metrics use the processing time as their timestamp rather than
 	// the event time. This makes sure that they can be associated with the
 	// appropriate time when the event volume caused them to overflow.
-	baseEvent.Timestamp = timestamppb.New(processingTime)
+	baseEvent.Timestamp = modelpb.FromTime(processingTime)
 	overflowKey := &aggregationpb.ServiceTransactionAggregationKey{
 		TransactionType: overflowBucketName,
 	}
@@ -984,7 +982,7 @@ func overflowSpanMetricsToAPMEvent(
 	// Overflow metrics use the processing time as their timestamp rather than
 	// the event time. This makes sure that they can be associated with the
 	// appropriate time when the event volume caused them to overflow.
-	baseEvent.Timestamp = timestamppb.New(processingTime)
+	baseEvent.Timestamp = modelpb.FromTime(processingTime)
 	overflowKey := &aggregationpb.SpanAggregationKey{
 		TargetName: overflowBucketName,
 	}

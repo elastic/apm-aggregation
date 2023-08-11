@@ -16,7 +16,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
 	"google.golang.org/protobuf/types/known/durationpb"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
@@ -28,13 +27,13 @@ func TestEventToCombinedMetrics(t *testing.T) {
 	ts := time.Now().UTC()
 	receivedTS := ts.Add(time.Second)
 	baseEvent := &modelpb.APMEvent{
-		Timestamp: timestamppb.New(ts),
+		Timestamp: modelpb.FromTime(ts),
 		ParentId:  "nonroot",
 		Service:   &modelpb.Service{Name: "test"},
 		Event: &modelpb.Event{
 			Duration: durationpb.New(time.Second),
 			Outcome:  "success",
-			Received: timestamppb.New(receivedTS),
+			Received: modelpb.FromTime(receivedTS),
 		},
 	}
 	for _, tc := range []struct {
@@ -550,7 +549,7 @@ func BenchmarkCombinedMetricsToBatch(b *testing.B) {
 
 func BenchmarkEventToCombinedMetrics(b *testing.B) {
 	event := &modelpb.APMEvent{
-		Timestamp: timestamppb.Now(),
+		Timestamp: modelpb.FromTime(time.Now()),
 		ParentId:  "nonroot",
 		Service: &modelpb.Service{
 			Name: "test",
@@ -598,7 +597,7 @@ func createTestServiceSummaryMetric(
 		}
 	}
 	return &modelpb.APMEvent{
-		Timestamp: timestamppb.New(ts),
+		Timestamp: modelpb.FromTime(ts),
 		Metricset: &modelpb.Metricset{
 			Name:     "service_summary",
 			Samples:  metricsetSamples,
@@ -644,7 +643,7 @@ func createTestTransactionMetric(
 		}
 	}
 	return &modelpb.APMEvent{
-		Timestamp: timestamppb.New(ts),
+		Timestamp: modelpb.FromTime(ts),
 		Metricset: &modelpb.Metricset{
 			Name:     "transaction",
 			Interval: formatDuration(ivl),
@@ -693,7 +692,7 @@ func createTestServiceTransactionMetric(
 		}
 	}
 	return &modelpb.APMEvent{
-		Timestamp: timestamppb.New(ts),
+		Timestamp: modelpb.FromTime(ts),
 		Metricset: &modelpb.Metricset{
 			Name:     "service_transaction",
 			Interval: formatDuration(ivl),
@@ -742,7 +741,7 @@ func createTestSpanMetric(
 		}
 	}
 	return &modelpb.APMEvent{
-		Timestamp: timestamppb.New(ts),
+		Timestamp: modelpb.FromTime(ts),
 		Metricset: &modelpb.Metricset{
 			Name:     "service_destination",
 			Interval: formatDuration(ivl),

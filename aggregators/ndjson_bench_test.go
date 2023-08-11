@@ -13,10 +13,10 @@ import (
 	"math"
 	"os"
 	"testing"
+	"time"
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
-	"google.golang.org/protobuf/types/known/timestamppb"
 
 	"github.com/elastic/apm-data/input/elasticapm"
 	"github.com/elastic/apm-data/model/modelpb"
@@ -35,7 +35,7 @@ func ndjsonToBatch(reader io.Reader) (*modelpb.Batch, error) {
 	})
 	baseEvent := modelpb.APMEvent{
 		Event: &modelpb.Event{
-			Received: timestamppb.Now(),
+			Received: modelpb.FromTime(time.Now()),
 		},
 	}
 	var batch modelpb.Batch
