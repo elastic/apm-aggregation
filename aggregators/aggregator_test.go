@@ -1236,7 +1236,7 @@ func sliceProcessor(slice *[]*modelpb.APMEvent) Processor {
 		cm *aggregationpb.CombinedMetrics,
 		aggregationIvl time.Duration,
 	) error {
-		batch, err := CombinedMetricsToBatch(cm, cmk.ProcessingTime, aggregationIvl)
+		batch, _, err := CombinedMetricsToBatch(cm, cmk.ProcessingTime, aggregationIvl)
 		if err != nil {
 			return err
 		}

@@ -385,18 +385,27 @@ func EventToCombinedMetrics(
 	return nil
 }
 
+// CombinedMetricsStats contains statistics of overflows of CombinedMetrics struct.
+type CombinedMetricsStats struct {
+	servicesOverflow                                 uint64
+	perSvcTxnGroupsOverflow, txnGroupsOverflow       uint64
+	perSvcSvcTxnGroupsOverflow, svcTxnGroupsOverflow uint64
+	perSvcSpanGroupsOverflow, spanGroupsOverflow     uint64
+}
+
 // CombinedMetricsToBatch converts CombinedMetrics to a batch of APMEvents.
-// Events in the batch are popualted using vtproto's sync pool and should be
+// Events in the batch are populated using vtproto's sync pool and should be
 // released back to the pool using `APMEvent#ReturnToVTPool`.
 func CombinedMetricsToBatch(
 	cm *aggregationpb.CombinedMetrics,
 	processingTime time.Time,
 	aggInterval time.Duration,
-) (*modelpb.Batch, error) {
+) (*modelpb.Batch, CombinedMetricsStats, error) {
 	if cm == nil || len(cm.ServiceMetrics) == 0 {
-		return nil, nil
+		return nil, CombinedMetricsStats{}, nil
 	}
 
+	var stats CombinedMetricsStats
 	var batchSize int
 	// service_summary overflow metric
 	if len(cm.OverflowServiceInstancesEstimator) > 0 {
@@ -446,7 +455,7 @@ func CombinedMetricsToBatch(
 			var gl GlobalLabels
 			err := gl.UnmarshalBinary(sik.GlobalLabelsStr)
 			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal global labels: %w", err)
+				return nil, CombinedMetricsStats{}, fmt.Errorf("failed to unmarshal global labels: %w", err)
 			}
 			getBaseEventWithLabels := func() *modelpb.APMEvent {
 				event := getBaseEvent(sk)
@@ -484,38 +493,41 @@ func CombinedMetricsToBatch(
 			continue
 		}
 		if len(sm.OverflowGroups.OverflowTransactionsEstimator) > 0 {
-			estimator := hllSketch(sm.OverflowGroups.OverflowTransactionsEstimator)
+			estimate := hllSketch(sm.OverflowGroups.OverflowTransactionsEstimator).Estimate()
+			stats.perSvcTxnGroupsOverflow += estimate
 			event := getBaseEvent(sk)
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowTransactions,
-				estimator.Estimate(),
+				estimate,
 				event,
 				aggIntervalStr,
 			)
 			b = append(b, event)
 		}
 		if len(sm.OverflowGroups.OverflowServiceTransactionsEstimator) > 0 {
-			estimator := hllSketch(
+			estimate := hllSketch(
 				sm.OverflowGroups.OverflowServiceTransactionsEstimator,
-			)
+			).Estimate()
+			stats.perSvcSvcTxnGroupsOverflow += estimate
 			event := getBaseEvent(sk)
 			overflowSvcTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowServiceTransactions,
-				estimator.Estimate(),
+				estimate,
 				event,
 				aggIntervalStr,
 			)
 			b = append(b, event)
 		}
 		if len(sm.OverflowGroups.OverflowSpansEstimator) > 0 {
-			estimator := hllSketch(sm.OverflowGroups.OverflowSpansEstimator)
+			estimate := hllSketch(sm.OverflowGroups.OverflowSpansEstimator).Estimate()
+			stats.perSvcSpanGroupsOverflow += estimate
 			event := getBaseEvent(sk)
 			overflowSpanMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowSpans,
-				estimator.Estimate(),
+				estimate,
 				event,
 				aggIntervalStr,
 			)
@@ -523,7 +535,8 @@ func CombinedMetricsToBatch(
 		}
 	}
 	if len(cm.OverflowServiceInstancesEstimator) > 0 {
-		estimator := hllSketch(cm.OverflowServiceInstancesEstimator)
+		estimate := hllSketch(cm.OverflowServiceInstancesEstimator).Estimate()
+		stats.servicesOverflow += estimate
 		getOverflowBaseEvent := func() *modelpb.APMEvent {
 			e := modelpb.APMEventFromVTPool()
 			e.Metricset = modelpb.MetricsetFromVTPool()
@@ -534,18 +547,19 @@ func CombinedMetricsToBatch(
 		event := getOverflowBaseEvent()
 		overflowServiceMetricsToAPMEvent(
 			processingTime,
-			estimator.Estimate(),
+			estimate,
 			event,
 			aggIntervalStr,
 		)
 		b = append(b, event)
 		if len(cm.OverflowServices.OverflowTransactionsEstimator) > 0 {
-			estimator := hllSketch(cm.OverflowServices.OverflowTransactionsEstimator)
+			estimate := hllSketch(cm.OverflowServices.OverflowTransactionsEstimator).Estimate()
+			stats.txnGroupsOverflow += estimate
 			event := getOverflowBaseEvent()
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				cm.OverflowServices.OverflowTransactions,
-				estimator.Estimate(),
+				estimate,
 				event,
 				aggIntervalStr,
 			)
@@ -553,33 +567,35 @@ func CombinedMetricsToBatch(
 
 		}
 		if len(cm.OverflowServices.OverflowServiceTransactionsEstimator) > 0 {
-			estimator := hllSketch(
+			estimate := hllSketch(
 				cm.OverflowServices.OverflowServiceTransactionsEstimator,
-			)
+			).Estimate()
+			stats.svcTxnGroupsOverflow += estimate
 			event := getOverflowBaseEvent()
 			overflowSvcTxnMetricsToAPMEvent(
 				processingTime,
 				cm.OverflowServices.OverflowServiceTransactions,
-				estimator.Estimate(),
+				estimate,
 				event,
 				aggIntervalStr,
 			)
 			b = append(b, event)
 		}
 		if len(cm.OverflowServices.OverflowSpansEstimator) > 0 {
-			estimator := hllSketch(cm.OverflowServices.OverflowSpansEstimator)
+			estimate := hllSketch(cm.OverflowServices.OverflowSpansEstimator).Estimate()
+			stats.spanGroupsOverflow += estimate
 			event := getOverflowBaseEvent()
 			overflowSpanMetricsToAPMEvent(
 				processingTime,
 				cm.OverflowServices.OverflowSpans,
-				estimator.Estimate(),
+				estimate,
 				event,
 				aggIntervalStr,
 			)
 			b = append(b, event)
 		}
 	}
-	return &b, nil
+	return &b, stats, nil
 }
 
 func setSpanMetrics(e *modelpb.APMEvent, repCount float64, out *aggregationpb.SpanMetrics) {

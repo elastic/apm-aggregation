@@ -385,6 +385,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 		aggregationInterval time.Duration
 		combinedMetrics     func() *aggregationpb.CombinedMetrics
 		expectedEvents      modelpb.Batch
+		expectedStats       CombinedMetricsStats
 	}{
 		{
 			name:                "no_overflow_without_faas",
@@ -404,6 +405,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 				createTestSpanMetric(ts, aggIvl, svcName, span, spanCount, 0),
 				createTestServiceSummaryMetric(ts, aggIvl, svcName, 0),
 			},
+			expectedStats: CombinedMetricsStats{},
 		},
 		{
 			name:                "no_overflow",
@@ -423,6 +425,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 				createTestSpanMetric(ts, aggIvl, svcName, span, spanCount, 0),
 				createTestServiceSummaryMetric(ts, aggIvl, svcName, 0),
 			},
+			expectedStats: CombinedMetricsStats{},
 		},
 		{
 			name:                "overflow",
@@ -456,6 +459,15 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 				createTestSpanMetric(processingTime, aggIvl, svcName, overflowSpan, spanCount, 1),
 				createTestServiceSummaryMetric(processingTime, aggIvl, "_other", 1),
 			},
+			expectedStats: CombinedMetricsStats{
+				servicesOverflow:           1,
+				perSvcTxnGroupsOverflow:    1,
+				txnGroupsOverflow:          0,
+				perSvcSvcTxnGroupsOverflow: 1,
+				svcTxnGroupsOverflow:       0,
+				perSvcSpanGroupsOverflow:   1,
+				spanGroupsOverflow:         0,
+			},
 		},
 		{
 			name:                "service_instance_overflow_in_global_and_per_svc",
@@ -477,10 +489,13 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 				createTestServiceSummaryMetric(ts, aggIvl, "svc1", 0),
 				createTestServiceSummaryMetric(processingTime, aggIvl, "_other", 2),
 			},
+			expectedStats: CombinedMetricsStats{
+				servicesOverflow: 2,
+			},
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
-			b, err := CombinedMetricsToBatch(
+			b, stats, err := CombinedMetricsToBatch(
 				tc.combinedMetrics(),
 				processingTime,
 				tc.aggregationInterval,
@@ -506,6 +521,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 				}),
 				protocmp.Transform(),
 			))
+			assert.Equal(t, tc.expectedStats, stats)
 		})
 	}
 }
@@ -537,7 +553,7 @@ func BenchmarkCombinedMetricsToBatch(b *testing.B) {
 	cm := tcm.GetProto()
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		batch, err := CombinedMetricsToBatch(cm, pt, ai)
+		batch, _, err := CombinedMetricsToBatch(cm, pt, ai)
 		if err != nil {
 			b.Fatal(err)
 		}
