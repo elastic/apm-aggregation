@@ -28,8 +28,8 @@ const (
 type Metrics struct {
 	// Synchronous metrics used to record aggregation measurements.
 
-	BytesProcessed    metric.Int64Counter
 	EventsProcessed   metric.Float64Counter
+	BytesProcessed    metric.Int64Counter
 	MinQueuedDelay    metric.Float64Histogram
 	ProcessingLatency metric.Float64Histogram
 
@@ -67,14 +67,6 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	meter := cfg.Meter
 
 	// Aggregator metrics
-	i.BytesProcessed, err = meter.Int64Counter(
-		"events.processed.bytes",
-		metric.WithDescription("Number of bytes processed by the aggregators"),
-		metric.WithUnit(bytesUnit),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("failed to create metric for bytes processed: %w", err)
-	}
 	i.EventsProcessed, err = meter.Float64Counter(
 		"events.processed.count",
 		metric.WithDescription("Number of processed APM Events. Dimensions are used to report the outcome"),
@@ -83,13 +75,13 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for events processed: %w", err)
 	}
-	i.MinQueuedDelay, err = meter.Float64Histogram(
-		"events.processed.queued-latency",
-		metric.WithDescription("Records total duration for aggregating a batch w.r.t. its youngest member"),
-		metric.WithUnit(durationUnit),
+	i.BytesProcessed, err = meter.Int64Counter(
+		"events.processed.bytes",
+		metric.WithDescription("Number of bytes processed by the aggregators"),
+		metric.WithUnit(bytesUnit),
 	)
 	if err != nil {
-		return nil, fmt.Errorf("failed to create metric for queued delay: %w", err)
+		return nil, fmt.Errorf("failed to create metric for bytes processed: %w", err)
 	}
 	i.ProcessingLatency, err = meter.Float64Histogram(
 		"events.processed.latency",
@@ -98,6 +90,14 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for processing delay: %w", err)
+	}
+	i.MinQueuedDelay, err = meter.Float64Histogram(
+		"events.processed.queued-latency",
+		metric.WithDescription("Records total duration for aggregating a batch w.r.t. its youngest member"),
+		metric.WithUnit(durationUnit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric for queued delay: %w", err)
 	}
 
 	// Pebble metrics
