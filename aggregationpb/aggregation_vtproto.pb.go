@@ -43,10 +43,10 @@ func (m *CombinedMetrics) CloneVT() *CombinedMetrics {
 		}
 		r.ServiceMetrics = tmpContainer
 	}
-	if rhs := m.OverflowServiceInstancesEstimator; rhs != nil {
+	if rhs := m.OverflowServicesEstimator; rhs != nil {
 		tmpBytes := make([]byte, len(rhs))
 		copy(tmpBytes, rhs)
-		r.OverflowServiceInstancesEstimator = tmpBytes
+		r.OverflowServicesEstimator = tmpBytes
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -89,6 +89,11 @@ func (m *ServiceAggregationKey) CloneVT() *ServiceAggregationKey {
 		ServiceLanguageName: m.ServiceLanguageName,
 		AgentName:           m.AgentName,
 	}
+	if rhs := m.GlobalLabelsStr; rhs != nil {
+		tmpBytes := make([]byte, len(rhs))
+		copy(tmpBytes, rhs)
+		r.GlobalLabelsStr = tmpBytes
+	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -107,50 +112,6 @@ func (m *ServiceMetrics) CloneVT() *ServiceMetrics {
 	r := &ServiceMetrics{
 		OverflowGroups: m.OverflowGroups.CloneVT(),
 	}
-	if rhs := m.ServiceInstanceMetrics; rhs != nil {
-		tmpContainer := make([]*KeyedServiceInstanceMetrics, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v.CloneVT()
-		}
-		r.ServiceInstanceMetrics = tmpContainer
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *ServiceMetrics) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *ServiceInstanceAggregationKey) CloneVT() *ServiceInstanceAggregationKey {
-	if m == nil {
-		return (*ServiceInstanceAggregationKey)(nil)
-	}
-	r := &ServiceInstanceAggregationKey{}
-	if rhs := m.GlobalLabelsStr; rhs != nil {
-		tmpBytes := make([]byte, len(rhs))
-		copy(tmpBytes, rhs)
-		r.GlobalLabelsStr = tmpBytes
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *ServiceInstanceAggregationKey) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *ServiceInstanceMetrics) CloneVT() *ServiceInstanceMetrics {
-	if m == nil {
-		return (*ServiceInstanceMetrics)(nil)
-	}
-	r := &ServiceInstanceMetrics{}
 	if rhs := m.TransactionMetrics; rhs != nil {
 		tmpContainer := make([]*KeyedTransactionMetrics, len(rhs))
 		for k, v := range rhs {
@@ -179,26 +140,7 @@ func (m *ServiceInstanceMetrics) CloneVT() *ServiceInstanceMetrics {
 	return r
 }
 
-func (m *ServiceInstanceMetrics) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *KeyedServiceInstanceMetrics) CloneVT() *KeyedServiceInstanceMetrics {
-	if m == nil {
-		return (*KeyedServiceInstanceMetrics)(nil)
-	}
-	r := &KeyedServiceInstanceMetrics{
-		Key:     m.Key.CloneVT(),
-		Metrics: m.Metrics.CloneVT(),
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *KeyedServiceInstanceMetrics) CloneMessageVT() proto.Message {
+func (m *ServiceMetrics) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -508,10 +450,10 @@ func (m *CombinedMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i--
 		dAtA[i] = 0x21
 	}
-	if len(m.OverflowServiceInstancesEstimator) > 0 {
-		i -= len(m.OverflowServiceInstancesEstimator)
-		copy(dAtA[i:], m.OverflowServiceInstancesEstimator)
-		i = encodeVarint(dAtA, i, uint64(len(m.OverflowServiceInstancesEstimator)))
+	if len(m.OverflowServicesEstimator) > 0 {
+		i -= len(m.OverflowServicesEstimator)
+		copy(dAtA[i:], m.OverflowServicesEstimator)
+		i = encodeVarint(dAtA, i, uint64(len(m.OverflowServicesEstimator)))
 		i--
 		dAtA[i] = 0x1a
 	}
@@ -623,6 +565,13 @@ func (m *ServiceAggregationKey) MarshalToSizedBufferVT(dAtA []byte) (int, error)
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.GlobalLabelsStr) > 0 {
+		i -= len(m.GlobalLabelsStr)
+		copy(dAtA[i:], m.GlobalLabelsStr)
+		i = encodeVarint(dAtA, i, uint64(len(m.GlobalLabelsStr)))
+		i--
+		dAtA[i] = 0x32
+	}
 	if len(m.AgentName) > 0 {
 		i -= len(m.AgentName)
 		copy(dAtA[i:], m.AgentName)
@@ -689,101 +638,6 @@ func (m *ServiceMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if m.OverflowGroups != nil {
-		size, err := m.OverflowGroups.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.ServiceInstanceMetrics) > 0 {
-		for iNdEx := len(m.ServiceInstanceMetrics) - 1; iNdEx >= 0; iNdEx-- {
-			size, err := m.ServiceInstanceMetrics[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarint(dAtA, i, uint64(size))
-			i--
-			dAtA[i] = 0xa
-		}
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *ServiceInstanceAggregationKey) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ServiceInstanceAggregationKey) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *ServiceInstanceAggregationKey) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.GlobalLabelsStr) > 0 {
-		i -= len(m.GlobalLabelsStr)
-		copy(dAtA[i:], m.GlobalLabelsStr)
-		i = encodeVarint(dAtA, i, uint64(len(m.GlobalLabelsStr)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *ServiceInstanceMetrics) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ServiceInstanceMetrics) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *ServiceInstanceMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
 	if len(m.SpanMetrics) > 0 {
 		for iNdEx := len(m.SpanMetrics) - 1; iNdEx >= 0; iNdEx-- {
 			size, err := m.SpanMetrics[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
@@ -793,7 +647,7 @@ func (m *ServiceInstanceMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error
 			i -= size
 			i = encodeVarint(dAtA, i, uint64(size))
 			i--
-			dAtA[i] = 0x1a
+			dAtA[i] = 0x22
 		}
 	}
 	if len(m.ServiceTransactionMetrics) > 0 {
@@ -805,7 +659,7 @@ func (m *ServiceInstanceMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error
 			i -= size
 			i = encodeVarint(dAtA, i, uint64(size))
 			i--
-			dAtA[i] = 0x12
+			dAtA[i] = 0x1a
 		}
 	}
 	if len(m.TransactionMetrics) > 0 {
@@ -817,54 +671,11 @@ func (m *ServiceInstanceMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error
 			i -= size
 			i = encodeVarint(dAtA, i, uint64(size))
 			i--
-			dAtA[i] = 0xa
+			dAtA[i] = 0x12
 		}
 	}
-	return len(dAtA) - i, nil
-}
-
-func (m *KeyedServiceInstanceMetrics) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *KeyedServiceInstanceMetrics) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *KeyedServiceInstanceMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.Metrics != nil {
-		size, err := m.Metrics.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Key != nil {
-		size, err := m.Key.MarshalToSizedBufferVT(dAtA[:i])
+	if m.OverflowGroups != nil {
+		size, err := m.OverflowGroups.MarshalToSizedBufferVT(dAtA[:i])
 		if err != nil {
 			return 0, err
 		}
@@ -1749,10 +1560,10 @@ func (m *CombinedMetrics) ResetVT() {
 	}
 	f0 := m.ServiceMetrics[:0]
 	m.OverflowServices.ReturnToVTPool()
-	f1 := m.OverflowServiceInstancesEstimator[:0]
+	f1 := m.OverflowServicesEstimator[:0]
 	m.Reset()
 	m.ServiceMetrics = f0
-	m.OverflowServiceInstancesEstimator = f1
+	m.OverflowServicesEstimator = f1
 }
 func (m *CombinedMetrics) ReturnToVTPool() {
 	if m != nil {
@@ -1792,7 +1603,9 @@ var vtprotoPool_ServiceAggregationKey = sync.Pool{
 }
 
 func (m *ServiceAggregationKey) ResetVT() {
+	f0 := m.GlobalLabelsStr[:0]
 	m.Reset()
+	m.GlobalLabelsStr = f0
 }
 func (m *ServiceAggregationKey) ReturnToVTPool() {
 	if m != nil {
@@ -1811,52 +1624,7 @@ var vtprotoPool_ServiceMetrics = sync.Pool{
 }
 
 func (m *ServiceMetrics) ResetVT() {
-	for _, mm := range m.ServiceInstanceMetrics {
-		mm.ResetVT()
-	}
-	f0 := m.ServiceInstanceMetrics[:0]
 	m.OverflowGroups.ReturnToVTPool()
-	m.Reset()
-	m.ServiceInstanceMetrics = f0
-}
-func (m *ServiceMetrics) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_ServiceMetrics.Put(m)
-	}
-}
-func ServiceMetricsFromVTPool() *ServiceMetrics {
-	return vtprotoPool_ServiceMetrics.Get().(*ServiceMetrics)
-}
-
-var vtprotoPool_ServiceInstanceAggregationKey = sync.Pool{
-	New: func() interface{} {
-		return &ServiceInstanceAggregationKey{}
-	},
-}
-
-func (m *ServiceInstanceAggregationKey) ResetVT() {
-	f0 := m.GlobalLabelsStr[:0]
-	m.Reset()
-	m.GlobalLabelsStr = f0
-}
-func (m *ServiceInstanceAggregationKey) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_ServiceInstanceAggregationKey.Put(m)
-	}
-}
-func ServiceInstanceAggregationKeyFromVTPool() *ServiceInstanceAggregationKey {
-	return vtprotoPool_ServiceInstanceAggregationKey.Get().(*ServiceInstanceAggregationKey)
-}
-
-var vtprotoPool_ServiceInstanceMetrics = sync.Pool{
-	New: func() interface{} {
-		return &ServiceInstanceMetrics{}
-	},
-}
-
-func (m *ServiceInstanceMetrics) ResetVT() {
 	for _, mm := range m.TransactionMetrics {
 		mm.ResetVT()
 	}
@@ -1874,35 +1642,14 @@ func (m *ServiceInstanceMetrics) ResetVT() {
 	m.ServiceTransactionMetrics = f1
 	m.SpanMetrics = f2
 }
-func (m *ServiceInstanceMetrics) ReturnToVTPool() {
+func (m *ServiceMetrics) ReturnToVTPool() {
 	if m != nil {
 		m.ResetVT()
-		vtprotoPool_ServiceInstanceMetrics.Put(m)
+		vtprotoPool_ServiceMetrics.Put(m)
 	}
 }
-func ServiceInstanceMetricsFromVTPool() *ServiceInstanceMetrics {
-	return vtprotoPool_ServiceInstanceMetrics.Get().(*ServiceInstanceMetrics)
-}
-
-var vtprotoPool_KeyedServiceInstanceMetrics = sync.Pool{
-	New: func() interface{} {
-		return &KeyedServiceInstanceMetrics{}
-	},
-}
-
-func (m *KeyedServiceInstanceMetrics) ResetVT() {
-	m.Key.ReturnToVTPool()
-	m.Metrics.ReturnToVTPool()
-	m.Reset()
-}
-func (m *KeyedServiceInstanceMetrics) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_KeyedServiceInstanceMetrics.Put(m)
-	}
-}
-func KeyedServiceInstanceMetricsFromVTPool() *KeyedServiceInstanceMetrics {
-	return vtprotoPool_KeyedServiceInstanceMetrics.Get().(*KeyedServiceInstanceMetrics)
+func ServiceMetricsFromVTPool() *ServiceMetrics {
+	return vtprotoPool_ServiceMetrics.Get().(*ServiceMetrics)
 }
 
 var vtprotoPool_KeyedTransactionMetrics = sync.Pool{
@@ -2150,7 +1897,7 @@ func (m *CombinedMetrics) SizeVT() (n int) {
 		l = m.OverflowServices.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.OverflowServiceInstancesEstimator)
+	l = len(m.OverflowServicesEstimator)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -2207,6 +1954,10 @@ func (m *ServiceAggregationKey) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
+	l = len(m.GlobalLabelsStr)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2217,40 +1968,10 @@ func (m *ServiceMetrics) SizeVT() (n int) {
 	}
 	var l int
 	_ = l
-	if len(m.ServiceInstanceMetrics) > 0 {
-		for _, e := range m.ServiceInstanceMetrics {
-			l = e.SizeVT()
-			n += 1 + l + sov(uint64(l))
-		}
-	}
 	if m.OverflowGroups != nil {
 		l = m.OverflowGroups.SizeVT()
 		n += 1 + l + sov(uint64(l))
 	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *ServiceInstanceAggregationKey) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	l = len(m.GlobalLabelsStr)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *ServiceInstanceMetrics) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
 	if len(m.TransactionMetrics) > 0 {
 		for _, e := range m.TransactionMetrics {
 			l = e.SizeVT()
@@ -2268,24 +1989,6 @@ func (m *ServiceInstanceMetrics) SizeVT() (n int) {
 			l = e.SizeVT()
 			n += 1 + l + sov(uint64(l))
 		}
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *KeyedServiceInstanceMetrics) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Key != nil {
-		l = m.Key.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	if m.Metrics != nil {
-		l = m.Metrics.SizeVT()
-		n += 1 + l + sov(uint64(l))
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2744,7 +2447,7 @@ func (m *CombinedMetrics) UnmarshalVT(dAtA []byte) error {
 			iNdEx = postIndex
 		case 3:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceInstancesEstimator", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServicesEstimator", wireType)
 			}
 			var byteLen int
 			for shift := uint(0); ; shift += 7 {
@@ -2771,9 +2474,9 @@ func (m *CombinedMetrics) UnmarshalVT(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			m.OverflowServiceInstancesEstimator = append(m.OverflowServiceInstancesEstimator[:0], dAtA[iNdEx:postIndex]...)
-			if m.OverflowServiceInstancesEstimator == nil {
-				m.OverflowServiceInstancesEstimator = []byte{}
+			m.OverflowServicesEstimator = append(m.OverflowServicesEstimator[:0], dAtA[iNdEx:postIndex]...)
+			if m.OverflowServicesEstimator == nil {
+				m.OverflowServicesEstimator = []byte{}
 			}
 			iNdEx = postIndex
 		case 4:
@@ -3127,186 +2830,7 @@ func (m *ServiceAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.AgentName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ServiceMetrics) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ServiceMetrics: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ServiceMetrics: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ServiceInstanceMetrics", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if len(m.ServiceInstanceMetrics) == cap(m.ServiceInstanceMetrics) {
-				m.ServiceInstanceMetrics = append(m.ServiceInstanceMetrics, &KeyedServiceInstanceMetrics{})
-			} else {
-				m.ServiceInstanceMetrics = m.ServiceInstanceMetrics[:len(m.ServiceInstanceMetrics)+1]
-				if m.ServiceInstanceMetrics[len(m.ServiceInstanceMetrics)-1] == nil {
-					m.ServiceInstanceMetrics[len(m.ServiceInstanceMetrics)-1] = &KeyedServiceInstanceMetrics{}
-				}
-			}
-			if err := m.ServiceInstanceMetrics[len(m.ServiceInstanceMetrics)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowGroups", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.OverflowGroups == nil {
-				m.OverflowGroups = OverflowFromVTPool()
-			}
-			if err := m.OverflowGroups.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ServiceInstanceAggregationKey) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ServiceInstanceAggregationKey: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ServiceInstanceAggregationKey: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field GlobalLabelsStr", wireType)
 			}
@@ -3362,7 +2886,7 @@ func (m *ServiceInstanceAggregationKey) UnmarshalVT(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *ServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
+func (m *ServiceMetrics) UnmarshalVT(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -3385,13 +2909,49 @@ func (m *ServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: ServiceInstanceMetrics: wiretype end group for non-group")
+			return fmt.Errorf("proto: ServiceMetrics: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ServiceInstanceMetrics: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: ServiceMetrics: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OverflowGroups", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.OverflowGroups == nil {
+				m.OverflowGroups = OverflowFromVTPool()
+			}
+			if err := m.OverflowGroups.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 2:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TransactionMetrics", wireType)
 			}
@@ -3432,7 +2992,7 @@ func (m *ServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 2:
+		case 3:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ServiceTransactionMetrics", wireType)
 			}
@@ -3473,7 +3033,7 @@ func (m *ServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 3:
+		case 4:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field SpanMetrics", wireType)
 			}
@@ -3511,129 +3071,6 @@ func (m *ServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
 				}
 			}
 			if err := m.SpanMetrics[len(m.SpanMetrics)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *KeyedServiceInstanceMetrics) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: KeyedServiceInstanceMetrics: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: KeyedServiceInstanceMetrics: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Key == nil {
-				m.Key = ServiceInstanceAggregationKeyFromVTPool()
-			}
-			if err := m.Key.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Metrics", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Metrics == nil {
-				m.Metrics = ServiceInstanceMetricsFromVTPool()
-			}
-			if err := m.Metrics.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex

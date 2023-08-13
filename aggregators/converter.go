@@ -40,17 +40,9 @@ var (
 // partitionedMetricsBuilder provides support for building partitioned
 // sets of metrics from an event.
 type partitionedMetricsBuilder struct {
-	partitions          uint16
-	serviceInstanceHash xxhash.Digest
-	builders            []*eventMetricsBuilder // partitioned metrics
-
-	// Event metrics are for exactly one service instance, so we create an
-	// array of a single element and use that for backing the slice in
-	// ServiceMetrics.
-	serviceInstanceAggregationKey    aggregationpb.ServiceInstanceAggregationKey
-	serviceInstanceMetrics           aggregationpb.ServiceInstanceMetrics
-	keyedServiceInstanceMetrics      aggregationpb.KeyedServiceInstanceMetrics
-	keyedServiceInstanceMetricsArray [1]*aggregationpb.KeyedServiceInstanceMetrics
+	partitions  uint16
+	serviceHash xxhash.Digest
+	builders    []*eventMetricsBuilder // partitioned metrics
 
 	// Event metrics are for exactly one service, so we create an array of a
 	// single element and use that for backing the slice in CombinedMetrics.
@@ -67,27 +59,18 @@ type partitionedMetricsBuilder struct {
 
 func getPartitionedMetricsBuilder(
 	serviceAggregationKey aggregationpb.ServiceAggregationKey,
-	serviceInstanceAggregationKey aggregationpb.ServiceInstanceAggregationKey,
 	partitions uint16,
 ) *partitionedMetricsBuilder {
 	p, ok := partitionedMetricsBuilderPool.Get().(*partitionedMetricsBuilder)
 	if !ok {
 		p = &partitionedMetricsBuilder{}
-		p.keyedServiceInstanceMetrics.Key = &p.serviceInstanceAggregationKey
-		p.keyedServiceInstanceMetrics.Metrics = &p.serviceInstanceMetrics
-		p.keyedServiceInstanceMetricsArray[0] = &p.keyedServiceInstanceMetrics
-		p.serviceMetrics.ServiceInstanceMetrics = p.keyedServiceInstanceMetricsArray[:]
 		p.keyedServiceMetrics.Key = &p.serviceAggregationKey
 		p.keyedServiceMetrics.Metrics = &p.serviceMetrics
 		p.keyedServiceMetricsArray[0] = &p.keyedServiceMetrics
 		p.combinedMetrics.ServiceMetrics = p.keyedServiceMetricsArray[:]
 	}
 	p.serviceAggregationKey = serviceAggregationKey
-	p.serviceInstanceAggregationKey = serviceInstanceAggregationKey
-	p.serviceInstanceHash = protohash.HashServiceInstanceAggregationKey(
-		protohash.HashServiceAggregationKey(xxhash.Digest{}, &p.serviceAggregationKey),
-		&p.serviceInstanceAggregationKey,
-	)
+	p.serviceHash = protohash.HashServiceAggregationKey(xxhash.Digest{}, &p.serviceAggregationKey)
 	p.partitions = partitions
 	return p
 }
@@ -136,7 +119,7 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 func (p *partitionedMetricsBuilder) addTransactionMetrics(e *modelpb.APMEvent, count float64, duration time.Duration) {
 	var key aggregationpb.TransactionAggregationKey
 	setTransactionKey(e, &key)
-	hash := protohash.HashTransactionAggregationKey(p.serviceInstanceHash, &key)
+	hash := protohash.HashTransactionAggregationKey(p.serviceHash, &key)
 
 	mb := p.get(hash)
 	mb.transactionAggregationKey = key
@@ -151,7 +134,7 @@ func (p *partitionedMetricsBuilder) addTransactionMetrics(e *modelpb.APMEvent, c
 func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(e *modelpb.APMEvent, count float64, duration time.Duration) {
 	var key aggregationpb.ServiceTransactionAggregationKey
 	setServiceTransactionKey(e, &key)
-	hash := protohash.HashServiceTransactionAggregationKey(p.serviceInstanceHash, &key)
+	hash := protohash.HashServiceTransactionAggregationKey(p.serviceHash, &key)
 
 	mb := p.get(hash)
 	mb.serviceTransactionAggregationKey = key
@@ -181,7 +164,7 @@ func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(e *modelpb.APME
 func (p *partitionedMetricsBuilder) addDroppedSpanStatsMetrics(dss *modelpb.DroppedSpanStats, repCount float64) {
 	var key aggregationpb.SpanAggregationKey
 	setDroppedSpanStatsKey(dss, &key)
-	hash := protohash.HashSpanAggregationKey(p.serviceInstanceHash, &key)
+	hash := protohash.HashSpanAggregationKey(p.serviceHash, &key)
 
 	mb := p.get(hash)
 	i := len(mb.keyedSpanMetricsSlice)
@@ -202,7 +185,7 @@ func (p *partitionedMetricsBuilder) addDroppedSpanStatsMetrics(dss *modelpb.Drop
 func (p *partitionedMetricsBuilder) addSpanMetrics(e *modelpb.APMEvent, repCount float64) {
 	var key aggregationpb.SpanAggregationKey
 	setSpanKey(e, &key)
-	hash := protohash.HashSpanAggregationKey(p.serviceInstanceHash, &key)
+	hash := protohash.HashSpanAggregationKey(p.serviceHash, &key)
 
 	mb := p.get(hash)
 	i := len(mb.keyedSpanMetricsSlice)
@@ -217,7 +200,7 @@ func (p *partitionedMetricsBuilder) addServiceSummaryMetrics() {
 	// There are no actual metric values, we're just want to
 	// create documents for the dimensions, so we can build a
 	// list of services.
-	_ = p.get(p.serviceInstanceHash)
+	_ = p.get(p.serviceHash)
 }
 
 func (p *partitionedMetricsBuilder) get(h xxhash.Digest) *eventMetricsBuilder {
@@ -233,8 +216,8 @@ func (p *partitionedMetricsBuilder) get(h xxhash.Digest) *eventMetricsBuilder {
 }
 
 // eventMetricsBuilder holds memory for the contents of per-partition
-// ServiceInstanceMetrics. Each instance of the struct is capable
-// of holding as many metrics as may be produced for a single event.
+// ServiceMetrics. Each instance of the struct is capable of holding
+// as many metrics as may be produced for a single event.
 //
 // For each metric type, the builder holds:
 //   - an array with enough capacity to hold the maximum possible
@@ -349,8 +332,8 @@ func EventToCombinedMetrics(
 			ServiceEnvironment:  e.GetService().GetEnvironment(),
 			ServiceLanguageName: e.GetService().GetLanguage().GetName(),
 			AgentName:           e.GetAgent().GetName(),
+			GlobalLabelsStr:     globalLabels,
 		},
-		aggregationpb.ServiceInstanceAggregationKey{GlobalLabelsStr: globalLabels},
 		partitions,
 	)
 	defer pmb.release()
@@ -372,9 +355,9 @@ func EventToCombinedMetrics(
 	for _, mb := range pmb.builders {
 		key := unpartitionedKey
 		key.PartitionID = mb.partition
-		pmb.serviceInstanceMetrics.TransactionMetrics = mb.keyedTransactionMetricsSlice
-		pmb.serviceInstanceMetrics.ServiceTransactionMetrics = mb.keyedServiceTransactionMetricsSlice
-		pmb.serviceInstanceMetrics.SpanMetrics = mb.keyedSpanMetricsSlice
+		pmb.serviceMetrics.TransactionMetrics = mb.keyedTransactionMetricsSlice
+		pmb.serviceMetrics.ServiceTransactionMetrics = mb.keyedServiceTransactionMetricsSlice
+		pmb.serviceMetrics.SpanMetrics = mb.keyedSpanMetricsSlice
 		if err := callback(key, &pmb.combinedMetrics); err != nil {
 			errs = append(errs, err)
 		}
@@ -398,8 +381,9 @@ func CombinedMetricsToBatch(
 	}
 
 	var batchSize int
+
 	// service_summary overflow metric
-	if len(cm.OverflowServiceInstancesEstimator) > 0 {
+	if len(cm.OverflowServicesEstimator) > 0 {
 		batchSize++
 		if len(cm.OverflowServices.OverflowTransactionsEstimator) > 0 {
 			batchSize++
@@ -414,15 +398,10 @@ func CombinedMetricsToBatch(
 
 	for _, ksm := range cm.ServiceMetrics {
 		sm := ksm.Metrics
-		for _, ksim := range sm.ServiceInstanceMetrics {
-			sim := ksim.Metrics
-			batchSize += len(sim.TransactionMetrics)
-			batchSize += len(sim.ServiceTransactionMetrics)
-			batchSize += len(sim.SpanMetrics)
-
-			// Each service instance will create a service summary metric
-			batchSize++
-		}
+		batchSize += len(sm.TransactionMetrics)
+		batchSize += len(sm.ServiceTransactionMetrics)
+		batchSize += len(sm.SpanMetrics)
+		batchSize++ // Each service will create a service summary metric
 		if sm.OverflowGroups == nil {
 			continue
 		}
@@ -441,44 +420,41 @@ func CombinedMetricsToBatch(
 	aggIntervalStr := formatDuration(aggInterval)
 	for _, ksm := range cm.ServiceMetrics {
 		sk, sm := ksm.Key, ksm.Metrics
-		for _, ksim := range sm.ServiceInstanceMetrics {
-			sik, sim := ksim.Key, ksim.Metrics
-			var gl GlobalLabels
-			err := gl.UnmarshalBinary(sik.GlobalLabelsStr)
-			if err != nil {
-				return nil, fmt.Errorf("failed to unmarshal global labels: %w", err)
-			}
-			getBaseEventWithLabels := func() *modelpb.APMEvent {
-				event := getBaseEvent(sk)
-				event.Labels = gl.Labels
-				event.NumericLabels = gl.NumericLabels
-				return event
-			}
 
-			// transaction metrics
-			for _, ktm := range sim.TransactionMetrics {
-				event := getBaseEventWithLabels()
-				txnMetricsToAPMEvent(ktm.Key, ktm.Metrics, event, aggIntervalStr)
-				b = append(b, event)
-			}
-			// service transaction metrics
-			for _, kstm := range sim.ServiceTransactionMetrics {
-				event := getBaseEventWithLabels()
-				svcTxnMetricsToAPMEvent(kstm.Key, kstm.Metrics, event, aggIntervalStr)
-				b = append(b, event)
-			}
-			// service destination metrics
-			for _, kspm := range sim.SpanMetrics {
-				event := getBaseEventWithLabels()
-				spanMetricsToAPMEvent(kspm.Key, kspm.Metrics, event, aggIntervalStr)
-				b = append(b, event)
-			}
+		var gl GlobalLabels
+		if err := gl.UnmarshalBinary(sk.GlobalLabelsStr); err != nil {
+			return nil, fmt.Errorf("failed to unmarshal global labels: %w", err)
+		}
+		getBaseEventWithLabels := func() *modelpb.APMEvent {
+			event := getBaseEvent(sk)
+			event.Labels = gl.Labels
+			event.NumericLabels = gl.NumericLabels
+			return event
+		}
 
-			// service summary metrics
+		// transaction metrics
+		for _, ktm := range sm.TransactionMetrics {
 			event := getBaseEventWithLabels()
-			serviceMetricsToAPMEvent(event, aggIntervalStr)
+			txnMetricsToAPMEvent(ktm.Key, ktm.Metrics, event, aggIntervalStr)
 			b = append(b, event)
 		}
+		// service transaction metrics
+		for _, kstm := range sm.ServiceTransactionMetrics {
+			event := getBaseEventWithLabels()
+			svcTxnMetricsToAPMEvent(kstm.Key, kstm.Metrics, event, aggIntervalStr)
+			b = append(b, event)
+		}
+		// service destination metrics
+		for _, kspm := range sm.SpanMetrics {
+			event := getBaseEventWithLabels()
+			spanMetricsToAPMEvent(kspm.Key, kspm.Metrics, event, aggIntervalStr)
+			b = append(b, event)
+		}
+
+		// service summary metrics
+		event := getBaseEventWithLabels()
+		serviceMetricsToAPMEvent(event, aggIntervalStr)
+		b = append(b, event)
 
 		if sm.OverflowGroups == nil {
 			continue
@@ -522,8 +498,8 @@ func CombinedMetricsToBatch(
 			b = append(b, event)
 		}
 	}
-	if len(cm.OverflowServiceInstancesEstimator) > 0 {
-		estimator := hllSketch(cm.OverflowServiceInstancesEstimator)
+	if len(cm.OverflowServicesEstimator) > 0 {
+		estimator := hllSketch(cm.OverflowServicesEstimator)
 		getOverflowBaseEvent := func() *modelpb.APMEvent {
 			e := modelpb.APMEventFromVTPool()
 			e.Metricset = modelpb.MetricsetFromVTPool()

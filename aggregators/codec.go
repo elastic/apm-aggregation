@@ -105,9 +105,9 @@ func (m *combinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 		pb.ServiceMetrics[i].Metrics = m.ToProto()
 		i++
 	}
-	if m.OverflowServiceInstancesEstimator != nil {
+	if m.OverflowServicesEstimator != nil {
 		pb.OverflowServices = m.OverflowServices.ToProto()
-		pb.OverflowServiceInstancesEstimator = hllBytes(m.OverflowServiceInstancesEstimator)
+		pb.OverflowServicesEstimator = hllBytes(m.OverflowServicesEstimator)
 	}
 	pb.EventsTotal = m.EventsTotal
 	pb.YoungestEventTimestamp = m.YoungestEventTimestamp
@@ -122,6 +122,7 @@ func (k *serviceAggregationKey) ToProto() *aggregationpb.ServiceAggregationKey {
 	pb.ServiceEnvironment = k.ServiceEnvironment
 	pb.ServiceLanguageName = k.ServiceLanguageName
 	pb.AgentName = k.AgentName
+	pb.GlobalLabelsStr = []byte(k.GlobalLabelsStr)
 	return pb
 }
 
@@ -132,40 +133,13 @@ func (k *serviceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKe
 	k.ServiceEnvironment = pb.ServiceEnvironment
 	k.ServiceLanguageName = pb.ServiceLanguageName
 	k.AgentName = pb.AgentName
+	k.GlobalLabelsStr = string(pb.GlobalLabelsStr)
 }
 
 // ToProto converts ServiceMetrics to its protobuf representation.
 func (m *serviceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 	pb := aggregationpb.ServiceMetricsFromVTPool()
-	pb.ServiceInstanceMetrics = slices.Grow(pb.ServiceInstanceMetrics, len(m.ServiceInstanceGroups))[:len(m.ServiceInstanceGroups)]
-	var i int
-	for k, m := range m.ServiceInstanceGroups {
-		if pb.ServiceInstanceMetrics[i] == nil {
-			pb.ServiceInstanceMetrics[i] = &aggregationpb.KeyedServiceInstanceMetrics{}
-		}
-		pb.ServiceInstanceMetrics[i].Key = k.ToProto()
-		pb.ServiceInstanceMetrics[i].Metrics = m.ToProto()
-		i++
-	}
 	pb.OverflowGroups = m.OverflowGroups.ToProto()
-	return pb
-}
-
-// ToProto converts ServiceInstanceAggregationKey to its protobuf representation.
-func (k *serviceInstanceAggregationKey) ToProto() *aggregationpb.ServiceInstanceAggregationKey {
-	pb := aggregationpb.ServiceInstanceAggregationKeyFromVTPool()
-	pb.GlobalLabelsStr = []byte(k.GlobalLabelsStr)
-	return pb
-}
-
-// FromProto converts protobuf representation to ServiceInstanceAggregationKey.
-func (k *serviceInstanceAggregationKey) FromProto(pb *aggregationpb.ServiceInstanceAggregationKey) {
-	k.GlobalLabelsStr = string(pb.GlobalLabelsStr)
-}
-
-// ToProto converts ServiceInstanceMetrics to its protobuf representation.
-func (m *serviceInstanceMetrics) ToProto() *aggregationpb.ServiceInstanceMetrics {
-	pb := aggregationpb.ServiceInstanceMetricsFromVTPool()
 
 	pb.TransactionMetrics = slices.Grow(pb.TransactionMetrics, len(m.TransactionGroups))
 	for _, m := range m.TransactionGroups {

@@ -22,16 +22,10 @@ type Limits struct {
 	// This limit is shared across all aggregation metrics.
 	MaxServices int
 
-	// MaxServiceInstanceGroupsPerService is the limit on the total number
-	// of unique service instance groups within a service.
-	// A unique service instance group within a service is identified by a
-	// unique ServiceInstanceAggregationKey.
-	MaxServiceInstanceGroupsPerService int
-
 	// MaxSpanGroups is the limit on total number of unique span groups
 	// across all services.
 	// A unique span group is identified by a unique
-	// ServiceAggregationKey + ServiceInstanceAggregationKey + SpanAggregationKey.
+	// ServiceAggregationKey + SpanAggregationKey.
 	MaxSpanGroups int
 
 	// MaxSpanGroupsPerService is the limit on the total number of unique
@@ -43,7 +37,7 @@ type Limits struct {
 	// MaxTransactionGroups is the limit on total number of unique
 	// transaction groups across all services.
 	// A unique transaction group is identified by a unique
-	// ServiceAggregationKey + ServiceInstanceAggregationKey + TransactionAggregationKey.
+	// ServiceAggregationKey + TransactionAggregationKey.
 	MaxTransactionGroups int
 
 	// MaxTransactionGroupsPerService is the limit on the number of unique
@@ -55,7 +49,7 @@ type Limits struct {
 	// MaxServiceTransactionGroups is the limit on total number of unique
 	// service transaction groups across all services.
 	// A unique service transaction group is identified by a unique
-	// ServiceAggregationKey + ServiceInstanceAggregationKey + ServiceTransactionAggregationKey.
+	// ServiceAggregationKey + ServiceTransactionAggregationKey.
 	MaxServiceTransactionGroups int
 
 	// MaxServiceTransactionGroupsPerService is the limit on the number
@@ -96,10 +90,9 @@ type combinedMetrics struct {
 	// that overflowed due to max services limit being reached.
 	OverflowServices overflow
 
-	// OverflowServiceInstancesEstimator estimates the number of unique service
-	// instance aggregation keys that overflowed due to max services limit or
-	// max service instances per service limit.
-	OverflowServiceInstancesEstimator *hyperloglog.Sketch
+	// OverflowServicesEstimator estimates the number of unique service
+	// aggregation keys that overflowed due to max services limit.
+	OverflowServicesEstimator *hyperloglog.Sketch
 
 	// EventsTotal is the total number of individual events, including
 	// all overflows, that were aggregated for this combined metrics. It
@@ -120,24 +113,13 @@ type serviceAggregationKey struct {
 	ServiceEnvironment  string
 	ServiceLanguageName string
 	AgentName           string
+	GlobalLabelsStr     string
 }
 
 // serviceMetrics models the value to store all the aggregated metrics
 // for a specific service aggregation key.
 type serviceMetrics struct {
-	ServiceInstanceGroups map[serviceInstanceAggregationKey]serviceInstanceMetrics
-	OverflowGroups        overflow
-}
-
-// serviceInstanceAggregationKey models the key used to store service instance specific
-// aggregation metrics.
-type serviceInstanceAggregationKey struct {
-	GlobalLabelsStr string
-}
-
-// serviceInstanceMetrics models the value to store all the aggregated metrics
-// for a specific service instance aggregation key.
-type serviceInstanceMetrics struct {
+	OverflowGroups           overflow
 	TransactionGroups        map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
 	ServiceTransactionGroups map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
 	SpanGroups               map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics
