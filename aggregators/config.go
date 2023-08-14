@@ -34,6 +34,14 @@ type Processor func(
 	aggregationIvl time.Duration,
 ) error
 
+// OverflowLogger is a wrapper over zap.Logger with a configurable interval.
+// If interval is zero, all intervals will be logged.
+// Otherwise, only the specified interval will be logged.
+type OverflowLogger struct {
+	*zap.Logger
+	interval time.Duration
+}
+
 // Config contains the required config for running the aggregator.
 type Config struct {
 	DataDir                string
@@ -45,9 +53,10 @@ type Config struct {
 	CombinedMetricsIDToKVs func([16]byte) []attribute.KeyValue
 	InMemory               bool
 
-	Meter  metric.Meter
-	Tracer trace.Tracer
-	Logger *zap.Logger
+	Meter          metric.Meter
+	Tracer         trace.Tracer
+	Logger         *zap.Logger
+	OverflowLogger OverflowLogger
 }
 
 // Option allows configuring aggregator based on functional options.
@@ -170,6 +179,14 @@ func WithCombinedMetricsIDToKVs(f func([16]byte) []attribute.KeyValue) Option {
 func WithLogger(logger *zap.Logger) Option {
 	return func(c Config) Config {
 		c.Logger = logger
+		return c
+	}
+}
+
+// WithOverflowLogger defines a custom OverflowLogger for overflow reporting.
+func WithOverflowLogger(logger OverflowLogger) Option {
+	return func(c Config) Config {
+		c.OverflowLogger = logger
 		return c
 	}
 }

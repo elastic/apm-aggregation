@@ -603,23 +603,124 @@ func (a *Aggregator) processHarvest(
 	hs := harvestStats{
 		eventsTotal:            cm.EventsTotal,
 		youngestEventTimestamp: modelpb.ToTime(cm.YoungestEventTimestamp),
-		servicesOverflowed:     hllSketchEstimate(cm.OverflowServicesEstimator),
 	}
-	addOverflow := func(o *aggregationpb.Overflow) {
-		if o == nil {
-			return
-		}
-		hs.transactionsOverflowed += hllSketchEstimate(o.OverflowTransactionsEstimator)
-		hs.serviceTransactionsOverflowed += hllSketchEstimate(o.OverflowServiceTransactionsEstimator)
-		hs.spansOverflowed += hllSketchEstimate(o.OverflowSpansEstimator)
-	}
-	addOverflow(cm.OverflowServices)
-	for _, ksm := range cm.ServiceMetrics {
-		addOverflow(ksm.GetMetrics().GetOverflowGroups())
-	}
+
+	a.getAndLogOverflowStats(&hs, cm, aggIvl)
 
 	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
 		return harvestStats{}, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
 	return hs, nil
+}
+
+func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.CombinedMetrics, aggIvl time.Duration) {
+	hs.servicesOverflowed = hllSketchEstimate(cm.OverflowServicesEstimator)
+
+	overflowLogEnabled := a.cfg.OverflowLogger.interval == 0 || a.cfg.OverflowLogger.interval == aggIvl
+
+	if overflowLogEnabled {
+		a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+			"Service limit reached, new metric documents will be grouped under a dedicated "+
+			"overflow bucket identified by service name '%s'.", overflowBucketName),
+			zap.Duration("aggregation_interval_ns", aggIvl),
+			zap.Int("limit", a.cfg.Limits.MaxServices),
+		)
+	}
+
+	// Flags to indicate global / "overall" limit reached per aggregation so that they are only logged once.
+	var txOverflowLogged, svcTxOverflowLogged, spanOverflowLogged bool
+
+	addOverflow := func(serviceName string, o *aggregationpb.Overflow, txGroups, svcTxGroups, spanGroups int) {
+		if o == nil {
+			return
+		}
+		if overflowed := hllSketchEstimate(o.OverflowTransactionsEstimator); overflowed > 0 {
+			if overflowLogEnabled && serviceName != overflowBucketName {
+				if txGroups >= a.cfg.Limits.MaxTransactionGroupsPerService {
+					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+						"Transaction group per service limit reached, "+
+						"new metric documents will be grouped under a dedicated bucket identified by transaction name '%s'. "+
+						"This is typically caused by ineffective transaction grouping, "+
+						"e.g. by creating many unique transaction names. "+
+						"If you are using an agent with 'use_path_as_transaction_name' enabled, it may cause "+
+						"high cardinality. If your agent supports the 'transaction_name_groups' option, setting "+
+						"that configuration option appropriately, may lead to better results.", overflowBucketName),
+						zap.String("service_name", serviceName),
+						zap.Duration("aggregation_interval_ns", aggIvl),
+						zap.Int("limit", a.cfg.Limits.MaxTransactionGroupsPerService),
+					)
+				} else if !txOverflowLogged {
+					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+						"Overall transaction group limit reached, "+
+						"new metric documents will be grouped under a dedicated bucket identified by transaction name '%s'. "+
+						"This is typically caused by ineffective transaction grouping, "+
+						"e.g. by creating many unique transaction names. "+
+						"If you are using an agent with 'use_path_as_transaction_name' enabled, it may cause "+
+						"high cardinality. If your agent supports the 'transaction_name_groups' option, setting "+
+						"that configuration option appropriately, may lead to better results.", overflowBucketName),
+						zap.Duration("aggregation_interval_ns", aggIvl),
+						zap.Int("limit", a.cfg.Limits.MaxTransactionGroups),
+					)
+					txOverflowLogged = true
+				}
+			}
+			hs.transactionsOverflowed += overflowed
+		}
+
+		if overflowed := hllSketchEstimate(o.OverflowServiceTransactionsEstimator); overflowed > 0 {
+			if overflowLogEnabled && serviceName != overflowBucketName {
+				if svcTxGroups >= a.cfg.Limits.MaxServiceTransactionGroupsPerService {
+					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+						"Service transaction group per service limit reached, new metric documents will be grouped "+
+						"under a dedicated bucket identified by transaction type '%s'.", overflowBucketName),
+						zap.String("service_name", serviceName),
+						zap.Duration("aggregation_interval_ns", aggIvl),
+						zap.Int("limit", a.cfg.Limits.MaxServiceTransactionGroupsPerService),
+					)
+				} else if !svcTxOverflowLogged {
+					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+						"Overall service transaction group limit reached, new metric documents will be grouped "+
+						"under a dedicated bucket identified by transaction type '%s'.", overflowBucketName),
+						zap.Duration("aggregation_interval_ns", aggIvl),
+						zap.Int("limit", a.cfg.Limits.MaxServiceTransactionGroups),
+					)
+					svcTxOverflowLogged = true
+				}
+			}
+			hs.serviceTransactionsOverflowed += overflowed
+		}
+
+		if overflowed := hllSketchEstimate(o.OverflowSpansEstimator); overflowed > 0 {
+			if overflowLogEnabled && serviceName != overflowBucketName {
+				if spanGroups >= a.cfg.Limits.MaxSpanGroupsPerService {
+					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+						"Span group per service limit reached, new metric documents will be grouped "+
+						"under a dedicated bucket identified by service target name '%s'.", overflowBucketName),
+						zap.String("service_name", serviceName),
+						zap.Duration("aggregation_interval_ns", aggIvl),
+						zap.Int("limit", a.cfg.Limits.MaxSpanGroupsPerService),
+					)
+				} else if !spanOverflowLogged {
+					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+						"Overall span group limit reached, new metric documents will be grouped "+
+						"under a dedicated bucket identified by service target name '%s'.", overflowBucketName),
+						zap.Duration("aggregation_interval_ns", aggIvl),
+						zap.Int("limit", a.cfg.Limits.MaxSpanGroups),
+					)
+					spanOverflowLogged = true
+				}
+			}
+			hs.spansOverflowed += overflowed
+		}
+	}
+	addOverflow(overflowBucketName, cm.OverflowServices, 0, 0, 0)
+	for _, ksm := range cm.ServiceMetrics {
+		addOverflow(
+			ksm.GetKey().GetServiceName(),
+			ksm.GetMetrics().GetOverflowGroups(),
+			len(ksm.GetMetrics().GetTransactionMetrics()),
+			len(ksm.GetMetrics().GetServiceTransactionMetrics()),
+			len(ksm.GetMetrics().GetSpanMetrics()),
+		)
+	}
 }
