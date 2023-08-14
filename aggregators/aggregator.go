@@ -715,7 +715,11 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 			}
 		}
 	}
+
+	// overflowService should be counted for metrics, but not logged since they only happen on
+	// service overflow.
 	addOverflow(overflowBucketName, cm.OverflowServices, 0, 0, 0)
+
 	for _, ksm := range cm.ServiceMetrics {
 		addOverflow(
 			ksm.GetKey().GetServiceName(),
