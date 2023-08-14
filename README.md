@@ -73,6 +73,17 @@ The delay in processing a batch based on the youngest APM event received in the 
 - [`aggregation_interval`](#aggregation_interval)
 - [`outcome`](#outcome)
 
+#### `metrics.overflowed.count`
+
+- Type: `Int64Counter`
+
+Estimated number of metric aggregation keys that resulted in an overflow, per interval and aggregation type.
+
+##### Dimensions
+
+- [`aggregation_interval`](#aggregation_interval)
+- [`aggregation_type`](#aggregation_type)
+
 #### `pebble.flushes`
 
 - Type: `Int64ObservableCounter`
@@ -171,6 +182,11 @@ option is not supplied then this dimension is omitted.
 
 Holds the value of aggregation interval for which the combined metrics is produced.
 For example: `1m`, `10m`, etc.
+
+#### `aggregation_type`
+
+Holds the the aggregation type for which an overflow occurred.
+For example: `service`, `transaction`, `service_transaction`, `service_destination`.
 
 #### `outcome`
 
