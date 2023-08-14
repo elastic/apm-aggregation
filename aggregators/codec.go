@@ -455,6 +455,15 @@ func hllBytes(estimator *hyperloglog.Sketch) []byte {
 	return b
 }
 
+// hllSketchEstimate returns hllSketch(estimator).Estimate() if estimator is
+// non-nil, and zero if estimator is nil.
+func hllSketchEstimate(estimator []byte) uint64 {
+	if sketch := hllSketch(estimator); sketch != nil {
+		return sketch.Estimate()
+	}
+	return 0
+}
+
 func hllSketch(estimator []byte) *hyperloglog.Sketch {
 	if len(estimator) == 0 {
 		return nil
