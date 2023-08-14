@@ -15,7 +15,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
@@ -31,7 +30,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 		ParentId:  "nonroot",
 		Service:   &modelpb.Service{Name: "test"},
 		Event: &modelpb.Event{
-			Duration: durationpb.New(time.Second),
+			Duration: uint64(time.Second),
 			Outcome:  "success",
 			Received: modelpb.FromTime(receivedTS),
 		},
@@ -173,7 +172,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 					Type: "db",
 				}
 				// Current test structs are hardcoded to use 1ns for spans
-				event.Event.Duration = durationpb.New(time.Nanosecond)
+				event.Event.Duration = uint64(time.Nanosecond)
 				return []*modelpb.APMEvent{event}
 			},
 			partitions: 1,
@@ -208,7 +207,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 					},
 				}
 				// Current test structs are hardcoded to use 1ns for spans
-				event.Event.Duration = durationpb.New(time.Nanosecond)
+				event.Event.Duration = uint64(time.Nanosecond)
 				return []*modelpb.APMEvent{event}
 			},
 			partitions: 1,
@@ -555,7 +554,7 @@ func BenchmarkEventToCombinedMetrics(b *testing.B) {
 			Name: "test",
 		},
 		Event: &modelpb.Event{
-			Duration: durationpb.New(time.Second),
+			Duration: uint64(time.Second),
 			Outcome:  "success",
 		},
 		Transaction: &modelpb.Transaction{
@@ -759,7 +758,7 @@ func createTestSpanMetric(
 				ResponseTime: &modelpb.AggregatedDuration{
 					// test code generates 1 count for 1 ns
 					Count: uint64(count),
-					Sum:   durationpb.New(time.Duration(count)),
+					Sum:   uint64(time.Duration(count)),
 				},
 			},
 		},

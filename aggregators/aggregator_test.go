@@ -32,7 +32,6 @@ import (
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/testing/protocmp"
-	"google.golang.org/protobuf/types/known/durationpb"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"
@@ -68,7 +67,7 @@ func TestAggregateBatch(t *testing.T) {
 		batch = append(batch, &modelpb.APMEvent{
 			Event: &modelpb.Event{
 				Outcome:  "success",
-				Duration: durationpb.New(eventDuration),
+				Duration: uint64(eventDuration),
 				Received: modelpb.FromTime(ts),
 			},
 			Transaction: &modelpb.Transaction{
@@ -81,7 +80,7 @@ func TestAggregateBatch(t *testing.T) {
 						Outcome:                    "success",
 						Duration: &modelpb.AggregatedDuration{
 							Count: 1,
-							Sum:   durationpb.New(dssDuration),
+							Sum:   uint64(dssDuration),
 						},
 					},
 				},
@@ -90,7 +89,7 @@ func TestAggregateBatch(t *testing.T) {
 		})
 		batch = append(batch, &modelpb.APMEvent{
 			Event: &modelpb.Event{
-				Duration: durationpb.New(eventDuration),
+				Duration: uint64(eventDuration),
 				Received: modelpb.FromTime(ts),
 			},
 			Span: &modelpb.Span{
@@ -320,7 +319,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Resource: destinationX,
 								ResponseTime: &modelpb.AggregatedDuration{
 									Count: uint64(count),
-									Sum:   durationpb.New(time.Duration(count) * duration),
+									Sum:   uint64(time.Duration(count) * duration),
 								},
 							},
 						},
@@ -348,7 +347,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Resource: destinationZ,
 								ResponseTime: &modelpb.AggregatedDuration{
 									Count: uint64(count),
-									Sum:   durationpb.New(time.Duration(count) * duration),
+									Sum:   uint64(time.Duration(count) * duration),
 								},
 							},
 						},
@@ -376,7 +375,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Resource: destinationZ,
 								ResponseTime: &modelpb.AggregatedDuration{
 									Count: uint64(3 * count),
-									Sum:   durationpb.New(time.Duration(3*count) * duration),
+									Sum:   uint64(time.Duration(3*count) * duration),
 								},
 							},
 						},
@@ -404,7 +403,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Resource: destinationZ,
 								ResponseTime: &modelpb.AggregatedDuration{
 									Count: uint64(count),
-									Sum:   durationpb.New(time.Duration(count) * duration),
+									Sum:   uint64(time.Duration(count) * duration),
 								},
 							},
 						},
@@ -475,7 +474,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 							DestinationService: &modelpb.DestinationService{
 								ResponseTime: &modelpb.AggregatedDuration{
 									Count: uint64(count),
-									Sum:   durationpb.New(time.Duration(count) * duration),
+									Sum:   uint64(time.Duration(count) * duration),
 								},
 							},
 						},
@@ -521,7 +520,7 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Resource: destinationZ,
 								ResponseTime: &modelpb.AggregatedDuration{
 									Count: uint64(count),
-									Sum:   durationpb.New(time.Duration(count) * duration),
+									Sum:   uint64(time.Duration(count) * duration),
 								},
 							},
 						},
@@ -844,7 +843,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 		{
 			Event: &modelpb.Event{
 				Outcome:  "success",
-				Duration: durationpb.New(txnDuration),
+				Duration: uint64(txnDuration),
 			},
 			Transaction: &modelpb.Transaction{
 				Name:                "foo",
@@ -1022,7 +1021,7 @@ func TestRunStopOrchestration(t *testing.T) {
 			EncodeToCombinedMetricsKeyID(t, "ab01"),
 			&modelpb.Batch{
 				&modelpb.APMEvent{
-					Event: &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
+					Event: &modelpb.Event{Duration: uint64(time.Millisecond)},
 					Transaction: &modelpb.Transaction{
 						Name:                "T-1000",
 						Type:                "type",
@@ -1201,7 +1200,7 @@ func newTestAggregator(tb testing.TB) *Aggregator {
 func newTestBatchForBenchmark() *modelpb.Batch {
 	return &modelpb.Batch{
 		&modelpb.APMEvent{
-			Event: &modelpb.Event{Duration: durationpb.New(time.Millisecond)},
+			Event: &modelpb.Event{Duration: uint64(time.Millisecond)},
 			Transaction: &modelpb.Transaction{
 				Name:                "T-1000",
 				Type:                "type",
@@ -1330,7 +1329,7 @@ func makeSpan(
 		Service:   &modelpb.Service{Name: serviceName},
 		Event: &modelpb.Event{
 			Outcome:  outcome,
-			Duration: durationpb.New(duration),
+			Duration: uint64(duration),
 		},
 		Span: &modelpb.Span{
 			Name:                serviceName + ":" + destinationServiceResource,

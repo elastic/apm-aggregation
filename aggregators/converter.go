@@ -12,8 +12,6 @@ import (
 	"sync"
 	"time"
 
-	"google.golang.org/protobuf/types/known/durationpb"
-
 	"github.com/cespare/xxhash/v2"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
@@ -111,7 +109,7 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 			p.addServiceSummaryMetrics()
 			return
 		}
-		duration := e.GetEvent().GetDuration().AsDuration()
+		duration := time.Duration(e.GetEvent().GetDuration())
 		p.addTransactionMetrics(e, repCount, duration)
 		p.addServiceTransactionMetrics(e, repCount, duration)
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
@@ -584,7 +582,7 @@ func CombinedMetricsToBatch(
 
 func setSpanMetrics(e *modelpb.APMEvent, repCount float64, out *aggregationpb.SpanMetrics) {
 	var count uint32 = 1
-	duration := e.GetEvent().GetDuration().AsDuration()
+	duration := time.Duration(e.GetEvent().GetDuration())
 	if composite := e.GetSpan().GetComposite(); composite != nil {
 		count = composite.GetCount()
 		duration = time.Duration(composite.GetSum() * float64(time.Millisecond))
@@ -595,7 +593,7 @@ func setSpanMetrics(e *modelpb.APMEvent, repCount float64, out *aggregationpb.Sp
 
 func setDroppedSpanStatsMetrics(dss *modelpb.DroppedSpanStats, repCount float64, out *aggregationpb.SpanMetrics) {
 	out.Count = float64(dss.GetDuration().GetCount()) * repCount
-	out.Sum = float64(dss.GetDuration().GetSum().AsDuration()) * repCount
+	out.Sum = float64(dss.GetDuration().GetSum()) * repCount
 }
 
 func getBaseEvent(key *aggregationpb.ServiceAggregationKey) *modelpb.APMEvent {
@@ -882,7 +880,7 @@ func spanMetricsToAPMEvent(
 	baseEvent.Span.DestinationService.ResponseTime.Count =
 		uint64(math.Round(metrics.Count))
 	baseEvent.Span.DestinationService.ResponseTime.Sum =
-		durationpb.New(time.Duration(math.Round(metrics.Sum)))
+		uint64(math.Round(metrics.Sum))
 
 	if key.Outcome != "" {
 		if baseEvent.Event == nil {
