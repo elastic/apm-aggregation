@@ -616,16 +616,18 @@ func (a *Aggregator) processHarvest(
 func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.CombinedMetrics, aggIvl time.Duration) {
 	hs.servicesOverflowed = hllSketchEstimate(cm.OverflowServicesEstimator)
 
-	overflowLogEnabled := a.cfg.OverflowLogger.interval == 0 || a.cfg.OverflowLogger.interval == aggIvl
-
-	if overflowLogEnabled {
-		a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
-			"Service limit reached, new metric documents will be grouped under a dedicated "+
-			"overflow bucket identified by service name '%s'.", overflowBucketName),
-			zap.Duration("aggregation_interval_ns", aggIvl),
-			zap.Int("limit", a.cfg.Limits.MaxServices),
-		)
+	logFunc := func(msg string, fields ...zap.Field) {
+		if a.cfg.OverflowLogFunc != nil {
+			a.cfg.OverflowLogFunc(msg, fields...)
+		}
 	}
+
+	logFunc(fmt.Sprintf(""+
+		"Service limit reached, new metric documents will be grouped under a dedicated "+
+		"overflow bucket identified by service name '%s'.", overflowBucketName),
+		zap.Duration("aggregation_interval_ns", aggIvl),
+		zap.Int("limit", a.cfg.Limits.MaxServices),
+	)
 
 	// Flags to indicate global / "overall" limit reached per aggregation so that they are only logged once.
 	var txOverflowLogged, svcTxOverflowLogged, spanOverflowLogged bool
@@ -635,9 +637,10 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 			return
 		}
 		if overflowed := hllSketchEstimate(o.OverflowTransactionsEstimator); overflowed > 0 {
-			if overflowLogEnabled && serviceName != overflowBucketName {
+			hs.transactionsOverflowed += overflowed
+			if serviceName != overflowBucketName {
 				if txGroups >= a.cfg.Limits.MaxTransactionGroupsPerService {
-					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+					logFunc(fmt.Sprintf(""+
 						"Transaction group per service limit reached, "+
 						"new metric documents will be grouped under a dedicated bucket identified by transaction name '%s'. "+
 						"This is typically caused by ineffective transaction grouping, "+
@@ -650,7 +653,7 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 						zap.Int("limit", a.cfg.Limits.MaxTransactionGroupsPerService),
 					)
 				} else if !txOverflowLogged {
-					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+					logFunc(fmt.Sprintf(""+
 						"Overall transaction group limit reached, "+
 						"new metric documents will be grouped under a dedicated bucket identified by transaction name '%s'. "+
 						"This is typically caused by ineffective transaction grouping, "+
@@ -664,13 +667,13 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 					txOverflowLogged = true
 				}
 			}
-			hs.transactionsOverflowed += overflowed
 		}
 
 		if overflowed := hllSketchEstimate(o.OverflowServiceTransactionsEstimator); overflowed > 0 {
-			if overflowLogEnabled && serviceName != overflowBucketName {
+			hs.serviceTransactionsOverflowed += overflowed
+			if serviceName != overflowBucketName {
 				if svcTxGroups >= a.cfg.Limits.MaxServiceTransactionGroupsPerService {
-					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+					logFunc(fmt.Sprintf(""+
 						"Service transaction group per service limit reached, new metric documents will be grouped "+
 						"under a dedicated bucket identified by transaction type '%s'.", overflowBucketName),
 						zap.String("service_name", serviceName),
@@ -678,7 +681,7 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 						zap.Int("limit", a.cfg.Limits.MaxServiceTransactionGroupsPerService),
 					)
 				} else if !svcTxOverflowLogged {
-					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+					logFunc(fmt.Sprintf(""+
 						"Overall service transaction group limit reached, new metric documents will be grouped "+
 						"under a dedicated bucket identified by transaction type '%s'.", overflowBucketName),
 						zap.Duration("aggregation_interval_ns", aggIvl),
@@ -687,13 +690,13 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 					svcTxOverflowLogged = true
 				}
 			}
-			hs.serviceTransactionsOverflowed += overflowed
 		}
 
 		if overflowed := hllSketchEstimate(o.OverflowSpansEstimator); overflowed > 0 {
-			if overflowLogEnabled && serviceName != overflowBucketName {
+			hs.spansOverflowed += overflowed
+			if serviceName != overflowBucketName {
 				if spanGroups >= a.cfg.Limits.MaxSpanGroupsPerService {
-					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+					logFunc(fmt.Sprintf(""+
 						"Span group per service limit reached, new metric documents will be grouped "+
 						"under a dedicated bucket identified by service target name '%s'.", overflowBucketName),
 						zap.String("service_name", serviceName),
@@ -701,7 +704,7 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 						zap.Int("limit", a.cfg.Limits.MaxSpanGroupsPerService),
 					)
 				} else if !spanOverflowLogged {
-					a.cfg.OverflowLogger.Warn(fmt.Sprintf(""+
+					logFunc(fmt.Sprintf(""+
 						"Overall span group limit reached, new metric documents will be grouped "+
 						"under a dedicated bucket identified by service target name '%s'.", overflowBucketName),
 						zap.Duration("aggregation_interval_ns", aggIvl),
@@ -710,7 +713,6 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 					spanOverflowLogged = true
 				}
 			}
-			hs.spansOverflowed += overflowed
 		}
 	}
 	addOverflow(overflowBucketName, cm.OverflowServices, 0, 0, 0)
