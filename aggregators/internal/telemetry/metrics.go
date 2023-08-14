@@ -32,6 +32,7 @@ type Metrics struct {
 	BytesProcessed    metric.Int64Counter
 	MinQueuedDelay    metric.Float64Histogram
 	ProcessingLatency metric.Float64Histogram
+	MetricsOverflowed metric.Int64Counter
 
 	// Asynchronous metrics used to get pebble metrics and
 	// record measurements. These are kept unexported as they are
@@ -98,6 +99,16 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for queued delay: %w", err)
+	}
+	i.MetricsOverflowed, err = meter.Int64Counter(
+		"metrics.overflowed.count",
+		metric.WithDescription(
+			"Estimated number of metric aggregation keys that resulted in an overflow, per interval and aggregation type",
+		),
+		metric.WithUnit(countUnit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric for metrics overflowed: %w", err)
 	}
 
 	// Pebble metrics

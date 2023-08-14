@@ -27,6 +27,7 @@ import (
 const (
 	dbCommitThresholdBytes = 10 * 1024 * 1024 // commit every 10MB
 	aggregationIvlKey      = "aggregation_interval"
+	aggregationTypeKey     = "aggregation_type"
 )
 
 var (
@@ -496,13 +497,27 @@ func (a *Aggregator) harvestForInterval(
 		}
 		cmCount++
 
-		attrSetOpt := metric.WithAttributeSet(
-			attribute.NewSet(append(
-				a.cfg.CombinedMetricsIDToKVs(cmk.ID),
-				ivlAttr,
-				telemetry.WithSuccess(),
-			)...),
+		commonAttrsOpt := metric.WithAttributes(
+			append(a.cfg.CombinedMetricsIDToKVs(cmk.ID), ivlAttr)...,
 		)
+		outcomeAttrOpt := metric.WithAttributes(telemetry.WithSuccess())
+
+		// Report the estimated number of overflowed metrics per aggregation interval.
+		// It is not meaningful to aggregate these across intervals or aggregators,
+		// as the overflowed aggregation keys may be overlapping sets.
+		recordMetricsOverflow := func(n uint64, aggregationType string) {
+			if n == 0 {
+				return
+			}
+			a.metrics.MetricsOverflowed.Add(ctx, int64(n), commonAttrsOpt, metric.WithAttributes(
+				attribute.String(aggregationTypeKey, aggregationType),
+			))
+		}
+		recordMetricsOverflow(harvestStats.servicesOverflowed, "service")
+		recordMetricsOverflow(harvestStats.transactionsOverflowed, "transaction")
+		recordMetricsOverflow(harvestStats.serviceTransactionsOverflowed, "service_transaction")
+		recordMetricsOverflow(harvestStats.spansOverflowed, "service_destination")
+
 		// processingDelay is normalized by subtracting aggregation interval and
 		// harvest delay, both of which are expected delays. Normalization helps
 		// us to use the lower (higher resolution) range of the histogram for the
@@ -518,11 +533,11 @@ func (a *Aggregator) harvestForInterval(
 		// Negative values are possible at edges due to delays in running the
 		// harvest loop or time sync issues between agents and server.
 		queuedDelay := time.Since(harvestStats.youngestEventTimestamp).Seconds()
-		a.metrics.MinQueuedDelay.Record(ctx, queuedDelay, attrSetOpt)
-		a.metrics.ProcessingLatency.Record(ctx, processingDelay, attrSetOpt)
+		a.metrics.MinQueuedDelay.Record(ctx, queuedDelay, commonAttrsOpt, outcomeAttrOpt)
+		a.metrics.ProcessingLatency.Record(ctx, processingDelay, commonAttrsOpt, outcomeAttrOpt)
 		// Events harvested have been successfully processed, publish these
 		// as success. Update the map to keep track of events failed.
-		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, attrSetOpt)
+		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, commonAttrsOpt, outcomeAttrOpt)
 		cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
 	}
 	err := a.db.DeleteRange(lb, ub, a.writeOptions)
@@ -563,6 +578,11 @@ func (a *Aggregator) harvestForInterval(
 type harvestStats struct {
 	eventsTotal            float64
 	youngestEventTimestamp time.Time
+
+	servicesOverflowed            uint64
+	transactionsOverflowed        uint64
+	serviceTransactionsOverflowed uint64
+	spansOverflowed               uint64
 }
 
 func (a *Aggregator) processHarvest(
@@ -571,20 +591,35 @@ func (a *Aggregator) processHarvest(
 	cmb []byte,
 	aggIvl time.Duration,
 ) (harvestStats, error) {
-	var hs harvestStats
 	cm := aggregationpb.CombinedMetricsFromVTPool()
 	defer cm.ReturnToVTPool()
 	if err := cm.UnmarshalVT(cmb); err != nil {
-		return hs, fmt.Errorf("failed to unmarshal metrics: %w", err)
+		return harvestStats{}, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
+
 	// Processor can mutate the CombinedMetrics, so we cannot rely on the
-	// CombinedMetrics after Processor is called.
-	eventsTotal := cm.EventsTotal
-	youngestEventTS := modelpb.ToTime(cm.YoungestEventTimestamp)
-	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
-		return hs, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
+	// CombinedMetrics after Processor is called. Take a snapshot of the
+	// fields we record if processing succeeds.
+	hs := harvestStats{
+		eventsTotal:            cm.EventsTotal,
+		youngestEventTimestamp: modelpb.ToTime(cm.YoungestEventTimestamp),
+		servicesOverflowed:     hllSketchEstimate(cm.OverflowServicesEstimator),
 	}
-	hs.eventsTotal = eventsTotal
-	hs.youngestEventTimestamp = youngestEventTS
+	addOverflow := func(o *aggregationpb.Overflow) {
+		if o == nil {
+			return
+		}
+		hs.transactionsOverflowed += hllSketchEstimate(o.OverflowTransactionsEstimator)
+		hs.serviceTransactionsOverflowed += hllSketchEstimate(o.OverflowServiceTransactionsEstimator)
+		hs.spansOverflowed += hllSketchEstimate(o.OverflowSpansEstimator)
+	}
+	addOverflow(cm.OverflowServices)
+	for _, ksm := range cm.ServiceMetrics {
+		addOverflow(ksm.GetMetrics().GetOverflowGroups())
+	}
+
+	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
+		return harvestStats{}, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
+	}
 	return hs, nil
 }
