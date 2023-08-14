@@ -34,6 +34,13 @@ type Processor func(
 	aggregationIvl time.Duration,
 ) error
 
+// OverflowLogging defines the logging function when overflow happens,
+// and for which aggregation interval is overflow logging enabled.
+type OverflowLogging struct {
+	Func                func(msg string, fields ...zap.Field)
+	AggregationInterval time.Duration
+}
+
 // Config contains the required config for running the aggregator.
 type Config struct {
 	DataDir                string
@@ -48,7 +55,7 @@ type Config struct {
 	Meter           metric.Meter
 	Tracer          trace.Tracer
 	Logger          *zap.Logger
-	OverflowLogFunc func(msg string, fields ...zap.Field)
+	OverflowLogging OverflowLogging
 }
 
 // Option allows configuring aggregator based on functional options.
@@ -175,10 +182,10 @@ func WithLogger(logger *zap.Logger) Option {
 	}
 }
 
-// WithOverflowLogFunc defines log function for overflow logging.
-func WithOverflowLogFunc(logFunc func(msg string, fields ...zap.Field)) Option {
+// WithOverflowLogging defines log function and aggregation interval for overflow logging.
+func WithOverflowLogging(logging OverflowLogging) Option {
 	return func(c Config) Config {
-		c.OverflowLogFunc = logFunc
+		c.OverflowLogging = logging
 		return c
 	}
 }

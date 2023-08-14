@@ -617,8 +617,9 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 	hs.servicesOverflowed = hllSketchEstimate(cm.OverflowServicesEstimator)
 
 	logFunc := func(msg string, fields ...zap.Field) {
-		if a.cfg.OverflowLogFunc != nil {
-			a.cfg.OverflowLogFunc(msg, fields...)
+		if a.cfg.OverflowLogging.Func != nil &&
+			(a.cfg.OverflowLogging.AggregationInterval == 0 || a.cfg.OverflowLogging.AggregationInterval == aggIvl) {
+			a.cfg.OverflowLogging.Func(msg, fields...)
 		}
 	}
 
