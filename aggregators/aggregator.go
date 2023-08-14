@@ -622,9 +622,12 @@ func (a *Aggregator) getAndLogOverflowStats(hs *harvestStats, cm *aggregationpb.
 		}
 	}
 
+	// TODO(carsonip): Update this log message when global labels implementation changes
 	logFunc(fmt.Sprintf(""+
 		"Service limit reached, new metric documents will be grouped under a dedicated "+
-		"overflow bucket identified by service name '%s'.", overflowBucketName),
+		"overflow bucket identified by service name '%s'. "+
+		"If you are sending global labels that are user-specific (e.g. client IP), it may cause "+
+		"high cardinality and lead to exhaustion of services.", overflowBucketName),
 		zap.Duration("aggregation_interval_ns", aggIvl),
 		zap.Int("limit", a.cfg.Limits.MaxServices),
 	)
