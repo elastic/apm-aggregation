@@ -98,23 +98,23 @@ func BenchmarkCombinedMetricsEncoding(b *testing.B) {
 	ts := time.Now()
 	cardinality := 10
 	tcm := NewTestCombinedMetrics()
-	sim := tcm.AddServiceMetrics(serviceAggregationKey{
+	sm := tcm.AddServiceMetrics(serviceAggregationKey{
 		Timestamp:   ts,
 		ServiceName: "bench",
-	}).AddServiceInstanceMetrics(serviceInstanceAggregationKey{})
+	})
 	for i := 0; i < cardinality; i++ {
 		txnName := fmt.Sprintf("txn%d", i)
 		txnType := fmt.Sprintf("typ%d", i)
 		spanName := fmt.Sprintf("spn%d", i)
 
-		sim.AddTransaction(transactionAggregationKey{
+		sm.AddTransaction(transactionAggregationKey{
 			TransactionName: txnName,
 			TransactionType: txnType,
 		}, WithTransactionCount(200))
-		sim.AddServiceTransaction(serviceTransactionAggregationKey{
+		sm.AddServiceTransaction(serviceTransactionAggregationKey{
 			TransactionType: txnType,
 		}, WithTransactionCount(200))
-		sim.AddSpan(spanAggregationKey{
+		sm.AddSpan(spanAggregationKey{
 			SpanName: spanName,
 		})
 	}

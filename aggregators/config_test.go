@@ -46,7 +46,6 @@ func TestNewConfig(t *testing.T) {
 			opts: []Option{
 				WithLimits(Limits{
 					MaxServices:                           10,
-					MaxServiceInstanceGroupsPerService:    10,
 					MaxSpanGroups:                         10,
 					MaxSpanGroupsPerService:               10,
 					MaxTransactionGroups:                  10,
@@ -59,7 +58,6 @@ func TestNewConfig(t *testing.T) {
 				cfg := defaultCfg
 				cfg.Limits = Limits{
 					MaxServices:                           10,
-					MaxServiceInstanceGroupsPerService:    10,
 					MaxSpanGroups:                         10,
 					MaxSpanGroupsPerService:               10,
 					MaxTransactionGroups:                  10,

@@ -32,10 +32,6 @@ func HashServiceAggregationKey(h xxhash.Digest, k *aggregationpb.ServiceAggregat
 	h.WriteString(k.ServiceEnvironment)
 	h.WriteString(k.ServiceLanguageName)
 	h.WriteString(k.AgentName)
-	return h
-}
-
-func HashServiceInstanceAggregationKey(h xxhash.Digest, k *aggregationpb.ServiceInstanceAggregationKey) xxhash.Digest {
 	h.Write(k.GlobalLabelsStr)
 	return h
 }

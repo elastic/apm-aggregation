@@ -116,7 +116,6 @@ func TestAggregateBatch(t *testing.T) {
 			MaxServiceTransactionGroups:           100,
 			MaxServiceTransactionGroupsPerService: 10,
 			MaxServices:                           10,
-			MaxServiceInstanceGroupsPerService:    10,
 		}),
 		WithProcessor(combinedMetricsProcessor(out)),
 		WithAggregationIntervals([]time.Duration{aggIvl}),
@@ -154,7 +153,7 @@ func TestAggregateBatch(t *testing.T) {
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 138250},
+				"events.processed.bytes": {Value: 131250},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -174,7 +173,6 @@ func TestAggregateBatch(t *testing.T) {
 			},
 		},
 	}
-	sik := serviceInstanceAggregationKey{GlobalLabelsStr: ""}
 	for i := 0; i < uniqueEventCount*repCount; i++ {
 		svcKey := serviceAggregationKey{
 			Timestamp:   time.Unix(0, 0).UTC(),
@@ -200,7 +198,6 @@ func TestAggregateBatch(t *testing.T) {
 		}
 		expectedCombinedMetrics.
 			AddServiceMetrics(svcKey).
-			AddServiceInstanceMetrics(sik).
 			AddTransaction(txKey, WithTransactionDuration(eventDuration)).
 			AddServiceTransaction(stxKey, WithTransactionDuration(eventDuration)).
 			AddSpan(spanKey, WithSpanDuration(eventDuration)).
@@ -543,7 +540,6 @@ func TestAggregateSpanMetrics(t *testing.T) {
 					MaxServiceTransactionGroups:           100,
 					MaxServiceTransactionGroupsPerService: 10,
 					MaxServices:                           10,
-					MaxServiceInstanceGroupsPerService:    10,
 				}),
 				WithAggregationIntervals(aggregationIvls),
 				WithProcessor(sliceProcessor(&actualEvents)),
@@ -749,7 +745,6 @@ func TestHarvest(t *testing.T) {
 			MaxServiceTransactionGroups:           100,
 			MaxServiceTransactionGroupsPerService: 10,
 			MaxServices:                           10,
-			MaxServiceInstanceGroupsPerService:    10,
 		}),
 		WithProcessor(processor),
 		WithAggregationIntervals(ivls),
@@ -780,7 +775,7 @@ func TestHarvest(t *testing.T) {
 		require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 270},
+				"events.processed.bytes": {Value: 252},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -875,7 +870,6 @@ func TestAggregateAndHarvest(t *testing.T) {
 			MaxServiceTransactionGroups:           100,
 			MaxServiceTransactionGroupsPerService: 10,
 			MaxServices:                           10,
-			MaxServiceInstanceGroupsPerService:    10,
 		}),
 		WithProcessor(sliceProcessor(&events)),
 		WithAggregationIntervals([]time.Duration{time.Second}),
@@ -1091,7 +1085,6 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 			MaxServiceTransactionGroups:           1000,
 			MaxServiceTransactionGroupsPerService: 100,
 			MaxServices:                           100,
-			MaxServiceInstanceGroupsPerService:    100,
 		}),
 		WithProcessor(noOpProcessor()),
 		WithMeter(mp.Meter("test")),
@@ -1116,7 +1109,6 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 			Timestamp:   time.Now(),
 			ServiceName: "test-svc",
 		}).
-		AddServiceInstanceMetrics(serviceInstanceAggregationKey{}).
 		AddTransaction(transactionAggregationKey{
 			TransactionName: "txntest",
 			TransactionType: "txntype",
@@ -1180,7 +1172,6 @@ func newTestAggregator(tb testing.TB) *Aggregator {
 			MaxServiceTransactionGroups:           1000,
 			MaxServiceTransactionGroupsPerService: 100,
 			MaxServices:                           100,
-			MaxServiceInstanceGroupsPerService:    100,
 		}),
 		WithProcessor(noOpProcessor()),
 		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),

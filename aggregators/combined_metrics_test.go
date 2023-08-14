@@ -160,59 +160,20 @@ func (tcm *TestCombinedMetrics) AddServiceMetricsOverflow(
 	if _, ok := tcm.Services[sk]; ok {
 		panic("service already added as non overflow")
 	}
+
+	hash := protohash.HashServiceAggregationKey(xxhash.Digest{}, sk.ToProto())
+	insertHash(&tcm.OverflowServicesEstimator, hash.Sum64())
+
 	// Does not save to a map, any service instance added to this will
 	// automatically be overflowed to the global overflow bucket.
 	return &TestServiceMetrics{sk: sk, tcm: tcm, overflow: true}
 }
 
-type TestServiceInstanceMetrics struct {
-	sik      serviceInstanceAggregationKey
-	tsm      *TestServiceMetrics
-	overflow bool // indicates if the service instance has overflowed to global
-}
-
-func (tsm *TestServiceMetrics) AddServiceInstanceMetrics(
-	sik serviceInstanceAggregationKey,
-) *TestServiceInstanceMetrics {
-	svc := tsm.tcm.Services[tsm.sk]
-	if _, ok := svc.ServiceInstanceGroups[sik]; !ok {
-		svc.ServiceInstanceGroups[sik] = newServiceInstanceMetrics()
-	}
-	return &TestServiceInstanceMetrics{
-		sik: sik,
-		tsm: tsm,
-	}
-}
-
-func (tsm *TestServiceMetrics) AddServiceInstanceMetricsOverflow(
-	sik serviceInstanceAggregationKey,
-) *TestServiceInstanceMetrics {
-	if !tsm.overflow {
-		svc := tsm.tcm.Services[tsm.sk]
-		if _, ok := svc.ServiceInstanceGroups[sik]; ok {
-			panic("service instance already added as non overflow")
-		}
-	}
-	// All service instance overflows to global bucket.
-	hash := protohash.HashServiceInstanceAggregationKey(
-		protohash.HashServiceAggregationKey(xxhash.Digest{}, tsm.sk.ToProto()),
-		sik.ToProto(),
-	)
-	insertHash(&tsm.tcm.OverflowServiceInstancesEstimator, hash.Sum64())
-	// Does not save to a map, children of service instance will automatically
-	// overflow to the global overflow bucket.
-	return &TestServiceInstanceMetrics{
-		sik:      sik,
-		tsm:      tsm,
-		overflow: true,
-	}
-}
-
-func (tsim *TestServiceInstanceMetrics) AddTransaction(
+func (tsm *TestServiceMetrics) AddTransaction(
 	tk transactionAggregationKey,
 	opts ...TestTransactionOpt,
-) *TestServiceInstanceMetrics {
-	if tsim.overflow {
+) *TestServiceMetrics {
+	if tsm.overflow {
 		panic("cannot add transaction to overflowed service transaction")
 	}
 	cfg := defaultTestTransactionCfg
@@ -228,20 +189,19 @@ func (tsim *TestServiceInstanceMetrics) AddTransaction(
 	ktm.Metrics = aggregationpb.TransactionMetricsFromVTPool()
 	ktm.Metrics.Histogram = histogramToProto(hdr)
 
-	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
-	svcIns := svc.ServiceInstanceGroups[tsim.sik]
-	if oldKtm, ok := svcIns.TransactionGroups[tk]; ok {
+	svc := tsm.tcm.Services[tsm.sk]
+	if oldKtm, ok := svc.TransactionGroups[tk]; ok {
 		mergeKeyedTransactionMetrics(oldKtm, ktm)
 		ktm = oldKtm
 	}
-	svcIns.TransactionGroups[tk] = ktm
-	return tsim
+	svc.TransactionGroups[tk] = ktm
+	return tsm
 }
 
-func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
+func (tsm *TestServiceMetrics) AddTransactionOverflow(
 	tk transactionAggregationKey,
 	opts ...TestTransactionOpt,
-) *TestServiceInstanceMetrics {
+) *TestServiceMetrics {
 	cfg := defaultTestTransactionCfg
 	for _, opt := range opts {
 		cfg = opt(cfg)
@@ -254,28 +214,25 @@ func (tsim *TestServiceInstanceMetrics) AddTransactionOverflow(
 	from.Histogram = histogramToProto(hdr)
 
 	hash := protohash.HashTransactionAggregationKey(
-		protohash.HashServiceInstanceAggregationKey(
-			protohash.HashServiceAggregationKey(xxhash.Digest{}, tsim.tsm.sk.ToProto()),
-			tsim.sik.ToProto(),
-		),
+		protohash.HashServiceAggregationKey(xxhash.Digest{}, tsm.sk.ToProto()),
 		tk.ToProto(),
 	)
-	if tsim.tsm.overflow {
+	if tsm.overflow {
 		// Global overflow
-		tsim.tsm.tcm.OverflowServices.OverflowTransaction.Merge(from, hash.Sum64())
+		tsm.tcm.OverflowServices.OverflowTransaction.Merge(from, hash.Sum64())
 	} else {
 		// Per service overflow
-		svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
+		svc := tsm.tcm.Services[tsm.sk]
 		svc.OverflowGroups.OverflowTransaction.Merge(from, hash.Sum64())
-		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
+		tsm.tcm.Services[tsm.sk] = svc
 	}
-	return tsim
+	return tsm
 }
 
-func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
+func (tsm *TestServiceMetrics) AddServiceTransaction(
 	stk serviceTransactionAggregationKey,
 	opts ...TestTransactionOpt,
-) *TestServiceInstanceMetrics {
+) *TestServiceMetrics {
 	cfg := defaultTestTransactionCfg
 	for _, opt := range opts {
 		cfg = opt(cfg)
@@ -294,20 +251,19 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransaction(
 		kstm.Metrics.SuccessCount = float64(cfg.count)
 	}
 
-	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
-	svcIns := svc.ServiceInstanceGroups[tsim.sik]
-	if oldKstm, ok := svcIns.ServiceTransactionGroups[stk]; ok {
+	svc := tsm.tcm.Services[tsm.sk]
+	if oldKstm, ok := svc.ServiceTransactionGroups[stk]; ok {
 		mergeKeyedServiceTransactionMetrics(oldKstm, kstm)
 		kstm = oldKstm
 	}
-	svcIns.ServiceTransactionGroups[stk] = kstm
-	return tsim
+	svc.ServiceTransactionGroups[stk] = kstm
+	return tsm
 }
 
-func (tsim *TestServiceInstanceMetrics) AddServiceTransactionOverflow(
+func (tsm *TestServiceMetrics) AddServiceTransactionOverflow(
 	stk serviceTransactionAggregationKey,
 	opts ...TestTransactionOpt,
-) *TestServiceInstanceMetrics {
+) *TestServiceMetrics {
 	cfg := defaultTestTransactionCfg
 	for _, opt := range opts {
 		cfg = opt(cfg)
@@ -325,28 +281,25 @@ func (tsim *TestServiceInstanceMetrics) AddServiceTransactionOverflow(
 	}
 
 	hash := protohash.HashServiceTransactionAggregationKey(
-		protohash.HashServiceInstanceAggregationKey(
-			protohash.HashServiceAggregationKey(xxhash.Digest{}, tsim.tsm.sk.ToProto()),
-			tsim.sik.ToProto(),
-		),
+		protohash.HashServiceAggregationKey(xxhash.Digest{}, tsm.sk.ToProto()),
 		stk.ToProto(),
 	)
-	if tsim.tsm.overflow {
+	if tsm.overflow {
 		// Global overflow
-		tsim.tsm.tcm.OverflowServices.OverflowServiceTransaction.Merge(from, hash.Sum64())
+		tsm.tcm.OverflowServices.OverflowServiceTransaction.Merge(from, hash.Sum64())
 	} else {
 		// Per service overflow
-		svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
+		svc := tsm.tcm.Services[tsm.sk]
 		svc.OverflowGroups.OverflowServiceTransaction.Merge(from, hash.Sum64())
-		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
+		tsm.tcm.Services[tsm.sk] = svc
 	}
-	return tsim
+	return tsm
 }
 
-func (tsim *TestServiceInstanceMetrics) AddSpan(
+func (tsm *TestServiceMetrics) AddSpan(
 	spk spanAggregationKey,
 	opts ...TestSpanOpt,
-) *TestServiceInstanceMetrics {
+) *TestServiceMetrics {
 	cfg := defaultTestSpanCfg
 	for _, opt := range opts {
 		cfg = opt(cfg)
@@ -358,20 +311,19 @@ func (tsim *TestServiceInstanceMetrics) AddSpan(
 	ksm.Metrics.Sum += float64(cfg.duration * time.Duration(cfg.count))
 	ksm.Metrics.Count += float64(cfg.count)
 
-	svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
-	svcIns := svc.ServiceInstanceGroups[tsim.sik]
-	if oldKsm, ok := svcIns.SpanGroups[spk]; ok {
+	svc := tsm.tcm.Services[tsm.sk]
+	if oldKsm, ok := svc.SpanGroups[spk]; ok {
 		mergeKeyedSpanMetrics(oldKsm, ksm)
 		ksm = oldKsm
 	}
-	svcIns.SpanGroups[spk] = ksm
-	return tsim
+	svc.SpanGroups[spk] = ksm
+	return tsm
 }
 
-func (tsim *TestServiceInstanceMetrics) AddSpanOverflow(
+func (tsm *TestServiceMetrics) AddSpanOverflow(
 	spk spanAggregationKey,
 	opts ...TestSpanOpt,
-) *TestServiceInstanceMetrics {
+) *TestServiceMetrics {
 	cfg := defaultTestSpanCfg
 	for _, opt := range opts {
 		cfg = opt(cfg)
@@ -382,30 +334,27 @@ func (tsim *TestServiceInstanceMetrics) AddSpanOverflow(
 	from.Count += float64(cfg.count)
 
 	hash := protohash.HashSpanAggregationKey(
-		protohash.HashServiceInstanceAggregationKey(
-			protohash.HashServiceAggregationKey(xxhash.Digest{}, tsim.tsm.sk.ToProto()),
-			tsim.sik.ToProto(),
-		),
+		protohash.HashServiceAggregationKey(xxhash.Digest{}, tsm.sk.ToProto()),
 		spk.ToProto(),
 	)
-	if tsim.tsm.overflow {
+	if tsm.overflow {
 		// Global overflow
-		tsim.tsm.tcm.OverflowServices.OverflowSpan.Merge(from, hash.Sum64())
+		tsm.tcm.OverflowServices.OverflowSpan.Merge(from, hash.Sum64())
 	} else {
 		// Per service overflow
-		svc := tsim.tsm.tcm.Services[tsim.tsm.sk]
+		svc := tsm.tcm.Services[tsm.sk]
 		svc.OverflowGroups.OverflowSpan.Merge(from, hash.Sum64())
-		tsim.tsm.tcm.Services[tsim.tsm.sk] = svc
+		tsm.tcm.Services[tsm.sk] = svc
 	}
-	return tsim
+	return tsm
 }
 
-func (tsim *TestServiceInstanceMetrics) GetProto() *aggregationpb.CombinedMetrics {
-	return tsim.tsm.tcm.GetProto()
+func (tsm *TestServiceMetrics) GetProto() *aggregationpb.CombinedMetrics {
+	return tsm.tcm.GetProto()
 }
 
-func (tsim *TestServiceInstanceMetrics) Get() combinedMetrics {
-	return tsim.tsm.tcm.Get()
+func (tsm *TestServiceMetrics) Get() combinedMetrics {
+	return tsm.tcm.Get()
 }
 
 // Set of cmp options to sort combined metrics based on key hash. Hash collisions
@@ -415,12 +364,6 @@ var combinedMetricsSliceSorters = []cmp.Option{
 		return xxhashDigestLess(
 			protohash.HashServiceAggregationKey(xxhash.Digest{}, a.Key),
 			protohash.HashServiceAggregationKey(xxhash.Digest{}, b.Key),
-		)
-	}),
-	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedServiceInstanceMetrics) bool {
-		return xxhashDigestLess(
-			protohash.HashServiceInstanceAggregationKey(xxhash.Digest{}, a.Key),
-			protohash.HashServiceInstanceAggregationKey(xxhash.Digest{}, b.Key),
 		)
 	}),
 	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedTransactionMetrics) bool {
