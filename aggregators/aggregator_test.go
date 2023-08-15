@@ -1037,10 +1037,8 @@ func TestHarvestOverflowCount(t *testing.T) {
 			WithCombinedMetricsIDToKVs(func(id [16]byte) []attribute.KeyValue {
 				return []attribute.KeyValue{attribute.String("id_key", "id_value")}
 			}),
-			WithOverflowLogging(OverflowLogging{
-				Func:                observedLogger.Warn,
-				AggregationInterval: time.Minute,
-			}),
+			WithLogger(observedLogger),
+			WithOverflowLogging(true),
 		)
 
 		var batch modelpb.Batch
