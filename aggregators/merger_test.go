@@ -267,7 +267,7 @@ func TestMerge(t *testing.T) {
 						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
 					// all span, transaction, and service transaction from _from_ will overflow
-					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(5)).
+					AddSpanOverflow(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
 					AddServiceTransactionOverflow(
 						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
@@ -355,7 +355,7 @@ func TestMerge(t *testing.T) {
 					AddTransaction(
 						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
-					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(10)).
+					AddSpanOverflow(spanAggregationKey{SpanName: "span2"}, WithSpanCount(10)).
 					AddServiceTransactionOverflow(
 						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(10)).
@@ -386,7 +386,7 @@ func TestMerge(t *testing.T) {
 					AddTransaction(
 						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
-					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(15)).
+					AddSpanOverflow(spanAggregationKey{SpanName: "span2"}, WithSpanCount(15)).
 					AddServiceTransactionOverflow(
 						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(15),
@@ -431,7 +431,7 @@ func TestMerge(t *testing.T) {
 					AddTransaction(
 						transactionAggregationKey{TransactionName: "txn2", TransactionType: "type2"},
 						WithTransactionCount(5)).
-					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(8)).
+					AddSpanOverflow(spanAggregationKey{SpanName: "span3"}, WithSpanCount(8)).
 					AddServiceTransactionOverflow(
 						serviceTransactionAggregationKey{TransactionType: "type3"},
 						WithTransactionCount(8)).
@@ -450,7 +450,8 @@ func TestMerge(t *testing.T) {
 					AddTransaction(
 						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
-					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(13)).
+					AddSpanOverflow(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
+					AddSpanOverflow(spanAggregationKey{SpanName: "span3"}, WithSpanCount(8)).
 					AddServiceTransactionOverflow(
 						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).
@@ -617,7 +618,7 @@ func TestMerge(t *testing.T) {
 					AddTransaction(
 						transactionAggregationKey{TransactionName: "txn1", TransactionType: "type1"},
 						WithTransactionCount(7)).
-					AddSpanOverflow(spanAggregationKey{SpanName: ""}, WithSpanCount(5)).
+					AddSpanOverflow(spanAggregationKey{SpanName: "span2"}, WithSpanCount(5)).
 					AddServiceTransactionOverflow(
 						serviceTransactionAggregationKey{TransactionType: "type2"},
 						WithTransactionCount(5)).

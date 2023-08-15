@@ -216,6 +216,7 @@ func mergeSpanGroups(
 		if !ok {
 			// Protect against agents that send high cardinality span names by dropping
 			// span.name if more than half of the per svc span group limit is reached.
+			originalSpanName := fromSpan.Key.SpanName
 			half := perSvcConstraint.Limit() / 2
 			if perSvcConstraint.Value() >= half {
 				spk.SpanName = ""
@@ -225,6 +226,9 @@ func mergeSpanGroups(
 			if !ok {
 				overflowed := perSvcConstraint.Maxed() || globalConstraint.Maxed()
 				if overflowed {
+					// Restore span name in case it was dropped above,
+					// for cardinality estimation.
+					fromSpan.Key.SpanName = originalSpanName
 					fromSpanKeyHash := protohash.HashSpanAggregationKey(hash, fromSpan.Key)
 					overflowTo.Merge(fromSpan.Metrics, fromSpanKeyHash.Sum64())
 					continue
