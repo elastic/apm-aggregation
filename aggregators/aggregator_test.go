@@ -15,8 +15,6 @@ import (
 	"testing"
 	"time"
 
-	"go.uber.org/zap"
-
 	"github.com/cockroachdb/pebble"
 	"github.com/google/go-cmp/cmp"
 	"github.com/google/go-cmp/cmp/cmpopts"
@@ -32,6 +30,8 @@ import (
 	"go.opentelemetry.io/otel/sdk/metric/metricdata/metricdatatest"
 	sdktrace "go.opentelemetry.io/otel/sdk/trace"
 	"go.opentelemetry.io/otel/sdk/trace/tracetest"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 	"golang.org/x/sync/errgroup"
 	"google.golang.org/protobuf/testing/protocmp"
 
@@ -994,121 +994,184 @@ func TestAggregateAndHarvest(t *testing.T) {
 }
 
 func TestHarvestOverflowCount(t *testing.T) {
-	ivls := []time.Duration{time.Minute}
-	reader := metric.NewManualReader()
-	meter := metric.NewMeterProvider(metric.WithReader(reader)).Meter("test")
+	for _, tc := range []struct {
+		limits                Limits
+		expectedLogPerService bool
+	}{
+		{
+			limits: Limits{
+				MaxSpanGroups:                         4,
+				MaxSpanGroupsPerService:               4,
+				MaxTransactionGroups:                  3,
+				MaxTransactionGroupsPerService:        3,
+				MaxServiceTransactionGroups:           2,
+				MaxServiceTransactionGroupsPerService: 2,
+				MaxServices:                           1,
+			},
+			expectedLogPerService: true,
+		},
+		{
+			limits: Limits{
+				MaxSpanGroups:                         4,
+				MaxSpanGroupsPerService:               100,
+				MaxTransactionGroups:                  3,
+				MaxTransactionGroupsPerService:        100,
+				MaxServiceTransactionGroups:           2,
+				MaxServiceTransactionGroupsPerService: 100,
+				MaxServices:                           1,
+			},
+			expectedLogPerService: false,
+		},
+	} {
+		limits := tc.limits
+		ivls := []time.Duration{time.Minute}
+		reader := metric.NewManualReader()
+		meter := metric.NewMeterProvider(metric.WithReader(reader)).Meter("test")
 
-	limits := Limits{
-		MaxSpanGroups:                         4,
-		MaxSpanGroupsPerService:               4,
-		MaxTransactionGroups:                  3,
-		MaxTransactionGroupsPerService:        3,
-		MaxServiceTransactionGroups:           2,
-		MaxServiceTransactionGroupsPerService: 2,
-		MaxServices:                           1,
-	}
-	agg := newTestAggregator(t,
-		WithLimits(limits),
-		WithAggregationIntervals(ivls),
-		WithMeter(meter),
-		WithCombinedMetricsIDToKVs(func(id [16]byte) []attribute.KeyValue {
-			return []attribute.KeyValue{attribute.String("id_key", "id_value")}
-		}),
-	)
-
-	var batch modelpb.Batch
-	for i := 0; i < limits.MaxServices+1; i++ {
-		serviceName := fmt.Sprintf("service_name_%d", i)
-		for i := 0; i < limits.MaxTransactionGroups+1; i++ {
-			transactionName := fmt.Sprintf("transaction_name_%d", i)
-			transactionType := fmt.Sprintf(
-				"transaction_type_%d", i%(limits.MaxServiceTransactionGroups+1),
-			)
-			batch = append(batch, &modelpb.APMEvent{
-				Service: &modelpb.Service{Name: serviceName},
-				Transaction: &modelpb.Transaction{
-					Name:                transactionName,
-					Type:                transactionType,
-					RepresentativeCount: 1,
-				},
-			})
-		}
-		for i := 0; i < limits.MaxSpanGroups+1; i++ {
-			serviceTargetName := fmt.Sprintf("service_target_name_%d", i)
-			batch = append(batch, &modelpb.APMEvent{
-				Service: &modelpb.Service{
-					Name: serviceName,
-					Target: &modelpb.ServiceTarget{
-						Name: serviceTargetName,
-						Type: "service_target_type",
-					},
-				},
-				Span: &modelpb.Span{
-					Name:                "span_name",
-					Type:                "span_type",
-					RepresentativeCount: 1,
-				},
-			})
-		}
-	}
-	cmID := EncodeToCombinedMetricsKeyID(t, "cm_id")
-	require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
-
-	// Force harvest.
-	require.NoError(t, agg.Close(context.Background()))
-
-	var resourceMetrics metricdata.ResourceMetrics
-	require.NoError(t, reader.Collect(context.Background(), &resourceMetrics))
-	require.Len(t, resourceMetrics.ScopeMetrics, 1)
-	scopeMetrics := resourceMetrics.ScopeMetrics[0]
-
-	expected := metricdata.Sum[int64]{
-		IsMonotonic: true,
-		Temporality: metricdata.CumulativeTemporality,
-		DataPoints: []metricdata.DataPoint[int64]{{
-			Attributes: attribute.NewSet(
-				attribute.String(aggregationIvlKey, "1m"),
-				attribute.String(aggregationTypeKey, "service"),
-				attribute.String("id_key", "id_value"),
-			),
-			Value: 1,
-		}, {
-			Attributes: attribute.NewSet(
-				attribute.String(aggregationIvlKey, "1m"),
-				attribute.String(aggregationTypeKey, "service_destination"),
-				attribute.String("id_key", "id_value"),
-			),
-			Value: int64(limits.MaxSpanGroups) + 2,
-		}, {
-			Attributes: attribute.NewSet(
-				attribute.String(aggregationIvlKey, "1m"),
-				attribute.String(aggregationTypeKey, "service_transaction"),
-				attribute.String("id_key", "id_value"),
-			),
-			Value: int64(limits.MaxServiceTransactionGroups) + 2,
-		}, {
-			Attributes: attribute.NewSet(
-				attribute.String(aggregationIvlKey, "1m"),
-				attribute.String(aggregationTypeKey, "transaction"),
-				attribute.String("id_key", "id_value"),
-			),
-			Value: int64(limits.MaxTransactionGroups) + 2,
-		}},
-	}
-
-	var found bool
-	for _, metric := range scopeMetrics.Metrics {
-		if metric.Name != "metrics.overflowed.count" {
-			continue
-		}
-		metricdatatest.AssertAggregationsEqual(
-			t, expected, metric.Data,
-			metricdatatest.IgnoreTimestamp(),
+		observedZapCore, observedLogs := observer.New(zap.WarnLevel)
+		observedLogger := zap.New(observedZapCore)
+		agg := newTestAggregator(t,
+			WithLimits(limits),
+			WithAggregationIntervals(ivls),
+			WithMeter(meter),
+			WithCombinedMetricsIDToKVs(func(id [16]byte) []attribute.KeyValue {
+				return []attribute.KeyValue{attribute.String("id_key", "id_value")}
+			}),
+			WithLogger(observedLogger),
+			WithOverflowLogging(true),
 		)
-		found = true
-		break
+
+		var batch modelpb.Batch
+		for i := 0; i < limits.MaxServices+1; i++ {
+			serviceName := fmt.Sprintf("service_name_%d", i)
+			for i := 0; i < limits.MaxTransactionGroups+1; i++ {
+				transactionName := fmt.Sprintf("transaction_name_%d", i)
+				transactionType := fmt.Sprintf(
+					"transaction_type_%d", i%(limits.MaxServiceTransactionGroups+1),
+				)
+				batch = append(batch, &modelpb.APMEvent{
+					Service: &modelpb.Service{Name: serviceName},
+					Transaction: &modelpb.Transaction{
+						Name:                transactionName,
+						Type:                transactionType,
+						RepresentativeCount: 1,
+					},
+				})
+			}
+			for i := 0; i < limits.MaxSpanGroups+1; i++ {
+				serviceTargetName := fmt.Sprintf("service_target_name_%d", i)
+				batch = append(batch, &modelpb.APMEvent{
+					Service: &modelpb.Service{
+						Name: serviceName,
+						Target: &modelpb.ServiceTarget{
+							Name: serviceTargetName,
+							Type: "service_target_type",
+						},
+					},
+					Span: &modelpb.Span{
+						Name:                "span_name",
+						Type:                "span_type",
+						RepresentativeCount: 1,
+					},
+				})
+			}
+		}
+		cmID := EncodeToCombinedMetricsKeyID(t, "cm_id")
+		require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
+
+		// Force harvest.
+		require.NoError(t, agg.Close(context.Background()))
+
+		var resourceMetrics metricdata.ResourceMetrics
+		require.NoError(t, reader.Collect(context.Background(), &resourceMetrics))
+		require.Len(t, resourceMetrics.ScopeMetrics, 1)
+		scopeMetrics := resourceMetrics.ScopeMetrics[0]
+
+		expected := metricdata.Sum[int64]{
+			IsMonotonic: true,
+			Temporality: metricdata.CumulativeTemporality,
+			DataPoints: []metricdata.DataPoint[int64]{{
+				Attributes: attribute.NewSet(
+					attribute.String(aggregationIvlKey, "1m"),
+					attribute.String(aggregationTypeKey, "service"),
+					attribute.String("id_key", "id_value"),
+				),
+				Value: 1,
+			}, {
+				Attributes: attribute.NewSet(
+					attribute.String(aggregationIvlKey, "1m"),
+					attribute.String(aggregationTypeKey, "service_destination"),
+					attribute.String("id_key", "id_value"),
+				),
+				Value: int64(limits.MaxSpanGroups) + 2,
+			}, {
+				Attributes: attribute.NewSet(
+					attribute.String(aggregationIvlKey, "1m"),
+					attribute.String(aggregationTypeKey, "service_transaction"),
+					attribute.String("id_key", "id_value"),
+				),
+				Value: int64(limits.MaxServiceTransactionGroups) + 2,
+			}, {
+				Attributes: attribute.NewSet(
+					attribute.String(aggregationIvlKey, "1m"),
+					attribute.String(aggregationTypeKey, "transaction"),
+					attribute.String("id_key", "id_value"),
+				),
+				Value: int64(limits.MaxTransactionGroups) + 2,
+			}},
+		}
+
+		var found bool
+		for _, metric := range scopeMetrics.Metrics {
+			if metric.Name != "metrics.overflowed.count" {
+				continue
+			}
+			metricdatatest.AssertAggregationsEqual(
+				t, expected, metric.Data,
+				metricdatatest.IgnoreTimestamp(),
+			)
+			found = true
+			break
+		}
+		assert.True(t, found)
+
+		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
+			return strings.Contains(entry.Message, "Service limit reached")
+		}).All(), 1)
+
+		var expectedLogPerServiceCount, expectedGlobalLogCount int
+		if tc.expectedLogPerService {
+			expectedLogPerServiceCount = 1
+			expectedGlobalLogCount = 0
+		} else {
+			expectedLogPerServiceCount = 0
+			expectedGlobalLogCount = 1
+		}
+
+		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
+			return strings.Contains(entry.Message, "Transaction group per service limit reached")
+		}).All(), expectedLogPerServiceCount)
+
+		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
+			return strings.Contains(entry.Message, "Service transaction group per service limit reached")
+		}).All(), expectedLogPerServiceCount)
+
+		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
+			return strings.Contains(entry.Message, "Span group per service limit reached")
+		}).All(), expectedLogPerServiceCount)
+
+		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
+			return strings.Contains(entry.Message, "Overall transaction group limit reached")
+		}).All(), expectedGlobalLogCount)
+
+		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
+			return strings.Contains(entry.Message, "Overall service transaction group limit reached")
+		}).All(), expectedGlobalLogCount)
+
+		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
+			return strings.Contains(entry.Message, "Overall span group limit reached")
+		}).All(), expectedGlobalLogCount)
 	}
-	assert.True(t, found)
 }
 
 func TestRunStopOrchestration(t *testing.T) {

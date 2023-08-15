@@ -45,9 +45,10 @@ type Config struct {
 	CombinedMetricsIDToKVs func([16]byte) []attribute.KeyValue
 	InMemory               bool
 
-	Meter  metric.Meter
-	Tracer trace.Tracer
-	Logger *zap.Logger
+	Meter           metric.Meter
+	Tracer          trace.Tracer
+	Logger          *zap.Logger
+	OverflowLogging bool
 }
 
 // Option allows configuring aggregator based on functional options.
@@ -170,6 +171,17 @@ func WithCombinedMetricsIDToKVs(f func([16]byte) []attribute.KeyValue) Option {
 func WithLogger(logger *zap.Logger) Option {
 	return func(c Config) Config {
 		c.Logger = logger
+		return c
+	}
+}
+
+// WithOverflowLogging enables warning logs at harvest time, when overflows have occurred.
+//
+// Logging of overflows is disabled by default, as most callers are expected to rely on
+// metrics to surface cardinality issues. Support for logging exists for historical reasons.
+func WithOverflowLogging(enabled bool) Option {
+	return func(c Config) Config {
+		c.OverflowLogging = enabled
 		return c
 	}
 }
