@@ -81,6 +81,7 @@ Estimated number of metric aggregation keys that resulted in an overflow, per in
 
 ##### Dimensions
 
+- [`combined_metrics_id`](#combined_metrics_id)
 - [`aggregation_interval`](#aggregation_interval)
 - [`aggregation_type`](#aggregation_type)
 
