@@ -253,6 +253,9 @@ func TestAggregateSpanMetrics(t *testing.T) {
 		"cost_center": &modelpb.NumericLabelValue{Global: true, Value: 10},
 	}
 
+	now := time.Now()
+	receivedTS := now.Add(-time.Minute)
+
 	for _, tt := range []struct {
 		name              string
 		inputs            []input
@@ -276,6 +279,9 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
+						Event: &modelpb.Event{
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
 							Interval: formatDuration(ivl),
@@ -287,6 +293,9 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Agent:     &modelpb.Agent{Name: "python"},
 						Service: &modelpb.Service{
 							Name: "service-B",
+						},
+						Event: &modelpb.Event{
+							Received: modelpb.FromTime(receivedTS),
 						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
@@ -304,7 +313,10 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameX,
 							},
 						},
-						Event: &modelpb.Event{Outcome: "success"},
+						Event: &modelpb.Event{
+							Outcome:  "success",
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -332,7 +344,10 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameZ,
 							},
 						},
-						Event: &modelpb.Event{Outcome: "failure"},
+						Event: &modelpb.Event{
+							Outcome:  "failure",
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -360,7 +375,10 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameZ,
 							},
 						},
-						Event: &modelpb.Event{Outcome: "success"},
+						Event: &modelpb.Event{
+							Outcome:  "success",
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -388,7 +406,10 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameZ,
 							},
 						},
-						Event: &modelpb.Event{Outcome: "success"},
+						Event: &modelpb.Event{
+							Outcome:  "success",
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -422,6 +443,9 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
+						Event: &modelpb.Event{
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
 							Interval: formatDuration(ivl),
@@ -444,6 +468,9 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
+						Event: &modelpb.Event{
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
 							Interval: formatDuration(ivl),
@@ -460,7 +487,10 @@ func TestAggregateSpanMetrics(t *testing.T) {
 								Name: trgNameZ,
 							},
 						},
-						Event: &modelpb.Event{Outcome: "success"},
+						Event: &modelpb.Event{
+							Outcome:  "success",
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -493,6 +523,9 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
+						Event: &modelpb.Event{
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_summary",
 							Interval: formatDuration(ivl),
@@ -505,7 +538,10 @@ func TestAggregateSpanMetrics(t *testing.T) {
 						Service: &modelpb.Service{
 							Name: "service-A",
 						},
-						Event: &modelpb.Event{Outcome: "success"},
+						Event: &modelpb.Event{
+							Outcome:  "success",
+							Received: modelpb.FromTime(receivedTS),
+						},
 						Metricset: &modelpb.Metricset{
 							Name:     "service_destination",
 							Interval: formatDuration(ivl),
@@ -548,11 +584,11 @@ func TestAggregateSpanMetrics(t *testing.T) {
 			require.NoError(t, err)
 
 			count := 100
-			now := time.Now()
 			duration := 100 * time.Millisecond
 			for _, in := range tt.inputs {
 				span := makeSpan(
 					now,
+					receivedTS,
 					in.serviceName,
 					in.agentName,
 					in.destination,
@@ -925,6 +961,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 		},
 		{
 			Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
+			Event:     &modelpb.Event{},
 			Service: &modelpb.Service{
 				Name: "svc",
 			},
@@ -1307,7 +1344,7 @@ func gatherMetrics(g apm.MetricsGatherer, opts ...gatherMetricsOpt) []apmmodel.M
 }
 
 func makeSpan(
-	ts time.Time,
+	ts, receivedTS time.Time,
 	serviceName, agentName, destinationServiceResource, targetType, targetName, outcome string,
 	duration time.Duration,
 	representativeCount float64,
@@ -1319,6 +1356,7 @@ func makeSpan(
 		Agent:     &modelpb.Agent{Name: agentName},
 		Service:   &modelpb.Service{Name: serviceName},
 		Event: &modelpb.Event{
+			Received: modelpb.FromTime(receivedTS),
 			Outcome:  outcome,
 			Duration: uint64(duration),
 		},

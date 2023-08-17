@@ -424,7 +424,7 @@ func CombinedMetricsToBatch(
 			return nil, fmt.Errorf("failed to unmarshal global labels: %w", err)
 		}
 		getBaseEventWithLabels := func() *modelpb.APMEvent {
-			event := getBaseEvent(sk)
+			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
 			event.Labels = gl.Labels
 			event.NumericLabels = gl.NumericLabels
 			return event
@@ -459,7 +459,7 @@ func CombinedMetricsToBatch(
 		}
 		if len(sm.OverflowGroups.OverflowTransactionsEstimator) > 0 {
 			estimator := hllSketch(sm.OverflowGroups.OverflowTransactionsEstimator)
-			event := getBaseEvent(sk)
+			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowTransactions,
@@ -473,7 +473,7 @@ func CombinedMetricsToBatch(
 			estimator := hllSketch(
 				sm.OverflowGroups.OverflowServiceTransactionsEstimator,
 			)
-			event := getBaseEvent(sk)
+			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
 			overflowSvcTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowServiceTransactions,
@@ -485,7 +485,7 @@ func CombinedMetricsToBatch(
 		}
 		if len(sm.OverflowGroups.OverflowSpansEstimator) > 0 {
 			estimator := hllSketch(sm.OverflowGroups.OverflowSpansEstimator)
-			event := getBaseEvent(sk)
+			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
 			overflowSpanMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowSpans,
@@ -498,14 +498,7 @@ func CombinedMetricsToBatch(
 	}
 	if len(cm.OverflowServicesEstimator) > 0 {
 		estimator := hllSketch(cm.OverflowServicesEstimator)
-		getOverflowBaseEvent := func() *modelpb.APMEvent {
-			e := modelpb.APMEventFromVTPool()
-			e.Metricset = modelpb.MetricsetFromVTPool()
-			e.Service = modelpb.ServiceFromVTPool()
-			e.Service.Name = overflowBucketName
-			return e
-		}
-		event := getOverflowBaseEvent()
+		event := getOverflowBaseEvent(cm.YoungestEventTimestamp)
 		overflowServiceMetricsToAPMEvent(
 			processingTime,
 			estimator.Estimate(),
@@ -515,7 +508,7 @@ func CombinedMetricsToBatch(
 		b = append(b, event)
 		if len(cm.OverflowServices.OverflowTransactionsEstimator) > 0 {
 			estimator := hllSketch(cm.OverflowServices.OverflowTransactionsEstimator)
-			event := getOverflowBaseEvent()
+			event := getOverflowBaseEvent(cm.YoungestEventTimestamp)
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				cm.OverflowServices.OverflowTransactions,
@@ -530,7 +523,7 @@ func CombinedMetricsToBatch(
 			estimator := hllSketch(
 				cm.OverflowServices.OverflowServiceTransactionsEstimator,
 			)
-			event := getOverflowBaseEvent()
+			event := getOverflowBaseEvent(cm.YoungestEventTimestamp)
 			overflowSvcTxnMetricsToAPMEvent(
 				processingTime,
 				cm.OverflowServices.OverflowServiceTransactions,
@@ -542,7 +535,7 @@ func CombinedMetricsToBatch(
 		}
 		if len(cm.OverflowServices.OverflowSpansEstimator) > 0 {
 			estimator := hllSketch(cm.OverflowServices.OverflowSpansEstimator)
-			event := getOverflowBaseEvent()
+			event := getOverflowBaseEvent(cm.YoungestEventTimestamp)
 			overflowSpanMetricsToAPMEvent(
 				processingTime,
 				cm.OverflowServices.OverflowSpans,
@@ -572,7 +565,10 @@ func setDroppedSpanStatsMetrics(dss *modelpb.DroppedSpanStats, repCount float64,
 	out.Sum = float64(dss.GetDuration().GetSum()) * repCount
 }
 
-func getBaseEvent(key *aggregationpb.ServiceAggregationKey) *modelpb.APMEvent {
+func getBaseEvent(
+	key *aggregationpb.ServiceAggregationKey,
+	youngestEventTS uint64,
+) *modelpb.APMEvent {
 	event := modelpb.APMEventFromVTPool()
 	event.Timestamp = key.Timestamp
 	event.Metricset = modelpb.MetricsetFromVTPool()
@@ -590,7 +586,21 @@ func getBaseEvent(key *aggregationpb.ServiceAggregationKey) *modelpb.APMEvent {
 		event.Agent.Name = key.AgentName
 	}
 
+	event.Event = modelpb.EventFromVTPool()
+	event.Event.Received = youngestEventTS
+
 	return event
+}
+
+func getOverflowBaseEvent(youngestEventTS uint64) *modelpb.APMEvent {
+	e := modelpb.APMEventFromVTPool()
+	e.Metricset = modelpb.MetricsetFromVTPool()
+	e.Service = modelpb.ServiceFromVTPool()
+	e.Service.Name = overflowBucketName
+
+	e.Event = modelpb.EventFromVTPool()
+	e.Event.Received = youngestEventTS
+	return e
 }
 
 func serviceMetricsToAPMEvent(
