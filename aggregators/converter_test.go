@@ -350,6 +350,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 
 func TestCombinedMetricsToBatch(t *testing.T) {
 	ts := time.Now()
+	youngestEventTS := ts.Add(-time.Second)
 	aggIvl := time.Minute
 	processingTime := ts.Truncate(aggIvl)
 	svcName := "test"
@@ -378,7 +379,7 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 			name:                "no_overflow_without_faas",
 			aggregationInterval: aggIvl,
 			combinedMetrics: func() *aggregationpb.CombinedMetrics {
-				return NewTestCombinedMetrics().
+				return NewTestCombinedMetrics(WithYoungestEventTimestamp(youngestEventTS)).
 					AddServiceMetrics(svc).
 					AddSpan(span, WithSpanCount(spanCount)).
 					AddTransaction(txn, WithTransactionCount(txnCount)).
@@ -386,17 +387,17 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 					GetProto()
 			},
 			expectedEvents: []*modelpb.APMEvent{
-				createTestTransactionMetric(ts, aggIvl, svcName, txn, nil, txnCount, 0),
-				createTestServiceTransactionMetric(ts, aggIvl, svcName, svcTxn, txnCount, 0),
-				createTestSpanMetric(ts, aggIvl, svcName, span, spanCount, 0),
-				createTestServiceSummaryMetric(ts, aggIvl, svcName, 0),
+				createTestTransactionMetric(ts, youngestEventTS, aggIvl, svcName, txn, nil, txnCount, 0),
+				createTestServiceTransactionMetric(ts, youngestEventTS, aggIvl, svcName, svcTxn, txnCount, 0),
+				createTestSpanMetric(ts, youngestEventTS, aggIvl, svcName, span, spanCount, 0),
+				createTestServiceSummaryMetric(ts, youngestEventTS, aggIvl, svcName, 0),
 			},
 		},
 		{
 			name:                "no_overflow",
 			aggregationInterval: aggIvl,
 			combinedMetrics: func() *aggregationpb.CombinedMetrics {
-				return NewTestCombinedMetrics().
+				return NewTestCombinedMetrics(WithYoungestEventTimestamp(youngestEventTS)).
 					AddServiceMetrics(svc).
 					AddSpan(span, WithSpanCount(spanCount)).
 					AddTransaction(txnFaas, WithTransactionCount(txnCount)).
@@ -404,17 +405,17 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 					GetProto()
 			},
 			expectedEvents: []*modelpb.APMEvent{
-				createTestTransactionMetric(ts, aggIvl, svcName, txn, faas, txnCount, 0),
-				createTestServiceTransactionMetric(ts, aggIvl, svcName, svcTxn, txnCount, 0),
-				createTestSpanMetric(ts, aggIvl, svcName, span, spanCount, 0),
-				createTestServiceSummaryMetric(ts, aggIvl, svcName, 0),
+				createTestTransactionMetric(ts, youngestEventTS, aggIvl, svcName, txn, faas, txnCount, 0),
+				createTestServiceTransactionMetric(ts, youngestEventTS, aggIvl, svcName, svcTxn, txnCount, 0),
+				createTestSpanMetric(ts, youngestEventTS, aggIvl, svcName, span, spanCount, 0),
+				createTestServiceSummaryMetric(ts, youngestEventTS, aggIvl, svcName, 0),
 			},
 		},
 		{
 			name:                "overflow",
 			aggregationInterval: aggIvl,
 			combinedMetrics: func() *aggregationpb.CombinedMetrics {
-				tcm := NewTestCombinedMetrics()
+				tcm := NewTestCombinedMetrics(WithYoungestEventTimestamp(youngestEventTS))
 				tcm.
 					AddServiceMetrics(svc).
 					AddSpan(span, WithSpanCount(spanCount)).
@@ -430,22 +431,22 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 				return tcm.GetProto()
 			},
 			expectedEvents: []*modelpb.APMEvent{
-				createTestTransactionMetric(ts, aggIvl, svcName, txnFaas, faas, txnCount, 0),
-				createTestServiceTransactionMetric(ts, aggIvl, svcName, svcTxn, txnCount, 0),
-				createTestSpanMetric(ts, aggIvl, svcName, span, spanCount, 0),
-				createTestServiceSummaryMetric(ts, aggIvl, svcName, 0),
+				createTestTransactionMetric(ts, youngestEventTS, aggIvl, svcName, txnFaas, faas, txnCount, 0),
+				createTestServiceTransactionMetric(ts, youngestEventTS, aggIvl, svcName, svcTxn, txnCount, 0),
+				createTestSpanMetric(ts, youngestEventTS, aggIvl, svcName, span, spanCount, 0),
+				createTestServiceSummaryMetric(ts, youngestEventTS, aggIvl, svcName, 0),
 				// Events due to overflow
-				createTestTransactionMetric(processingTime, aggIvl, svcName, overflowTxn, nil, txnCount, 1),
-				createTestServiceTransactionMetric(processingTime, aggIvl, svcName, overflowSvcTxn, txnCount, 1),
-				createTestSpanMetric(processingTime, aggIvl, svcName, overflowSpan, spanCount, 1),
-				createTestServiceSummaryMetric(processingTime, aggIvl, "_other", 1),
+				createTestTransactionMetric(processingTime, youngestEventTS, aggIvl, svcName, overflowTxn, nil, txnCount, 1),
+				createTestServiceTransactionMetric(processingTime, youngestEventTS, aggIvl, svcName, overflowSvcTxn, txnCount, 1),
+				createTestSpanMetric(processingTime, youngestEventTS, aggIvl, svcName, overflowSpan, spanCount, 1),
+				createTestServiceSummaryMetric(processingTime, youngestEventTS, aggIvl, "_other", 1),
 			},
 		},
 		{
 			name:                "service_overflow",
 			aggregationInterval: aggIvl,
 			combinedMetrics: func() *aggregationpb.CombinedMetrics {
-				tcm := NewTestCombinedMetrics()
+				tcm := NewTestCombinedMetrics(WithYoungestEventTimestamp(youngestEventTS))
 				tcm.AddServiceMetrics(serviceAggregationKey{Timestamp: ts, ServiceName: "svc1"})
 				tcm.AddServiceMetricsOverflow(serviceAggregationKey{
 					Timestamp: ts, ServiceName: "svc1",
@@ -458,8 +459,8 @@ func TestCombinedMetricsToBatch(t *testing.T) {
 				return tcm.GetProto()
 			},
 			expectedEvents: []*modelpb.APMEvent{
-				createTestServiceSummaryMetric(ts, aggIvl, "svc1", 0),
-				createTestServiceSummaryMetric(processingTime, aggIvl, "_other", 2),
+				createTestServiceSummaryMetric(ts, youngestEventTS, aggIvl, "svc1", 0),
+				createTestServiceSummaryMetric(processingTime, youngestEventTS, aggIvl, "_other", 2),
 			},
 		},
 	} {
@@ -565,7 +566,7 @@ func BenchmarkEventToCombinedMetrics(b *testing.B) {
 }
 
 func createTestServiceSummaryMetric(
-	ts time.Time,
+	ts, receivedTS time.Time,
 	ivl time.Duration,
 	svcName string,
 	overflowCount int,
@@ -581,6 +582,7 @@ func createTestServiceSummaryMetric(
 	}
 	return &modelpb.APMEvent{
 		Timestamp: modelpb.FromTime(ts),
+		Event:     &modelpb.Event{Received: modelpb.FromTime(receivedTS)},
 		Metricset: &modelpb.Metricset{
 			Name:     "service_summary",
 			Samples:  metricsetSamples,
@@ -591,7 +593,7 @@ func createTestServiceSummaryMetric(
 }
 
 func createTestTransactionMetric(
-	ts time.Time,
+	ts, receivedTS time.Time,
 	ivl time.Duration,
 	svcName string,
 	txn transactionAggregationKey,
@@ -627,6 +629,10 @@ func createTestTransactionMetric(
 	}
 	return &modelpb.APMEvent{
 		Timestamp: modelpb.FromTime(ts),
+		Event: &modelpb.Event{
+			SuccessCount: &eventSuccessSummary,
+			Received:     modelpb.FromTime(receivedTS),
+		},
 		Metricset: &modelpb.Metricset{
 			Name:     "transaction",
 			Interval: formatDuration(ivl),
@@ -644,14 +650,11 @@ func createTestTransactionMetric(
 			DurationSummary: transactionDurationSummary,
 		},
 		Faas: faas,
-		Event: &modelpb.Event{
-			SuccessCount: &eventSuccessSummary,
-		},
 	}
 }
 
 func createTestServiceTransactionMetric(
-	ts time.Time,
+	ts, receivedTS time.Time,
 	ivl time.Duration,
 	svcName string,
 	svcTxn serviceTransactionAggregationKey,
@@ -692,6 +695,7 @@ func createTestServiceTransactionMetric(
 			DurationSummary: transactionDurationSummary,
 		},
 		Event: &modelpb.Event{
+			Received: modelpb.FromTime(receivedTS),
 			SuccessCount: &modelpb.SummaryMetric{
 				// test code generates all success events
 				Count: uint64(count),
@@ -702,7 +706,7 @@ func createTestServiceTransactionMetric(
 }
 
 func createTestSpanMetric(
-	ts time.Time,
+	ts, receivedTS time.Time,
 	ivl time.Duration,
 	svcName string,
 	span spanAggregationKey,
@@ -725,6 +729,7 @@ func createTestSpanMetric(
 	}
 	return &modelpb.APMEvent{
 		Timestamp: modelpb.FromTime(ts),
+		Event:     &modelpb.Event{Received: modelpb.FromTime(receivedTS)},
 		Metricset: &modelpb.Metricset{
 			Name:     "service_destination",
 			Interval: formatDuration(ivl),
