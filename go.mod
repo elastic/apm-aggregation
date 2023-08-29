@@ -10,13 +10,13 @@ require (
 	github.com/elastic/apm-data v0.1.1-0.20230828075122-3d5c2a73763d
 	github.com/google/go-cmp v0.5.9
 	github.com/stretchr/testify v1.8.4
-	go.elastic.co/apm/module/apmotel/v2 v2.4.3
-	go.elastic.co/apm/v2 v2.4.3
-	go.opentelemetry.io/otel v1.16.0
-	go.opentelemetry.io/otel/metric v1.16.0
-	go.opentelemetry.io/otel/sdk v1.16.0
-	go.opentelemetry.io/otel/sdk/metric v0.39.0
-	go.opentelemetry.io/otel/trace v1.16.0
+	go.elastic.co/apm/module/apmotel/v2 v2.4.4
+	go.elastic.co/apm/v2 v2.4.4
+	go.opentelemetry.io/otel v1.17.0
+	go.opentelemetry.io/otel/metric v1.17.0
+	go.opentelemetry.io/otel/sdk v1.17.0
+	go.opentelemetry.io/otel/sdk/metric v0.40.0
+	go.opentelemetry.io/otel/trace v1.17.0
 	go.uber.org/zap v1.25.0
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/sync v0.3.0
@@ -57,7 +57,7 @@ require (
 	github.com/prometheus/client_model v0.2.1-0.20210607210712-147c58e9608a // indirect
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.8.0 // indirect
-	go.elastic.co/apm/module/apmhttp/v2 v2.4.3 // indirect
+	go.elastic.co/apm/module/apmhttp/v2 v2.4.4 // indirect
 	go.elastic.co/fastjson v1.3.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.76.1 // indirect
 	go.opentelemetry.io/collector/pdata v1.0.0-rcv0011 // indirect
