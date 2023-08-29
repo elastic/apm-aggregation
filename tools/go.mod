@@ -6,7 +6,7 @@ require (
 	github.com/elastic/go-licenser v0.4.1
 	github.com/planetscale/vtprotobuf v0.4.0
 	golang.org/x/tools v0.12.0
-	honnef.co/go/tools v0.4.3
+	honnef.co/go/tools v0.4.5
 )
 
 require (
