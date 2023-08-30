@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/elastic/go-licenser v0.4.1
-	github.com/planetscale/vtprotobuf v0.4.0
+	github.com/planetscale/vtprotobuf v0.4.1-0.20230829082524-cb44ee83ff7f
 	golang.org/x/tools v0.12.0
 	honnef.co/go/tools v0.4.5
 )
@@ -16,5 +16,3 @@ require (
 	golang.org/x/sys v0.11.0 // indirect
 	google.golang.org/protobuf v1.28.1 // indirect
 )
-
-replace github.com/planetscale/vtprotobuf => github.com/grafana/vtprotobuf v0.0.0-20230722075033-e8044ca07485
