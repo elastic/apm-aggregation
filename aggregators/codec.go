@@ -164,6 +164,53 @@ func (k *transactionAggregationKey) ToProto() *aggregationpb.TransactionAggregat
 	pb := aggregationpb.TransactionAggregationKeyFromVTPool()
 	pb.TraceRoot = k.TraceRoot
 
+	pb.ServiceVersion = k.ServiceVersion
+
+	pb.ServiceRuntimeName = k.ServiceRuntimeName
+	pb.ServiceRuntimeVersion = k.ServiceRuntimeVersion
+	pb.ServiceLanguageVersion = k.ServiceLanguageVersion
+
+	pb.EventOutcome = k.EventOutcome
+
+	pb.TransactionName = k.TransactionName
+	pb.TransactionType = k.TransactionType
+	pb.TransactionResult = k.TransactionResult
+
+	pb.FaasColdstart = uint32(k.FAASColdstart)
+	pb.FaasId = k.FAASID
+	pb.FaasName = k.FAASName
+	pb.FaasVersion = k.FAASVersion
+	pb.FaasTriggerType = k.FAASTriggerType
+	return pb
+}
+
+// FromProto converts protobuf representation to TransactionAggregationKey.
+func (k *transactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggregationKey) {
+	k.TraceRoot = pb.TraceRoot
+
+	k.ServiceVersion = pb.ServiceVersion
+
+	k.ServiceRuntimeName = pb.ServiceRuntimeName
+	k.ServiceRuntimeVersion = pb.ServiceRuntimeVersion
+	k.ServiceLanguageVersion = pb.ServiceLanguageVersion
+
+	k.EventOutcome = pb.EventOutcome
+
+	k.TransactionName = pb.TransactionName
+	k.TransactionType = pb.TransactionType
+	k.TransactionResult = pb.TransactionResult
+
+	k.FAASColdstart = nullable.Bool(pb.FaasColdstart)
+	k.FAASID = pb.FaasId
+	k.FAASName = pb.FaasName
+	k.FAASVersion = pb.FaasVersion
+	k.FAASTriggerType = pb.FaasTriggerType
+}
+
+// ToProto converts ServiceInstanceTransactionAggregationKey to its protobuf representation.
+func (k *serviceInstanceTransactionAggregationKey) ToProto() *aggregationpb.ServiceInstanceTransactionAggregationKey {
+	pb := aggregationpb.ServiceInstanceTransactionAggregationKeyFromVTPool()
+
 	pb.ContainerId = k.ContainerID
 	pb.KubernetesPodName = k.KubernetesPodName
 
@@ -178,17 +225,7 @@ func (k *transactionAggregationKey) ToProto() *aggregationpb.TransactionAggregat
 	pb.HostName = k.HostName
 	pb.HostOsPlatform = k.HostOSPlatform
 
-	pb.EventOutcome = k.EventOutcome
-
-	pb.TransactionName = k.TransactionName
 	pb.TransactionType = k.TransactionType
-	pb.TransactionResult = k.TransactionResult
-
-	pb.FaasColdstart = uint32(k.FAASColdstart)
-	pb.FaasId = k.FAASID
-	pb.FaasName = k.FAASName
-	pb.FaasVersion = k.FAASVersion
-	pb.FaasTriggerType = k.FAASTriggerType
 
 	pb.CloudProvider = k.CloudProvider
 	pb.CloudRegion = k.CloudRegion
@@ -202,45 +239,33 @@ func (k *transactionAggregationKey) ToProto() *aggregationpb.TransactionAggregat
 	return pb
 }
 
-// FromProto converts protobuf representation to TransactionAggregationKey.
-func (k *transactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggregationKey) {
-	k.TraceRoot = pb.TraceRoot
+// FromProto converts protobuf representation to ServiceInstanceTransactionAggregationKey.
+func (k *serviceInstanceTransactionAggregationKey) FromProto(pb *aggregationpb.ServiceInstanceTransactionAggregationKey) {
+	pb.ContainerId = k.ContainerID
+	pb.KubernetesPodName = k.KubernetesPodName
 
-	k.ContainerID = pb.ContainerId
-	k.KubernetesPodName = pb.KubernetesPodName
+	pb.ServiceVersion = k.ServiceVersion
+	pb.ServiceNodeName = k.ServiceNodeName
 
-	k.ServiceVersion = pb.ServiceVersion
-	k.ServiceNodeName = pb.ServiceNodeName
+	pb.ServiceRuntimeName = k.ServiceRuntimeName
+	pb.ServiceRuntimeVersion = k.ServiceRuntimeVersion
+	pb.ServiceLanguageVersion = k.ServiceLanguageVersion
 
-	k.ServiceRuntimeName = pb.ServiceRuntimeName
-	k.ServiceRuntimeVersion = pb.ServiceRuntimeVersion
-	k.ServiceLanguageVersion = pb.ServiceLanguageVersion
+	pb.HostHostname = k.HostHostname
+	pb.HostName = k.HostName
+	pb.HostOsPlatform = k.HostOSPlatform
 
-	k.HostHostname = pb.HostHostname
-	k.HostName = pb.HostName
-	k.HostOSPlatform = pb.HostOsPlatform
+	pb.TransactionType = k.TransactionType
 
-	k.EventOutcome = pb.EventOutcome
-
-	k.TransactionName = pb.TransactionName
-	k.TransactionType = pb.TransactionType
-	k.TransactionResult = pb.TransactionResult
-
-	k.FAASColdstart = nullable.Bool(pb.FaasColdstart)
-	k.FAASID = pb.FaasId
-	k.FAASName = pb.FaasName
-	k.FAASVersion = pb.FaasVersion
-	k.FAASTriggerType = pb.FaasTriggerType
-
-	k.CloudProvider = pb.CloudProvider
-	k.CloudRegion = pb.CloudRegion
-	k.CloudAvailabilityZone = pb.CloudAvailabilityZone
-	k.CloudServiceName = pb.CloudServiceName
-	k.CloudAccountID = pb.CloudAccountId
-	k.CloudAccountName = pb.CloudAccountName
-	k.CloudMachineType = pb.CloudMachineType
-	k.CloudProjectID = pb.CloudProjectId
-	k.CloudProjectName = pb.CloudProjectName
+	pb.CloudProvider = k.CloudProvider
+	pb.CloudRegion = k.CloudRegion
+	pb.CloudAvailabilityZone = k.CloudAvailabilityZone
+	pb.CloudServiceName = k.CloudServiceName
+	pb.CloudAccountId = k.CloudAccountID
+	pb.CloudAccountName = k.CloudAccountName
+	pb.CloudMachineType = k.CloudMachineType
+	pb.CloudProjectId = k.CloudProjectID
+	pb.CloudProjectName = k.CloudProjectName
 }
 
 // ToProto converts ServiceTransactionAggregationKey to its protobuf representation.
@@ -286,6 +311,10 @@ func (o *overflow) ToProto() *aggregationpb.Overflow {
 		pb.OverflowTransactions = o.OverflowTransaction.Metrics
 		pb.OverflowTransactionsEstimator = hllBytes(o.OverflowTransaction.Estimator)
 	}
+	if !o.OverflowServiceInstanceTransaction.Empty() {
+		pb.OverflowServiceInstanceTransactions = o.OverflowServiceInstanceTransaction.Metrics
+		pb.OverflowServiceInstanceTransactionsEstimator = hllBytes(o.OverflowServiceInstanceTransaction.Estimator)
+	}
 	if !o.OverflowServiceTransaction.Empty() {
 		pb.OverflowServiceTransactions = o.OverflowServiceTransaction.Metrics
 		pb.OverflowServiceTransactionsEstimator = hllBytes(o.OverflowServiceTransaction.Estimator)
@@ -303,6 +332,11 @@ func (o *overflow) FromProto(pb *aggregationpb.Overflow) {
 		o.OverflowTransaction.Estimator = hllSketch(pb.OverflowTransactionsEstimator)
 		o.OverflowTransaction.Metrics = pb.OverflowTransactions
 		pb.OverflowTransactions = nil
+	}
+	if pb.OverflowServiceInstanceTransactions != nil {
+		o.OverflowServiceInstanceTransaction.Estimator = hllSketch(pb.OverflowServiceInstanceTransactionsEstimator)
+		o.OverflowServiceInstanceTransaction.Metrics = pb.OverflowServiceInstanceTransactions
+		pb.OverflowServiceInstanceTransactions = nil
 	}
 	if pb.OverflowServiceTransactions != nil {
 		o.OverflowServiceTransaction.Estimator = hllSketch(pb.OverflowServiceTransactionsEstimator)

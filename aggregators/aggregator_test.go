@@ -111,13 +111,15 @@ func TestAggregateBatch(t *testing.T) {
 	agg, err := New(
 		WithDataDir(t.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                         1000,
-			MaxSpanGroupsPerService:               100,
-			MaxTransactionGroups:                  100,
-			MaxTransactionGroupsPerService:        10,
-			MaxServiceTransactionGroups:           100,
-			MaxServiceTransactionGroupsPerService: 10,
-			MaxServices:                           10,
+			MaxSpanGroups:                                 1000,
+			MaxSpanGroupsPerService:                       100,
+			MaxTransactionGroups:                          100,
+			MaxTransactionGroupsPerService:                10,
+			MaxServiceInstanceTransactionGroups:           100,
+			MaxServiceInstanceTransactionGroupsPerService: 10,
+			MaxServiceTransactionGroups:                   100,
+			MaxServiceTransactionGroupsPerService:         10,
+			MaxServices:                                   10,
 		}),
 		WithProcessor(combinedMetricsProcessor(out)),
 		WithAggregationIntervals([]time.Duration{aggIvl}),
@@ -186,6 +188,9 @@ func TestAggregateBatch(t *testing.T) {
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 			EventOutcome:    "success",
 		}
+		sitxKey := serviceInstanceTransactionAggregationKey{
+			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
+		}
 		stxKey := serviceTransactionAggregationKey{
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 		}
@@ -201,6 +206,7 @@ func TestAggregateBatch(t *testing.T) {
 		expectedCombinedMetrics.
 			AddServiceMetrics(svcKey).
 			AddTransaction(txKey, WithTransactionDuration(eventDuration)).
+			AddServiceInstanceTransaction(sitxKey, WithTransactionDuration(eventDuration)).
 			AddServiceTransaction(stxKey, WithTransactionDuration(eventDuration)).
 			AddSpan(spanKey, WithSpanDuration(eventDuration)).
 			AddSpan(dssKey, WithSpanDuration(dssDuration))
@@ -569,13 +575,15 @@ func TestAggregateSpanMetrics(t *testing.T) {
 			aggregationIvls := []time.Duration{time.Minute, 10 * time.Minute, time.Hour}
 			agg, err := New(
 				WithLimits(Limits{
-					MaxSpanGroups:                         1000,
-					MaxSpanGroupsPerService:               100,
-					MaxTransactionGroups:                  100,
-					MaxTransactionGroupsPerService:        10,
-					MaxServiceTransactionGroups:           100,
-					MaxServiceTransactionGroupsPerService: 10,
-					MaxServices:                           10,
+					MaxSpanGroups:                                 1000,
+					MaxSpanGroupsPerService:                       100,
+					MaxTransactionGroups:                          100,
+					MaxTransactionGroupsPerService:                10,
+					MaxServiceInstanceTransactionGroups:           100,
+					MaxServiceInstanceTransactionGroupsPerService: 10,
+					MaxServiceTransactionGroups:                   100,
+					MaxServiceTransactionGroupsPerService:         10,
+					MaxServices:                                   10,
 				}),
 				WithAggregationIntervals(aggregationIvls),
 				WithProcessor(sliceProcessor(&actualEvents)),
@@ -899,13 +907,15 @@ func TestAggregateAndHarvest(t *testing.T) {
 	agg, err := New(
 		WithDataDir(t.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                         1000,
-			MaxSpanGroupsPerService:               100,
-			MaxTransactionGroups:                  100,
-			MaxTransactionGroupsPerService:        10,
-			MaxServiceTransactionGroups:           100,
-			MaxServiceTransactionGroupsPerService: 10,
-			MaxServices:                           10,
+			MaxSpanGroups:                                 1000,
+			MaxSpanGroupsPerService:                       100,
+			MaxTransactionGroups:                          100,
+			MaxTransactionGroupsPerService:                10,
+			MaxServiceInstanceTransactionGroups:           100,
+			MaxServiceInstanceTransactionGroupsPerService: 10,
+			MaxServiceTransactionGroups:                   100,
+			MaxServiceTransactionGroupsPerService:         10,
+			MaxServices:                                   10,
 		}),
 		WithProcessor(sliceProcessor(&events)),
 		WithAggregationIntervals([]time.Duration{time.Second}),
@@ -955,6 +965,42 @@ func TestAggregateAndHarvest(t *testing.T) {
 			},
 			Metricset: &modelpb.Metricset{
 				Name:     "transaction",
+				DocCount: 1,
+				Interval: "1s",
+			},
+		},
+		{
+			Event: &modelpb.Event{
+				SuccessCount: &modelpb.SummaryMetric{
+					Count: 1,
+					Sum:   1,
+				},
+			},
+			Transaction: &modelpb.Transaction{
+				Type: "txtype",
+				DurationSummary: &modelpb.SummaryMetric{
+					Count: 1,
+					Sum:   100351, // Estimate from histogram
+				},
+				DurationHistogram: &modelpb.Histogram{
+					Values: []float64{100351},
+					Counts: []uint64{1},
+				},
+			},
+			Service: &modelpb.Service{
+				Name: "svc",
+			},
+			Labels: modelpb.Labels{
+				"department_name": &modelpb.LabelValue{Global: true, Value: "apm"},
+				"organization":    &modelpb.LabelValue{Global: true, Value: "observability"},
+				"company":         &modelpb.LabelValue{Global: true, Value: "elastic"},
+			},
+			NumericLabels: modelpb.NumericLabels{
+				"user_id":     &modelpb.NumericLabelValue{Global: true, Value: 100},
+				"cost_center": &modelpb.NumericLabelValue{Global: true, Value: 10},
+			},
+			Metricset: &modelpb.Metricset{
+				Name:     "service_instance_transaction",
 				DocCount: 1,
 				Interval: "1s",
 			},

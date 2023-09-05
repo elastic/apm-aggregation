@@ -22,10 +22,11 @@ import (
 )
 
 const (
-	spanMetricsetName    = "service_destination"
-	txnMetricsetName     = "transaction"
-	svcTxnMetricsetName  = "service_transaction"
-	summaryMetricsetName = "service_summary"
+	spanMetricsetName       = "service_destination"
+	txnMetricsetName        = "transaction"
+	svcInstTxnMetricsetName = "service_instance_transaction"
+	svcTxnMetricsetName     = "service_transaction"
+	summaryMetricsetName    = "service_summary"
 
 	overflowBucketName = "_other"
 )
@@ -94,6 +95,9 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 		}
 		duration := time.Duration(e.GetEvent().GetDuration())
 		p.addTransactionMetrics(e, repCount, duration)
+
+		p.addServiceInstanceTransactionMetrics(e, repCount, duration)
+
 		p.addServiceTransactionMetrics(e, repCount, duration)
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
 			p.addDroppedSpanStatsMetrics(dss, repCount)
@@ -127,6 +131,25 @@ func (p *partitionedMetricsBuilder) addTransactionMetrics(e *modelpb.APMEvent, c
 	setHistogramProto(hdr, &mb.transactionHistogram)
 	mb.transactionMetrics.Histogram = &mb.transactionHistogram
 	mb.keyedTransactionMetricsSlice = mb.keyedTransactionMetricsArray[:]
+}
+
+func (p *partitionedMetricsBuilder) addServiceInstanceTransactionMetrics(e *modelpb.APMEvent, count float64, duration time.Duration) {
+	var key aggregationpb.ServiceInstanceTransactionAggregationKey
+	setServiceInstanceTransactionKey(e, &key)
+	hash := protohash.HashServiceInstanceTransactionAggregationKey(p.serviceHash, &key)
+
+	mb := p.get(hash)
+	mb.serviceInstanceTransactionAggregationKey = key
+
+	if mb.transactionMetrics.Histogram == nil {
+		// mb.TransactionMetrics.Histogram will be set if the event's
+		// transaction metric ended up in the same partition.
+		hdr := hdrhistogram.New()
+		hdr.RecordDuration(duration, count)
+		setHistogramProto(hdr, &mb.transactionHistogram)
+	}
+	mb.serviceInstanceTransactionMetrics.Histogram = &mb.transactionHistogram
+	mb.keyedServiceInstanceTransactionMetricsSlice = mb.keyedServiceInstanceTransactionMetricsArray[:]
 }
 
 func (p *partitionedMetricsBuilder) addServiceTransactionMetrics(e *modelpb.APMEvent, count float64, duration time.Duration) {
@@ -248,6 +271,13 @@ type eventMetricsBuilder struct {
 	keyedServiceTransactionMetrics      aggregationpb.KeyedServiceTransactionMetrics
 	keyedServiceTransactionMetricsArray [1]*aggregationpb.KeyedServiceTransactionMetrics
 	keyedServiceTransactionMetricsSlice []*aggregationpb.KeyedServiceTransactionMetrics
+
+	// There can be at most ? service instance transaction metric per event.
+	serviceInstanceTransactionAggregationKey    aggregationpb.ServiceInstanceTransactionAggregationKey
+	serviceInstanceTransactionMetrics           aggregationpb.ServiceInstanceTransactionMetrics
+	keyedServiceInstanceTransactionMetrics      aggregationpb.KeyedServiceInstanceTransactionMetrics
+	keyedServiceInstanceTransactionMetricsArray [1]*aggregationpb.KeyedServiceInstanceTransactionMetrics
+	keyedServiceInstanceTransactionMetricsSlice []*aggregationpb.KeyedServiceInstanceTransactionMetrics
 
 	// There can be at most 128 span metrics per event:
 	// - exactly 1 for a span event
@@ -397,6 +427,7 @@ func CombinedMetricsToBatch(
 	for _, ksm := range cm.ServiceMetrics {
 		sm := ksm.Metrics
 		batchSize += len(sm.TransactionMetrics)
+		batchSize += len(sm.ServiceInstanceTransactionMetrics)
 		batchSize += len(sm.ServiceTransactionMetrics)
 		batchSize += len(sm.SpanMetrics)
 		batchSize++ // Each service will create a service summary metric
@@ -404,6 +435,9 @@ func CombinedMetricsToBatch(
 			continue
 		}
 		if len(sm.OverflowGroups.OverflowTransactionsEstimator) > 0 {
+			batchSize++
+		}
+		if len(sm.OverflowGroups.OverflowServiceInstanceTransactionsEstimator) > 0 {
 			batchSize++
 		}
 		if len(sm.OverflowGroups.OverflowServiceTransactionsEstimator) > 0 {
@@ -437,6 +471,12 @@ func CombinedMetricsToBatch(
 			txnMetricsToAPMEvent(ktm.Key, ktm.Metrics, event, aggIntervalStr)
 			b = append(b, event)
 		}
+		// service instance transaction metrics
+		for _, ksitm := range sm.ServiceInstanceTransactionMetrics {
+			event := getBaseEventWithLabels()
+			svcInstTxnMetricsToAPMEvent(ksitm.Key, ksitm.Metrics, event, aggIntervalStr)
+			b = append(b, event)
+		}
 		// service transaction metrics
 		for _, kstm := range sm.ServiceTransactionMetrics {
 			event := getBaseEventWithLabels()
@@ -464,6 +504,20 @@ func CombinedMetricsToBatch(
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowTransactions,
+				estimator.Estimate(),
+				event,
+				aggIntervalStr,
+			)
+			b = append(b, event)
+		}
+		if len(sm.OverflowGroups.OverflowServiceInstanceTransactionsEstimator) > 0 {
+			estimator := hllSketch(
+				sm.OverflowGroups.OverflowServiceInstanceTransactionsEstimator,
+			)
+			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
+			overflowSvcInstTxnMetricsToAPMEvent(
+				processingTime,
+				sm.OverflowGroups.OverflowServiceInstanceTransactions,
 				estimator.Estimate(),
 				event,
 				aggIntervalStr,
@@ -519,6 +573,20 @@ func CombinedMetricsToBatch(
 			)
 			b = append(b, event)
 
+		}
+		if len(cm.OverflowServices.OverflowServiceInstanceTransactionsEstimator) > 0 {
+			estimator := hllSketch(
+				cm.OverflowServices.OverflowServiceInstanceTransactionsEstimator,
+			)
+			event := getOverflowBaseEvent(cm.YoungestEventTimestamp)
+			overflowSvcInstTxnMetricsToAPMEvent(
+				processingTime,
+				cm.OverflowServices.OverflowServiceInstanceTransactions,
+				estimator.Estimate(),
+				event,
+				aggIntervalStr,
+			)
+			b = append(b, event)
 		}
 		if len(cm.OverflowServices.OverflowServiceTransactionsEstimator) > 0 {
 			estimator := hllSketch(
@@ -666,35 +734,11 @@ func txnMetricsToAPMEvent(
 	baseEvent.Event.Outcome = key.EventOutcome
 	baseEvent.Event.SuccessCount = eventSuccessCount
 
-	if key.ContainerId != "" {
-		if baseEvent.Container == nil {
-			baseEvent.Container = modelpb.ContainerFromVTPool()
-		}
-		baseEvent.Container.Id = key.ContainerId
-	}
-
-	if key.KubernetesPodName != "" {
-		if baseEvent.Kubernetes == nil {
-			baseEvent.Kubernetes = modelpb.KubernetesFromVTPool()
-		}
-		baseEvent.Kubernetes.PodName = key.KubernetesPodName
-	}
-
 	if key.ServiceVersion != "" {
 		if baseEvent.Service == nil {
 			baseEvent.Service = modelpb.ServiceFromVTPool()
 		}
 		baseEvent.Service.Version = key.ServiceVersion
-	}
-
-	if key.ServiceNodeName != "" {
-		if baseEvent.Service == nil {
-			baseEvent.Service = modelpb.ServiceFromVTPool()
-		}
-		if baseEvent.Service.Node == nil {
-			baseEvent.Service.Node = modelpb.ServiceNodeFromVTPool()
-		}
-		baseEvent.Service.Node.Name = key.ServiceNodeName
 	}
 
 	if key.ServiceRuntimeName != "" ||
@@ -720,26 +764,6 @@ func txnMetricsToAPMEvent(
 		baseEvent.Service.Language.Version = key.ServiceLanguageVersion
 	}
 
-	if key.HostHostname != "" ||
-		key.HostName != "" {
-
-		if baseEvent.Host == nil {
-			baseEvent.Host = modelpb.HostFromVTPool()
-		}
-		baseEvent.Host.Hostname = key.HostHostname
-		baseEvent.Host.Name = key.HostName
-	}
-
-	if key.HostOsPlatform != "" {
-		if baseEvent.Host == nil {
-			baseEvent.Host = modelpb.HostFromVTPool()
-		}
-		if baseEvent.Host.Os == nil {
-			baseEvent.Host.Os = modelpb.OSFromVTPool()
-		}
-		baseEvent.Host.Os.Platform = key.HostOsPlatform
-	}
-
 	faasColdstart := nullable.Bool(key.FaasColdstart)
 	if faasColdstart != nullable.Nil ||
 		key.FaasId != "" ||
@@ -756,7 +780,115 @@ func txnMetricsToAPMEvent(
 		baseEvent.Faas.Version = key.FaasVersion
 		baseEvent.Faas.TriggerType = key.FaasTriggerType
 	}
+}
 
+func svcInstTxnMetricsToAPMEvent(
+	key *aggregationpb.ServiceInstanceTransactionAggregationKey,
+	metrics *aggregationpb.ServiceInstanceTransactionMetrics,
+	baseEvent *modelpb.APMEvent,
+	intervalStr string,
+) {
+	histogram := hdrhistogram.New()
+	histogramFromProto(histogram, metrics.Histogram)
+	totalCount, counts, values := histogram.Buckets()
+	transactionDurationSummary := modelpb.SummaryMetric{
+		Count: totalCount,
+	}
+	for i, v := range values {
+		transactionDurationSummary.Sum += v * float64(counts[i])
+	}
+
+	if baseEvent.Transaction == nil {
+		baseEvent.Transaction = modelpb.TransactionFromVTPool()
+	}
+	baseEvent.Transaction.Type = key.TransactionType
+	baseEvent.Transaction.DurationSummary = &transactionDurationSummary
+	baseEvent.Transaction.DurationHistogram = &modelpb.Histogram{
+		Counts: counts,
+		Values: values,
+	}
+
+	if baseEvent.Metricset == nil {
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
+	}
+	baseEvent.Metricset.Name = svcInstTxnMetricsetName
+	baseEvent.Metricset.DocCount = totalCount
+	baseEvent.Metricset.Interval = intervalStr
+
+	if baseEvent.Event == nil {
+		baseEvent.Event = modelpb.EventFromVTPool()
+	}
+	baseEvent.Event.SuccessCount = &modelpb.SummaryMetric{
+		Count: uint64(math.Round(metrics.SuccessCount + metrics.FailureCount)),
+		Sum:   math.Round(metrics.SuccessCount),
+	}
+
+	if key.ContainerId != "" {
+		if baseEvent.Container == nil {
+			baseEvent.Container = modelpb.ContainerFromVTPool()
+		}
+		baseEvent.Container.Id = key.ContainerId
+	}
+	if key.KubernetesPodName != "" {
+		if baseEvent.Kubernetes == nil {
+			baseEvent.Kubernetes = modelpb.KubernetesFromVTPool()
+		}
+		baseEvent.Kubernetes.PodName = key.KubernetesPodName
+	}
+	if key.ServiceVersion != "" {
+		if baseEvent.Service == nil {
+			baseEvent.Service = modelpb.ServiceFromVTPool()
+		}
+		baseEvent.Service.Version = key.ServiceVersion
+	}
+	if key.ServiceNodeName != "" {
+		if baseEvent.Service == nil {
+			baseEvent.Service = modelpb.ServiceFromVTPool()
+		}
+		if baseEvent.Service.Node == nil {
+			baseEvent.Service.Node = modelpb.ServiceNodeFromVTPool()
+		}
+		baseEvent.Service.Node.Name = key.ServiceNodeName
+	}
+	if key.ServiceRuntimeName != "" ||
+		key.ServiceRuntimeVersion != "" {
+
+		if baseEvent.Service == nil {
+			baseEvent.Service = modelpb.ServiceFromVTPool()
+		}
+		if baseEvent.Service.Runtime == nil {
+			baseEvent.Service.Runtime = modelpb.RuntimeFromVTPool()
+		}
+		baseEvent.Service.Runtime.Name = key.ServiceRuntimeName
+		baseEvent.Service.Runtime.Version = key.ServiceRuntimeVersion
+	}
+	if key.ServiceLanguageVersion != "" {
+		if baseEvent.Service == nil {
+			baseEvent.Service = modelpb.ServiceFromVTPool()
+		}
+		if baseEvent.Service.Language == nil {
+			baseEvent.Service.Language = modelpb.LanguageFromVTPool()
+		}
+		baseEvent.Service.Language.Version = key.ServiceLanguageVersion
+	}
+	if key.HostHostname != "" ||
+		key.HostName != "" {
+
+		if baseEvent.Host == nil {
+			baseEvent.Host = modelpb.HostFromVTPool()
+		}
+		baseEvent.Host.Hostname = key.HostHostname
+		baseEvent.Host.Name = key.HostName
+	}
+	if key.HostOsPlatform != "" {
+		if baseEvent.Host == nil {
+			baseEvent.Host = modelpb.HostFromVTPool()
+		}
+		if baseEvent.Host.Os == nil {
+			baseEvent.Host.Os = modelpb.OSFromVTPool()
+		}
+		baseEvent.Host.Os.Platform = key.HostOsPlatform
+	}
 	if key.CloudProvider != "" ||
 		key.CloudRegion != "" ||
 		key.CloudAvailabilityZone != "" ||
@@ -891,6 +1023,31 @@ func overflowServiceMetricsToAPMEvent(
 
 	sample := modelpb.MetricsetSampleFromVTPool()
 	sample.Name = "service_summary.aggregation.overflow_count"
+	sample.Value = float64(overflowCount)
+	if baseEvent.Metricset == nil {
+		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
+	}
+	baseEvent.Metricset.Samples = append(baseEvent.Metricset.Samples, sample)
+}
+
+func overflowSvcInstTxnMetricsToAPMEvent(
+	processingTime time.Time,
+	overflowTxn *aggregationpb.ServiceInstanceTransactionMetrics,
+	overflowCount uint64,
+	baseEvent *modelpb.APMEvent,
+	intervalStr string,
+) {
+	// Overflow metrics use the processing time as their timestamp rather than
+	// the event time. This makes sure that they can be associated with the
+	// appropriate time when the event volume caused them to overflow.
+	baseEvent.Timestamp = modelpb.FromTime(processingTime)
+	overflowKey := &aggregationpb.ServiceInstanceTransactionAggregationKey{
+		TransactionType: overflowBucketName,
+	}
+	svcInstTxnMetricsToAPMEvent(overflowKey, overflowTxn, baseEvent, intervalStr)
+
+	sample := modelpb.MetricsetSampleFromVTPool()
+	sample.Name = "service_instance_transaction.aggregation.overflow_count"
 	sample.Value = float64(overflowCount)
 	if baseEvent.Metricset == nil {
 		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
@@ -1065,6 +1222,32 @@ func setTransactionKey(e *modelpb.APMEvent, key *aggregationpb.TransactionAggreg
 
 	key.TraceRoot = e.GetParentId() == ""
 
+	key.ServiceVersion = e.GetService().GetVersion()
+
+	key.ServiceRuntimeName = e.GetService().GetRuntime().GetName()
+	key.ServiceRuntimeVersion = e.GetService().GetRuntime().GetVersion()
+	key.ServiceLanguageVersion = e.GetService().GetLanguage().GetVersion()
+
+	key.EventOutcome = e.GetEvent().GetOutcome()
+
+	key.TransactionName = e.GetTransaction().GetName()
+	key.TransactionType = e.GetTransaction().GetType()
+	key.TransactionResult = e.GetTransaction().GetResult()
+
+	key.FaasColdstart = uint32(faasColdstart)
+	key.FaasId = faas.GetId()
+	key.FaasName = faas.GetName()
+	key.FaasVersion = faas.GetVersion()
+	key.FaasTriggerType = faas.GetTriggerType()
+}
+
+func setServiceInstanceTransactionKey(e *modelpb.APMEvent, key *aggregationpb.ServiceInstanceTransactionAggregationKey) {
+	var faasColdstart nullable.Bool
+	faas := e.GetFaas()
+	if faas != nil {
+		faasColdstart.ParseBoolPtr(faas.ColdStart)
+	}
+
 	key.ContainerId = e.GetContainer().GetId()
 	key.KubernetesPodName = e.GetKubernetes().GetPodName()
 
@@ -1079,17 +1262,7 @@ func setTransactionKey(e *modelpb.APMEvent, key *aggregationpb.TransactionAggreg
 	key.HostName = e.GetHost().GetName()
 	key.HostOsPlatform = e.GetHost().GetOs().GetPlatform()
 
-	key.EventOutcome = e.GetEvent().GetOutcome()
-
-	key.TransactionName = e.GetTransaction().GetName()
 	key.TransactionType = e.GetTransaction().GetType()
-	key.TransactionResult = e.GetTransaction().GetResult()
-
-	key.FaasColdstart = uint32(faasColdstart)
-	key.FaasId = faas.GetId()
-	key.FaasName = faas.GetName()
-	key.FaasVersion = faas.GetVersion()
-	key.FaasTriggerType = faas.GetTriggerType()
 
 	key.CloudProvider = e.GetCloud().GetProvider()
 	key.CloudRegion = e.GetCloud().GetRegion()
