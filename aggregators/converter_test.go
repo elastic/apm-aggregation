@@ -707,7 +707,7 @@ func createTestTransactionMetric(
 }
 
 func createTestServiceInstanceTransactionMetric(
-	ts, time.Time,
+	ts time.Time,
 	ivl time.Duration,
 	svcName string,
 	svcInstTxn serviceInstanceTransactionAggregationKey,
