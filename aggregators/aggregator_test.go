@@ -157,7 +157,7 @@ func TestAggregateBatch(t *testing.T) {
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 167150},
+				"events.processed.bytes": {Value: 153700},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},

@@ -303,6 +303,7 @@ func getEventMetricsBuilder(partition uint16) *eventMetricsBuilder {
 		}
 		mb.transactionHDRHistogramRepresentation.CountsRep.Reset()
 		mb.keyedServiceTransactionMetricsSlice = mb.keyedServiceTransactionMetricsSlice[:0]
+		mb.keyedServiceInstanceTransactionMetricsSlice = mb.keyedServiceInstanceTransactionMetricsSlice[:0]
 		mb.keyedTransactionMetricsSlice = mb.keyedTransactionMetricsSlice[:0]
 		mb.keyedSpanMetricsSlice = mb.keyedSpanMetricsSlice[:0]
 		return mb

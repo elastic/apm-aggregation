@@ -71,9 +71,6 @@ func TestEventToCombinedMetrics(t *testing.T) {
 						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceTransaction(serviceInstanceTransactionAggregationKey{
-							TransactionType: "testtyp",
-						}).
 						GetProto(),
 				}
 			},
@@ -132,9 +129,6 @@ func TestEventToCombinedMetrics(t *testing.T) {
 						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceTransaction(serviceInstanceTransactionAggregationKey{
-							TransactionType: "testtyp",
-						}).
 						GetProto(),
 				}
 			},
@@ -159,9 +153,6 @@ func TestEventToCombinedMetrics(t *testing.T) {
 						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceTransaction(serviceInstanceTransactionAggregationKey{
-							TransactionType: "testtyp",
-						}).
 						GetProto(),
 				}
 			},
@@ -192,9 +183,6 @@ func TestEventToCombinedMetrics(t *testing.T) {
 						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceTransaction(serviceInstanceTransactionAggregationKey{
-							TransactionType: "testtyp",
-						}).
 						AddSpan(spanAggregationKey{
 							SpanName:   "testspan",
 							TargetName: "psql",
@@ -229,9 +217,6 @@ func TestEventToCombinedMetrics(t *testing.T) {
 						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceTransaction(serviceInstanceTransactionAggregationKey{
-							TransactionType: "testtyp",
-						}).
 						AddSpan(spanAggregationKey{
 							SpanName: "testspan",
 							Resource: "db",
@@ -259,9 +244,6 @@ func TestEventToCombinedMetrics(t *testing.T) {
 						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceTransaction(serviceInstanceTransactionAggregationKey{
-							TransactionType: "testtyp",
-						}).
 						GetProto(),
 				}
 			},
@@ -282,9 +264,6 @@ func TestEventToCombinedMetrics(t *testing.T) {
 						AddServiceMetrics(serviceAggregationKey{
 							Timestamp:   ts.Truncate(time.Minute),
 							ServiceName: "test"}).
-						AddServiceInstanceTransaction(serviceInstanceTransactionAggregationKey{
-							TransactionType: "testtyp",
-						}).
 						GetProto(),
 				}
 			},
