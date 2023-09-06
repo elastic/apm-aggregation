@@ -837,18 +837,21 @@ func svcInstTxnMetricsToAPMEvent(
 		}
 		baseEvent.Container.Id = key.ContainerId
 	}
+
 	if key.KubernetesPodName != "" {
 		if baseEvent.Kubernetes == nil {
 			baseEvent.Kubernetes = modelpb.KubernetesFromVTPool()
 		}
 		baseEvent.Kubernetes.PodName = key.KubernetesPodName
 	}
+
 	if key.ServiceVersion != "" {
 		if baseEvent.Service == nil {
 			baseEvent.Service = modelpb.ServiceFromVTPool()
 		}
 		baseEvent.Service.Version = key.ServiceVersion
 	}
+
 	if key.ServiceNodeName != "" {
 		if baseEvent.Service == nil {
 			baseEvent.Service = modelpb.ServiceFromVTPool()
@@ -858,6 +861,7 @@ func svcInstTxnMetricsToAPMEvent(
 		}
 		baseEvent.Service.Node.Name = key.ServiceNodeName
 	}
+
 	if key.ServiceRuntimeName != "" ||
 		key.ServiceRuntimeVersion != "" {
 
@@ -870,6 +874,7 @@ func svcInstTxnMetricsToAPMEvent(
 		baseEvent.Service.Runtime.Name = key.ServiceRuntimeName
 		baseEvent.Service.Runtime.Version = key.ServiceRuntimeVersion
 	}
+
 	if key.ServiceLanguageVersion != "" {
 		if baseEvent.Service == nil {
 			baseEvent.Service = modelpb.ServiceFromVTPool()
@@ -879,6 +884,7 @@ func svcInstTxnMetricsToAPMEvent(
 		}
 		baseEvent.Service.Language.Version = key.ServiceLanguageVersion
 	}
+
 	if key.HostHostname != "" ||
 		key.HostName != "" {
 
@@ -888,6 +894,7 @@ func svcInstTxnMetricsToAPMEvent(
 		baseEvent.Host.Hostname = key.HostHostname
 		baseEvent.Host.Name = key.HostName
 	}
+
 	if key.HostOsPlatform != "" {
 		if baseEvent.Host == nil {
 			baseEvent.Host = modelpb.HostFromVTPool()
@@ -897,6 +904,7 @@ func svcInstTxnMetricsToAPMEvent(
 		}
 		baseEvent.Host.Os.Platform = key.HostOsPlatform
 	}
+
 	if key.CloudProvider != "" ||
 		key.CloudRegion != "" ||
 		key.CloudAvailabilityZone != "" ||
