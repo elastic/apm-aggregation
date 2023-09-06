@@ -307,7 +307,7 @@ type transactionAggregationKey struct {
 	FAASTriggerType string
 }
 
-// ServiceInstanceTransactionAggregationKey models the key used to store
+// serviceInstanceTransactionAggregationKey models the key used to store
 // service instance transaction aggregation metrics.
 type serviceInstanceTransactionAggregationKey struct {
 	ContainerID       string
