@@ -518,7 +518,7 @@ func CombinedMetricsToBatch(
 			estimator := hllSketch(
 				sm.OverflowGroups.OverflowServiceInstanceTransactionsEstimator,
 			)
-			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
+			event := getBaseEvent(sk, now)
 			overflowSvcInstTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowServiceInstanceTransactions,
