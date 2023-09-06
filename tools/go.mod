@@ -4,7 +4,7 @@ go 1.19
 
 require (
 	github.com/elastic/go-licenser v0.4.1
-	github.com/planetscale/vtprotobuf v0.4.1-0.20230829082524-cb44ee83ff7f
+	github.com/planetscale/vtprotobuf v0.5.0
 	golang.org/x/tools v0.13.0
 	honnef.co/go/tools v0.4.5
 )
