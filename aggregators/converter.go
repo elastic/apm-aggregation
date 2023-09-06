@@ -416,6 +416,7 @@ func CombinedMetricsToBatch(
 
 	b := make(modelpb.Batch, 0, batchSize)
 	aggIntervalStr := formatDuration(aggInterval)
+	now := time.Now()
 	for _, ksm := range cm.ServiceMetrics {
 		sk, sm := ksm.Key, ksm.Metrics
 
@@ -424,7 +425,7 @@ func CombinedMetricsToBatch(
 			return nil, fmt.Errorf("failed to unmarshal global labels: %w", err)
 		}
 		getBaseEventWithLabels := func() *modelpb.APMEvent {
-			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
+			event := getBaseEvent(sk, now)
 			event.Labels = gl.Labels
 			event.NumericLabels = gl.NumericLabels
 			return event
@@ -459,7 +460,7 @@ func CombinedMetricsToBatch(
 		}
 		if len(sm.OverflowGroups.OverflowTransactionsEstimator) > 0 {
 			estimator := hllSketch(sm.OverflowGroups.OverflowTransactionsEstimator)
-			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
+			event := getBaseEvent(sk, now)
 			overflowTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowTransactions,
@@ -473,7 +474,7 @@ func CombinedMetricsToBatch(
 			estimator := hllSketch(
 				sm.OverflowGroups.OverflowServiceTransactionsEstimator,
 			)
-			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
+			event := getBaseEvent(sk, now)
 			overflowSvcTxnMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowServiceTransactions,
@@ -485,7 +486,7 @@ func CombinedMetricsToBatch(
 		}
 		if len(sm.OverflowGroups.OverflowSpansEstimator) > 0 {
 			estimator := hllSketch(sm.OverflowGroups.OverflowSpansEstimator)
-			event := getBaseEvent(sk, cm.YoungestEventTimestamp)
+			event := getBaseEvent(sk, now)
 			overflowSpanMetricsToAPMEvent(
 				processingTime,
 				sm.OverflowGroups.OverflowSpans,
@@ -567,7 +568,7 @@ func setDroppedSpanStatsMetrics(dss *modelpb.DroppedSpanStats, repCount float64,
 
 func getBaseEvent(
 	key *aggregationpb.ServiceAggregationKey,
-	youngestEventTS uint64,
+	received time.Time,
 ) *modelpb.APMEvent {
 	event := modelpb.APMEventFromVTPool()
 	event.Timestamp = key.Timestamp
@@ -587,7 +588,7 @@ func getBaseEvent(
 	}
 
 	event.Event = modelpb.EventFromVTPool()
-	event.Event.Received = youngestEventTS
+	event.Event.Received = modelpb.FromTime(received)
 
 	return event
 }
