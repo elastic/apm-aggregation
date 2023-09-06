@@ -520,8 +520,9 @@ type constraints struct {
 
 func newConstraints(limits Limits) constraints {
 	return constraints{
-		totalTransactionGroups:        constraint.New(0, limits.MaxTransactionGroups),
-		totalServiceTransactionGroups: constraint.New(0, limits.MaxServiceTransactionGroups),
-		totalSpanGroups:               constraint.New(0, limits.MaxSpanGroups),
+		totalTransactionGroups:                constraint.New(0, limits.MaxTransactionGroups),
+		totalServiceTransactionGroups:         constraint.New(0, limits.MaxServiceTransactionGroups),
+		totalServiceInstanceTransactionGroups: constraint.New(0, limits.MaxServiceInstanceTransactionGroups),
+		totalSpanGroups:                       constraint.New(0, limits.MaxSpanGroups),
 	}
 }

@@ -433,6 +433,12 @@ var combinedMetricsSliceSorters = []cmp.Option{
 			protohash.HashTransactionAggregationKey(xxhash.Digest{}, b.Key),
 		)
 	}),
+	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedServiceInstanceTransactionMetrics) bool {
+		return xxhashDigestLess(
+			protohash.HashServiceInstanceTransactionAggregationKey(xxhash.Digest{}, a.Key),
+			protohash.HashServiceInstanceTransactionAggregationKey(xxhash.Digest{}, b.Key),
+		)
+	}),
 	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedServiceTransactionMetrics) bool {
 		return xxhashDigestLess(
 			protohash.HashServiceTransactionAggregationKey(xxhash.Digest{}, a.Key),

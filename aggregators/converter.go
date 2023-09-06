@@ -95,9 +95,7 @@ func (p *partitionedMetricsBuilder) processEvent(e *modelpb.APMEvent) {
 		}
 		duration := time.Duration(e.GetEvent().GetDuration())
 		p.addTransactionMetrics(e, repCount, duration)
-
 		p.addServiceInstanceTransactionMetrics(e, repCount, duration)
-
 		p.addServiceTransactionMetrics(e, repCount, duration)
 		for _, dss := range e.GetTransaction().GetDroppedSpansStats() {
 			p.addDroppedSpanStatsMetrics(dss, repCount)
@@ -149,6 +147,7 @@ func (p *partitionedMetricsBuilder) addServiceInstanceTransactionMetrics(e *mode
 		setHistogramProto(hdr, &mb.transactionHistogram)
 	}
 	mb.serviceInstanceTransactionMetrics.Histogram = &mb.transactionHistogram
+	mb.serviceInstanceTransactionMetrics.SuccessCount = count
 	mb.keyedServiceInstanceTransactionMetricsSlice = mb.keyedServiceInstanceTransactionMetricsArray[:]
 }
 
@@ -317,6 +316,10 @@ func getEventMetricsBuilder(partition uint16) *eventMetricsBuilder {
 	mb.keyedTransactionMetrics.Metrics = &mb.transactionMetrics
 	mb.keyedTransactionMetricsArray[0] = &mb.keyedTransactionMetrics
 	mb.keyedTransactionMetricsSlice = mb.keyedTransactionMetricsArray[:0]
+	mb.keyedServiceInstanceTransactionMetrics.Key = &mb.serviceInstanceTransactionAggregationKey
+	mb.keyedServiceInstanceTransactionMetrics.Metrics = &mb.serviceInstanceTransactionMetrics
+	mb.keyedServiceInstanceTransactionMetricsArray[0] = &mb.keyedServiceInstanceTransactionMetrics
+	mb.keyedServiceInstanceTransactionMetricsSlice = mb.keyedServiceInstanceTransactionMetricsArray[:0]
 	mb.keyedServiceTransactionMetrics.Key = &mb.serviceTransactionAggregationKey
 	mb.keyedServiceTransactionMetrics.Metrics = &mb.serviceTransactionMetrics
 	mb.keyedServiceTransactionMetricsArray[0] = &mb.keyedServiceTransactionMetrics
@@ -385,6 +388,7 @@ func EventToCombinedMetrics(
 		key.PartitionID = mb.partition
 		pmb.serviceMetrics.TransactionMetrics = mb.keyedTransactionMetricsSlice
 		pmb.serviceMetrics.ServiceTransactionMetrics = mb.keyedServiceTransactionMetricsSlice
+		pmb.serviceMetrics.ServiceInstanceTransactionMetrics = mb.keyedServiceInstanceTransactionMetricsSlice
 		pmb.serviceMetrics.SpanMetrics = mb.keyedSpanMetricsSlice
 		if err := callback(key, &pmb.combinedMetrics); err != nil {
 			errs = append(errs, err)
@@ -798,16 +802,6 @@ func svcInstTxnMetricsToAPMEvent(
 		transactionDurationSummary.Sum += v * float64(counts[i])
 	}
 
-	if baseEvent.Transaction == nil {
-		baseEvent.Transaction = modelpb.TransactionFromVTPool()
-	}
-	baseEvent.Transaction.Type = key.TransactionType
-	baseEvent.Transaction.DurationSummary = &transactionDurationSummary
-	baseEvent.Transaction.DurationHistogram = &modelpb.Histogram{
-		Counts: counts,
-		Values: values,
-	}
-
 	if baseEvent.Metricset == nil {
 		baseEvent.Metricset = modelpb.MetricsetFromVTPool()
 	}
@@ -815,13 +809,26 @@ func svcInstTxnMetricsToAPMEvent(
 	baseEvent.Metricset.DocCount = totalCount
 	baseEvent.Metricset.Interval = intervalStr
 
+	if baseEvent.Transaction == nil {
+		baseEvent.Transaction = modelpb.TransactionFromVTPool()
+	}
+	baseEvent.Transaction.Type = key.TransactionType
+	baseEvent.Transaction.DurationSummary = &transactionDurationSummary
+	if baseEvent.Transaction.DurationHistogram == nil {
+		baseEvent.Transaction.DurationHistogram = modelpb.HistogramFromVTPool()
+	}
+	baseEvent.Transaction.DurationHistogram.Counts = counts
+	baseEvent.Transaction.DurationHistogram.Values = values
+
 	if baseEvent.Event == nil {
 		baseEvent.Event = modelpb.EventFromVTPool()
 	}
-	baseEvent.Event.SuccessCount = &modelpb.SummaryMetric{
-		Count: uint64(math.Round(metrics.SuccessCount + metrics.FailureCount)),
-		Sum:   math.Round(metrics.SuccessCount),
+	if baseEvent.Event.SuccessCount == nil {
+		baseEvent.Event.SuccessCount = modelpb.SummaryMetricFromVTPool()
 	}
+	baseEvent.Event.SuccessCount.Count =
+		uint64(math.Round(metrics.SuccessCount + metrics.FailureCount))
+	baseEvent.Event.SuccessCount.Sum = math.Round(metrics.SuccessCount)
 
 	if key.ContainerId != "" {
 		if baseEvent.Container == nil {

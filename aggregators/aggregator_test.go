@@ -157,7 +157,7 @@ func TestAggregateBatch(t *testing.T) {
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 131250},
+				"events.processed.bytes": {Value: 167150},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -783,12 +783,14 @@ func TestHarvest(t *testing.T) {
 	agg, err := New(
 		WithDataDir(t.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                         1000,
-			MaxTransactionGroups:                  100,
-			MaxTransactionGroupsPerService:        10,
-			MaxServiceTransactionGroups:           100,
-			MaxServiceTransactionGroupsPerService: 10,
-			MaxServices:                           10,
+			MaxSpanGroups:                                 1000,
+			MaxTransactionGroups:                          100,
+			MaxTransactionGroupsPerService:                10,
+			MaxServiceInstanceTransactionGroups:           100,
+			MaxServiceInstanceTransactionGroupsPerService: 10,
+			MaxServiceTransactionGroups:                   100,
+			MaxServiceTransactionGroupsPerService:         10,
+			MaxServices:                                   10,
 		}),
 		WithProcessor(processor),
 		WithAggregationIntervals(ivls),
@@ -819,7 +821,7 @@ func TestHarvest(t *testing.T) {
 		require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 252},
+				"events.processed.bytes": {Value: 372},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -970,6 +972,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 			},
 		},
 		{
+			Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
 			Event: &modelpb.Event{
 				SuccessCount: &modelpb.SummaryMetric{
 					Count: 1,
@@ -1082,25 +1085,29 @@ func TestHarvestOverflowCount(t *testing.T) {
 	}{
 		{
 			limits: Limits{
-				MaxSpanGroups:                         4,
-				MaxSpanGroupsPerService:               4,
-				MaxTransactionGroups:                  3,
-				MaxTransactionGroupsPerService:        3,
-				MaxServiceTransactionGroups:           2,
-				MaxServiceTransactionGroupsPerService: 2,
-				MaxServices:                           1,
+				MaxSpanGroups:                                 4,
+				MaxSpanGroupsPerService:                       4,
+				MaxTransactionGroups:                          3,
+				MaxTransactionGroupsPerService:                3,
+				MaxServiceInstanceTransactionGroups:           2,
+				MaxServiceInstanceTransactionGroupsPerService: 2,
+				MaxServiceTransactionGroups:                   2,
+				MaxServiceTransactionGroupsPerService:         2,
+				MaxServices:                                   1,
 			},
 			expectedLogPerService: true,
 		},
 		{
 			limits: Limits{
-				MaxSpanGroups:                         4,
-				MaxSpanGroupsPerService:               100,
-				MaxTransactionGroups:                  3,
-				MaxTransactionGroupsPerService:        100,
-				MaxServiceTransactionGroups:           2,
-				MaxServiceTransactionGroupsPerService: 100,
-				MaxServices:                           1,
+				MaxSpanGroups:                                 4,
+				MaxSpanGroupsPerService:                       100,
+				MaxTransactionGroups:                          3,
+				MaxTransactionGroupsPerService:                100,
+				MaxServiceInstanceTransactionGroups:           2,
+				MaxServiceInstanceTransactionGroupsPerService: 100,
+				MaxServiceTransactionGroups:                   2,
+				MaxServiceTransactionGroupsPerService:         100,
+				MaxServices:                                   1,
 			},
 			expectedLogPerService: false,
 		},
@@ -1343,13 +1350,15 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	agg, err := New(
 		WithDataDir(b.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                         1000,
-			MaxSpanGroupsPerService:               100,
-			MaxTransactionGroups:                  1000,
-			MaxTransactionGroupsPerService:        100,
-			MaxServiceTransactionGroups:           1000,
-			MaxServiceTransactionGroupsPerService: 100,
-			MaxServices:                           100,
+			MaxSpanGroups:                                 1000,
+			MaxSpanGroupsPerService:                       100,
+			MaxTransactionGroups:                          1000,
+			MaxTransactionGroupsPerService:                100,
+			MaxServiceInstanceTransactionGroups:           1000,
+			MaxServiceInstanceTransactionGroupsPerService: 100,
+			MaxServiceTransactionGroups:                   1000,
+			MaxServiceTransactionGroupsPerService:         100,
+			MaxServices:                                   100,
 		}),
 		WithProcessor(noOpProcessor()),
 		WithMeter(mp.Meter("test")),
@@ -1430,13 +1439,15 @@ func newTestAggregator(tb testing.TB, opts ...Option) *Aggregator {
 	agg, err := New(append([]Option{
 		WithDataDir(tb.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                         1000,
-			MaxSpanGroupsPerService:               100,
-			MaxTransactionGroups:                  1000,
-			MaxTransactionGroupsPerService:        100,
-			MaxServiceTransactionGroups:           1000,
-			MaxServiceTransactionGroupsPerService: 100,
-			MaxServices:                           100,
+			MaxSpanGroups:                                 1000,
+			MaxSpanGroupsPerService:                       100,
+			MaxTransactionGroups:                          1000,
+			MaxTransactionGroupsPerService:                100,
+			MaxServiceInstanceTransactionGroups:           1000,
+			MaxServiceInstanceTransactionGroupsPerService: 100,
+			MaxServiceTransactionGroups:                   1000,
+			MaxServiceTransactionGroupsPerService:         100,
+			MaxServices:                                   100,
 		}),
 		WithProcessor(noOpProcessor()),
 		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),

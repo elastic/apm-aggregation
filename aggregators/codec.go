@@ -146,6 +146,11 @@ func (m *serviceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 		pb.TransactionMetrics = append(pb.TransactionMetrics, m)
 	}
 
+	pb.ServiceInstanceTransactionMetrics = slices.Grow(pb.ServiceInstanceTransactionMetrics, len(m.ServiceInstanceTransactionGroups))
+	for _, m := range m.ServiceInstanceTransactionGroups {
+		pb.ServiceInstanceTransactionMetrics = append(pb.ServiceInstanceTransactionMetrics, m)
+	}
+
 	pb.ServiceTransactionMetrics = slices.Grow(pb.ServiceTransactionMetrics, len(m.ServiceTransactionGroups))
 	for _, m := range m.ServiceTransactionGroups {
 		pb.ServiceTransactionMetrics = append(pb.ServiceTransactionMetrics, m)
@@ -241,31 +246,31 @@ func (k *serviceInstanceTransactionAggregationKey) ToProto() *aggregationpb.Serv
 
 // FromProto converts protobuf representation to ServiceInstanceTransactionAggregationKey.
 func (k *serviceInstanceTransactionAggregationKey) FromProto(pb *aggregationpb.ServiceInstanceTransactionAggregationKey) {
-	pb.ContainerId = k.ContainerID
-	pb.KubernetesPodName = k.KubernetesPodName
+	k.ContainerID = pb.ContainerId
+	k.KubernetesPodName = pb.KubernetesPodName
 
-	pb.ServiceVersion = k.ServiceVersion
-	pb.ServiceNodeName = k.ServiceNodeName
+	k.ServiceVersion = pb.ServiceVersion
+	k.ServiceNodeName = pb.ServiceNodeName
 
-	pb.ServiceRuntimeName = k.ServiceRuntimeName
-	pb.ServiceRuntimeVersion = k.ServiceRuntimeVersion
-	pb.ServiceLanguageVersion = k.ServiceLanguageVersion
+	k.ServiceRuntimeName = pb.ServiceRuntimeName
+	k.ServiceRuntimeVersion = pb.ServiceRuntimeVersion
+	k.ServiceLanguageVersion = pb.ServiceLanguageVersion
 
-	pb.HostHostname = k.HostHostname
-	pb.HostName = k.HostName
-	pb.HostOsPlatform = k.HostOSPlatform
+	k.HostHostname = pb.HostHostname
+	k.HostName = pb.HostName
+	k.HostOSPlatform = pb.HostOsPlatform
 
-	pb.TransactionType = k.TransactionType
+	k.TransactionType = pb.TransactionType
 
-	pb.CloudProvider = k.CloudProvider
-	pb.CloudRegion = k.CloudRegion
-	pb.CloudAvailabilityZone = k.CloudAvailabilityZone
-	pb.CloudServiceName = k.CloudServiceName
-	pb.CloudAccountId = k.CloudAccountID
-	pb.CloudAccountName = k.CloudAccountName
-	pb.CloudMachineType = k.CloudMachineType
-	pb.CloudProjectId = k.CloudProjectID
-	pb.CloudProjectName = k.CloudProjectName
+	k.CloudProvider = pb.CloudProvider
+	k.CloudRegion = pb.CloudRegion
+	k.CloudAvailabilityZone = pb.CloudAvailabilityZone
+	k.CloudServiceName = pb.CloudServiceName
+	k.CloudAccountID = pb.CloudAccountId
+	k.CloudAccountName = pb.CloudAccountName
+	k.CloudMachineType = pb.CloudMachineType
+	k.CloudProjectID = pb.CloudProjectId
+	k.CloudProjectName = pb.CloudProjectName
 }
 
 // ToProto converts ServiceTransactionAggregationKey to its protobuf representation.
