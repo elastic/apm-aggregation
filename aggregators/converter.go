@@ -271,7 +271,7 @@ type eventMetricsBuilder struct {
 	keyedServiceTransactionMetricsArray [1]*aggregationpb.KeyedServiceTransactionMetrics
 	keyedServiceTransactionMetricsSlice []*aggregationpb.KeyedServiceTransactionMetrics
 
-	// There can be at most ? service instance transaction metric per event.
+	// There can be at most 1 service instance transaction metric per event.
 	serviceInstanceTransactionAggregationKey    aggregationpb.ServiceInstanceTransactionAggregationKey
 	serviceInstanceTransactionMetrics           aggregationpb.ServiceInstanceTransactionMetrics
 	keyedServiceInstanceTransactionMetrics      aggregationpb.KeyedServiceInstanceTransactionMetrics
