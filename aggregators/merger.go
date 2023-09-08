@@ -148,7 +148,7 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 }
 
 // mergeServiceInstanceTransactionGroups merges service instance transaction aggregation groups for two combined metrics
-// considering max transaction groups and max transaction groups per service limits.
+// considering max service instance transaction groups and max service instance transaction groups per service limits.
 func mergeServiceInstanceTransactionGroups(
 	to map[serviceInstanceTransactionAggregationKey]*aggregationpb.KeyedServiceInstanceTransactionMetrics,
 	from []*aggregationpb.KeyedServiceInstanceTransactionMetrics,
