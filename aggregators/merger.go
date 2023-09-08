@@ -109,6 +109,17 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 				serviceKeyHash,
 				&toSvc.OverflowGroups.OverflowTransaction,
 			)
+			mergeServiceInstanceTransactionGroups(
+				toSvc.ServiceInstanceTransactionGroups,
+				fromSvc.Metrics.ServiceInstanceTransactionMetrics,
+				constraint.New(
+					len(toSvc.ServiceInstanceTransactionGroups),
+					m.limits.MaxServiceInstanceTransactionGroupsPerService,
+				),
+				m.constraints.totalServiceInstanceTransactionGroups,
+				serviceKeyHash,
+				&toSvc.OverflowGroups.OverflowServiceInstanceTransaction,
+			)
 			mergeServiceTransactionGroups(
 				toSvc.ServiceTransactionGroups,
 				fromSvc.Metrics.ServiceTransactionMetrics,
@@ -133,6 +144,37 @@ func (m *combinedMetricsMerger) merge(from *aggregationpb.CombinedMetrics) {
 			)
 		}
 		m.metrics.Services[sk] = toSvc
+	}
+}
+
+// mergeServiceInstanceTransactionGroups merges service instance transaction aggregation groups for two combined metrics
+// considering max service instance transaction groups and max service instance transaction groups per service limits.
+func mergeServiceInstanceTransactionGroups(
+	to map[serviceInstanceTransactionAggregationKey]*aggregationpb.KeyedServiceInstanceTransactionMetrics,
+	from []*aggregationpb.KeyedServiceInstanceTransactionMetrics,
+	perSvcConstraint, globalConstraint *constraint.Constraint,
+	hash xxhash.Digest,
+	overflowTo *overflowServiceInstanceTransaction,
+) {
+	for i := range from {
+		fromTxn := from[i]
+		var sitk serviceInstanceTransactionAggregationKey
+		sitk.FromProto(fromTxn.Key)
+		toTxn, ok := to[sitk]
+		if !ok {
+			overflowed := perSvcConstraint.Maxed() || globalConstraint.Maxed()
+			if overflowed {
+				fromTxnKeyHash := protohash.HashServiceInstanceTransactionAggregationKey(hash, fromTxn.Key)
+				overflowTo.Merge(fromTxn.Metrics, fromTxnKeyHash.Sum64())
+				continue
+			}
+			perSvcConstraint.Add(1)
+			globalConstraint.Add(1)
+
+			to[sitk] = fromTxn.CloneVT()
+			continue
+		}
+		mergeKeyedServiceInstanceTransactionMetrics(toTxn, fromTxn)
 	}
 }
 
@@ -256,6 +298,10 @@ func mergeToOverflowFromServiceMetrics(
 		ktmKeyHash := protohash.HashTransactionAggregationKey(hash, ktm.Key)
 		to.OverflowTransaction.Merge(ktm.Metrics, ktmKeyHash.Sum64())
 	}
+	for _, ksitm := range from.ServiceInstanceTransactionMetrics {
+		ksitmKeyHash := protohash.HashServiceInstanceTransactionAggregationKey(hash, ksitm.Key)
+		to.OverflowServiceInstanceTransaction.Merge(ksitm.Metrics, ksitmKeyHash.Sum64())
+	}
 	for _, kstm := range from.ServiceTransactionMetrics {
 		kstmKeyHash := protohash.HashServiceTransactionAggregationKey(hash, kstm.Key)
 		to.OverflowServiceTransaction.Merge(kstm.Metrics, kstmKeyHash.Sum64())
@@ -276,6 +322,7 @@ func mergeOverflow(
 	var from overflow
 	from.FromProto(fromproto)
 	to.OverflowTransaction.MergeOverflow(&from.OverflowTransaction)
+	to.OverflowServiceInstanceTransaction.MergeOverflow(&from.OverflowServiceInstanceTransaction)
 	to.OverflowServiceTransaction.MergeOverflow(&from.OverflowServiceTransaction)
 	to.OverflowSpan.MergeOverflow(&from.OverflowSpan)
 }
@@ -301,6 +348,31 @@ func mergeTransactionMetrics(
 	if to.Histogram != nil && from.Histogram != nil {
 		mergeHistogram(to.Histogram, from.Histogram)
 	}
+}
+
+func mergeKeyedServiceInstanceTransactionMetrics(
+	to, from *aggregationpb.KeyedServiceInstanceTransactionMetrics,
+) {
+	if from.Metrics == nil {
+		return
+	}
+	if to.Metrics == nil {
+		to.Metrics = aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+	}
+	mergeServiceInstanceTransactionMetrics(to.Metrics, from.Metrics)
+}
+
+func mergeServiceInstanceTransactionMetrics(
+	to, from *aggregationpb.ServiceInstanceTransactionMetrics,
+) {
+	if to.Histogram == nil && from.Histogram != nil {
+		to.Histogram = aggregationpb.HDRHistogramFromVTPool()
+	}
+	if to.Histogram != nil && from.Histogram != nil {
+		mergeHistogram(to.Histogram, from.Histogram)
+	}
+	to.FailureCount += from.FailureCount
+	to.SuccessCount += from.SuccessCount
 }
 
 func mergeKeyedServiceTransactionMetrics(
@@ -431,23 +503,26 @@ func getServiceMetrics(cm *combinedMetrics, svcKey serviceAggregationKey, maxSvc
 
 func newServiceMetrics() serviceMetrics {
 	return serviceMetrics{
-		TransactionGroups:        make(map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics),
-		ServiceTransactionGroups: make(map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics),
-		SpanGroups:               make(map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics),
+		TransactionGroups:                make(map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics),
+		ServiceInstanceTransactionGroups: make(map[serviceInstanceTransactionAggregationKey]*aggregationpb.KeyedServiceInstanceTransactionMetrics),
+		ServiceTransactionGroups:         make(map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics),
+		SpanGroups:                       make(map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics),
 	}
 }
 
 // constraints is a group of constraints to be observed during merge operations.
 type constraints struct {
-	totalTransactionGroups        *constraint.Constraint
-	totalServiceTransactionGroups *constraint.Constraint
-	totalSpanGroups               *constraint.Constraint
+	totalTransactionGroups                *constraint.Constraint
+	totalServiceTransactionGroups         *constraint.Constraint
+	totalServiceInstanceTransactionGroups *constraint.Constraint
+	totalSpanGroups                       *constraint.Constraint
 }
 
 func newConstraints(limits Limits) constraints {
 	return constraints{
-		totalTransactionGroups:        constraint.New(0, limits.MaxTransactionGroups),
-		totalServiceTransactionGroups: constraint.New(0, limits.MaxServiceTransactionGroups),
-		totalSpanGroups:               constraint.New(0, limits.MaxSpanGroups),
+		totalTransactionGroups:                constraint.New(0, limits.MaxTransactionGroups),
+		totalServiceTransactionGroups:         constraint.New(0, limits.MaxServiceTransactionGroups),
+		totalServiceInstanceTransactionGroups: constraint.New(0, limits.MaxServiceInstanceTransactionGroups),
+		totalSpanGroups:                       constraint.New(0, limits.MaxSpanGroups),
 	}
 }

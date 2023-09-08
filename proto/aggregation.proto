@@ -32,6 +32,7 @@ message ServiceMetrics {
   repeated KeyedTransactionMetrics transaction_metrics = 2;
   repeated KeyedServiceTransactionMetrics service_transaction_metrics = 3;
   repeated KeyedSpanMetrics span_metrics = 4;
+  repeated KeyedServiceInstanceTransactionMetrics service_instance_transaction_metrics = 5;
 }
 
 message KeyedTransactionMetrics {
@@ -42,45 +43,66 @@ message KeyedTransactionMetrics {
 message TransactionAggregationKey {
   bool trace_root = 1;
   
-  string container_id = 2;
-  string kubernetes_pod_name = 3;
+  string service_version = 2;
 
-  string service_version = 4;
-  string service_node_name = 5;
+  string service_runtime_name = 3;
+  string service_runtime_version = 4;
+  string service_language_version = 5;
 
-  string service_runtime_name = 6;
-  string service_runtime_version = 7;
-  string service_language_version = 8;
+  string event_outcome = 6;
 
-  string host_hostname = 9;
-  string host_name = 10;
-  string host_os_platform = 11;
+  string transaction_name = 7;
+  string transaction_type = 8;
+  string transaction_result = 9;
 
-  string event_outcome = 12;
-
-  string transaction_name = 13;
-  string transaction_type = 14;
-  string transaction_result = 15;
-
-  uint32 faas_coldstart = 16;
-  string faas_id = 17;
-  string faas_name = 18;
-  string faas_version = 19;
-  string faas_trigger_type = 20;
-
-  string cloud_provider = 21;
-  string cloud_region = 22;
-  string cloud_availability_zone = 23;
-  string cloud_service_name = 24;
-  string cloud_account_id = 25;
-  string cloud_account_name = 26;
-  string cloud_machine_type = 27;
-  string cloud_project_id = 28;
-  string cloud_project_name = 29;
+  uint32 faas_coldstart = 10;
+  string faas_id = 11;
+  string faas_name = 12;
+  string faas_version = 13;
+  string faas_trigger_type = 14;
 }
 
 message TransactionMetrics {
   HDRHistogram histogram = 1;
+}
+
+message KeyedServiceInstanceTransactionMetrics {
+  ServiceInstanceTransactionAggregationKey key = 1;
+  ServiceInstanceTransactionMetrics metrics = 2;
+}
+
+message ServiceInstanceTransactionAggregationKey {
+  string container_id = 1;
+  string kubernetes_pod_name = 2;
+
+  string service_version = 3;
+  string service_node_name = 4;
+
+  string service_runtime_name = 5;
+  string service_runtime_version = 6;
+  string service_language_version = 7;
+
+  string host_hostname = 8;
+  string host_name = 9;
+  string host_os_platform = 10;
+
+  string transaction_type = 11;
+
+  string cloud_provider = 12;
+  string cloud_region = 13;
+  string cloud_availability_zone = 14;
+  string cloud_service_name = 15;
+  string cloud_account_id = 16;
+  string cloud_account_name = 17;
+  string cloud_machine_type = 18;
+  string cloud_project_id = 19;
+  string cloud_project_name = 20;
+}
+
+message ServiceInstanceTransactionMetrics {
+  HDRHistogram histogram = 1;
+  double failure_count = 2;
+  double success_count = 3;
 }
 
 message KeyedServiceTransactionMetrics {
@@ -125,6 +147,8 @@ message Overflow {
   bytes overflow_transactions_estimator = 4;
   bytes overflow_service_transactions_estimator = 5;
   bytes overflow_spans_estimator = 6;
+  ServiceInstanceTransactionMetrics overflow_service_instance_transactions = 7;
+  bytes overflow_service_instance_transactions_estimator = 8;
 }
 
 message HDRHistogram {

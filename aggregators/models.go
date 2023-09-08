@@ -46,6 +46,18 @@ type Limits struct {
 	// TransactionAggregationKey.
 	MaxTransactionGroupsPerService int
 
+	// MaxServiceInstanceTransactionGroups is the limit on total number of unique
+	// service instance transaction groups across all services.
+	// A unique service instance transaction group is identified by a unique
+	// ServiceAggregationKey + ServiceInstanceTransactionAggregationKey.
+	MaxServiceInstanceTransactionGroups int
+
+	// MaxServiceInstanceTransactionGroupsPerService is the limit on the number of unique
+	// service instance transaction groups within a service.
+	// A unique service instance transaction group within a service is identified by a unique
+	// ServiceInstanceTransactionAggregationKey.
+	MaxServiceInstanceTransactionGroupsPerService int
+
 	// MaxServiceTransactionGroups is the limit on total number of unique
 	// service transaction groups across all services.
 	// A unique service transaction group is identified by a unique
@@ -119,10 +131,11 @@ type serviceAggregationKey struct {
 // serviceMetrics models the value to store all the aggregated metrics
 // for a specific service aggregation key.
 type serviceMetrics struct {
-	OverflowGroups           overflow
-	TransactionGroups        map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
-	ServiceTransactionGroups map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
-	SpanGroups               map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics
+	OverflowGroups                   overflow
+	TransactionGroups                map[transactionAggregationKey]*aggregationpb.KeyedTransactionMetrics
+	ServiceTransactionGroups         map[serviceTransactionAggregationKey]*aggregationpb.KeyedServiceTransactionMetrics
+	ServiceInstanceTransactionGroups map[serviceInstanceTransactionAggregationKey]*aggregationpb.KeyedServiceInstanceTransactionMetrics
+	SpanGroups                       map[spanAggregationKey]*aggregationpb.KeyedSpanMetrics
 }
 
 func insertHash(to **hyperloglog.Sketch, hash uint64) {
@@ -201,6 +214,36 @@ func (o *overflowServiceTransaction) Empty() bool {
 	return o.Estimator == nil
 }
 
+type overflowServiceInstanceTransaction struct {
+	Metrics   *aggregationpb.ServiceInstanceTransactionMetrics
+	Estimator *hyperloglog.Sketch
+}
+
+func (o *overflowServiceInstanceTransaction) Merge(
+	from *aggregationpb.ServiceInstanceTransactionMetrics,
+	hash uint64,
+) {
+	if o.Metrics == nil {
+		o.Metrics = aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+	}
+	mergeServiceInstanceTransactionMetrics(o.Metrics, from)
+	insertHash(&o.Estimator, hash)
+}
+
+func (o *overflowServiceInstanceTransaction) MergeOverflow(from *overflowServiceInstanceTransaction) {
+	if from.Estimator != nil {
+		if o.Metrics == nil {
+			o.Metrics = aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
+		}
+		mergeServiceInstanceTransactionMetrics(o.Metrics, from.Metrics)
+		mergeEstimator(&o.Estimator, from.Estimator)
+	}
+}
+
+func (o *overflowServiceInstanceTransaction) Empty() bool {
+	return o.Estimator == nil
+}
+
 type overflowSpan struct {
 	Metrics   *aggregationpb.SpanMetrics
 	Estimator *hyperloglog.Sketch
@@ -234,9 +277,10 @@ func (o *overflowSpan) Empty() bool {
 // overflow contains transaction and spans overflow metrics and cardinality
 // estimators for the aggregation group for overflow buckets.
 type overflow struct {
-	OverflowTransaction        overflowTransaction
-	OverflowServiceTransaction overflowServiceTransaction
-	OverflowSpan               overflowSpan
+	OverflowTransaction                overflowTransaction
+	OverflowServiceTransaction         overflowServiceTransaction
+	OverflowServiceInstanceTransaction overflowServiceInstanceTransaction
+	OverflowSpan                       overflowSpan
 }
 
 // transactionAggregationKey models the key used to store transaction
@@ -244,6 +288,28 @@ type overflow struct {
 type transactionAggregationKey struct {
 	TraceRoot bool
 
+	ServiceVersion string
+
+	ServiceRuntimeName     string
+	ServiceRuntimeVersion  string
+	ServiceLanguageVersion string
+
+	EventOutcome string
+
+	TransactionName   string
+	TransactionType   string
+	TransactionResult string
+
+	FAASColdstart   nullable.Bool
+	FAASID          string
+	FAASName        string
+	FAASVersion     string
+	FAASTriggerType string
+}
+
+// serviceInstanceTransactionAggregationKey models the key used to store
+// service instance transaction aggregation metrics.
+type serviceInstanceTransactionAggregationKey struct {
 	ContainerID       string
 	KubernetesPodName string
 
@@ -258,17 +324,7 @@ type transactionAggregationKey struct {
 	HostName       string
 	HostOSPlatform string
 
-	EventOutcome string
-
-	TransactionName   string
-	TransactionType   string
-	TransactionResult string
-
-	FAASColdstart   nullable.Bool
-	FAASID          string
-	FAASName        string
-	FAASVersion     string
-	FAASTriggerType string
+	TransactionType string
 
 	CloudProvider         string
 	CloudRegion           string
