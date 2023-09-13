@@ -61,8 +61,7 @@ message TransactionAggregationKey {
   string faas_version = 19;
   string faas_trigger_type = 20;
 
-  // 21-29 are reserved for old fields
-  // new field start at 30
+  reserved 2, 3, 5, 9 to 11, 21 to 29;
 }
 
 message TransactionMetrics {
