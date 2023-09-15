@@ -43,25 +43,23 @@ message KeyedTransactionMetrics {
 message TransactionAggregationKey {
   bool trace_root = 1;
   
-  string service_version = 4;
+  string service_version = 2;
 
-  string service_runtime_name = 6;
-  string service_runtime_version = 7;
-  string service_language_version = 8;
+  string service_runtime_name = 3;
+  string service_runtime_version = 4;
+  string service_language_version = 5;
 
-  string event_outcome = 12;
+  string event_outcome = 6;
 
-  string transaction_name = 13;
-  string transaction_type = 14;
-  string transaction_result = 15;
+  string transaction_name = 7;
+  string transaction_type = 8;
+  string transaction_result = 9;
 
-  uint32 faas_coldstart = 16;
-  string faas_id = 17;
-  string faas_name = 18;
-  string faas_version = 19;
-  string faas_trigger_type = 20;
-
-  reserved 2, 3, 5, 9 to 11, 21 to 29;
+  uint32 faas_coldstart = 10;
+  string faas_id = 11;
+  string faas_name = 12;
+  string faas_version = 13;
+  string faas_trigger_type = 14;
 }
 
 message TransactionMetrics {
