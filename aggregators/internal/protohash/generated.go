@@ -36,30 +36,6 @@ func HashServiceAggregationKey(h xxhash.Digest, k *aggregationpb.ServiceAggregat
 	return h
 }
 
-func HashServiceInstanceTransactionAggregationKey(h xxhash.Digest, k *aggregationpb.ServiceInstanceTransactionAggregationKey) xxhash.Digest {
-	h.WriteString(k.ContainerId)
-	h.WriteString(k.KubernetesPodName)
-	h.WriteString(k.ServiceVersion)
-	h.WriteString(k.ServiceNodeName)
-	h.WriteString(k.ServiceRuntimeName)
-	h.WriteString(k.ServiceRuntimeVersion)
-	h.WriteString(k.ServiceLanguageVersion)
-	h.WriteString(k.HostHostname)
-	h.WriteString(k.HostName)
-	h.WriteString(k.HostOsPlatform)
-	h.WriteString(k.TransactionType)
-	h.WriteString(k.CloudProvider)
-	h.WriteString(k.CloudRegion)
-	h.WriteString(k.CloudAvailabilityZone)
-	h.WriteString(k.CloudServiceName)
-	h.WriteString(k.CloudAccountId)
-	h.WriteString(k.CloudAccountName)
-	h.WriteString(k.CloudMachineType)
-	h.WriteString(k.CloudProjectId)
-	h.WriteString(k.CloudProjectName)
-	return h
-}
-
 func HashServiceTransactionAggregationKey(h xxhash.Digest, k *aggregationpb.ServiceTransactionAggregationKey) xxhash.Digest {
 	h.WriteString(k.TransactionType)
 	return h
@@ -78,10 +54,16 @@ func HashTransactionAggregationKey(h xxhash.Digest, k *aggregationpb.Transaction
 	if k.TraceRoot {
 		h.WriteString("1")
 	}
+	h.WriteString(k.ContainerId)
+	h.WriteString(k.KubernetesPodName)
 	h.WriteString(k.ServiceVersion)
+	h.WriteString(k.ServiceNodeName)
 	h.WriteString(k.ServiceRuntimeName)
 	h.WriteString(k.ServiceRuntimeVersion)
 	h.WriteString(k.ServiceLanguageVersion)
+	h.WriteString(k.HostHostname)
+	h.WriteString(k.HostName)
+	h.WriteString(k.HostOsPlatform)
 	h.WriteString(k.EventOutcome)
 	h.WriteString(k.TransactionName)
 	h.WriteString(k.TransactionType)
@@ -91,5 +73,14 @@ func HashTransactionAggregationKey(h xxhash.Digest, k *aggregationpb.Transaction
 	h.WriteString(k.FaasName)
 	h.WriteString(k.FaasVersion)
 	h.WriteString(k.FaasTriggerType)
+	h.WriteString(k.CloudProvider)
+	h.WriteString(k.CloudRegion)
+	h.WriteString(k.CloudAvailabilityZone)
+	h.WriteString(k.CloudServiceName)
+	h.WriteString(k.CloudAccountId)
+	h.WriteString(k.CloudAccountName)
+	h.WriteString(k.CloudMachineType)
+	h.WriteString(k.CloudProjectId)
+	h.WriteString(k.CloudProjectName)
 	return h
 }

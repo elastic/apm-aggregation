@@ -133,13 +133,6 @@ func (m *ServiceMetrics) CloneVT() *ServiceMetrics {
 		}
 		r.SpanMetrics = tmpContainer
 	}
-	if rhs := m.ServiceInstanceTransactionMetrics; rhs != nil {
-		tmpContainer := make([]*KeyedServiceInstanceTransactionMetrics, len(rhs))
-		for k, v := range rhs {
-			tmpContainer[k] = v.CloneVT()
-		}
-		r.ServiceInstanceTransactionMetrics = tmpContainer
-	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
 		copy(r.unknownFields, m.unknownFields)
@@ -176,10 +169,16 @@ func (m *TransactionAggregationKey) CloneVT() *TransactionAggregationKey {
 	}
 	r := &TransactionAggregationKey{
 		TraceRoot:              m.TraceRoot,
+		ContainerId:            m.ContainerId,
+		KubernetesPodName:      m.KubernetesPodName,
 		ServiceVersion:         m.ServiceVersion,
+		ServiceNodeName:        m.ServiceNodeName,
 		ServiceRuntimeName:     m.ServiceRuntimeName,
 		ServiceRuntimeVersion:  m.ServiceRuntimeVersion,
 		ServiceLanguageVersion: m.ServiceLanguageVersion,
+		HostHostname:           m.HostHostname,
+		HostName:               m.HostName,
+		HostOsPlatform:         m.HostOsPlatform,
 		EventOutcome:           m.EventOutcome,
 		TransactionName:        m.TransactionName,
 		TransactionType:        m.TransactionType,
@@ -189,6 +188,15 @@ func (m *TransactionAggregationKey) CloneVT() *TransactionAggregationKey {
 		FaasName:               m.FaasName,
 		FaasVersion:            m.FaasVersion,
 		FaasTriggerType:        m.FaasTriggerType,
+		CloudProvider:          m.CloudProvider,
+		CloudRegion:            m.CloudRegion,
+		CloudAvailabilityZone:  m.CloudAvailabilityZone,
+		CloudServiceName:       m.CloudServiceName,
+		CloudAccountId:         m.CloudAccountId,
+		CloudAccountName:       m.CloudAccountName,
+		CloudMachineType:       m.CloudMachineType,
+		CloudProjectId:         m.CloudProjectId,
+		CloudProjectName:       m.CloudProjectName,
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -216,82 +224,6 @@ func (m *TransactionMetrics) CloneVT() *TransactionMetrics {
 }
 
 func (m *TransactionMetrics) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *KeyedServiceInstanceTransactionMetrics) CloneVT() *KeyedServiceInstanceTransactionMetrics {
-	if m == nil {
-		return (*KeyedServiceInstanceTransactionMetrics)(nil)
-	}
-	r := &KeyedServiceInstanceTransactionMetrics{
-		Key:     m.Key.CloneVT(),
-		Metrics: m.Metrics.CloneVT(),
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *KeyedServiceInstanceTransactionMetrics) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *ServiceInstanceTransactionAggregationKey) CloneVT() *ServiceInstanceTransactionAggregationKey {
-	if m == nil {
-		return (*ServiceInstanceTransactionAggregationKey)(nil)
-	}
-	r := &ServiceInstanceTransactionAggregationKey{
-		ContainerId:            m.ContainerId,
-		KubernetesPodName:      m.KubernetesPodName,
-		ServiceVersion:         m.ServiceVersion,
-		ServiceNodeName:        m.ServiceNodeName,
-		ServiceRuntimeName:     m.ServiceRuntimeName,
-		ServiceRuntimeVersion:  m.ServiceRuntimeVersion,
-		ServiceLanguageVersion: m.ServiceLanguageVersion,
-		HostHostname:           m.HostHostname,
-		HostName:               m.HostName,
-		HostOsPlatform:         m.HostOsPlatform,
-		TransactionType:        m.TransactionType,
-		CloudProvider:          m.CloudProvider,
-		CloudRegion:            m.CloudRegion,
-		CloudAvailabilityZone:  m.CloudAvailabilityZone,
-		CloudServiceName:       m.CloudServiceName,
-		CloudAccountId:         m.CloudAccountId,
-		CloudAccountName:       m.CloudAccountName,
-		CloudMachineType:       m.CloudMachineType,
-		CloudProjectId:         m.CloudProjectId,
-		CloudProjectName:       m.CloudProjectName,
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *ServiceInstanceTransactionAggregationKey) CloneMessageVT() proto.Message {
-	return m.CloneVT()
-}
-
-func (m *ServiceInstanceTransactionMetrics) CloneVT() *ServiceInstanceTransactionMetrics {
-	if m == nil {
-		return (*ServiceInstanceTransactionMetrics)(nil)
-	}
-	r := &ServiceInstanceTransactionMetrics{
-		Histogram:    m.Histogram.CloneVT(),
-		FailureCount: m.FailureCount,
-		SuccessCount: m.SuccessCount,
-	}
-	if len(m.unknownFields) > 0 {
-		r.unknownFields = make([]byte, len(m.unknownFields))
-		copy(r.unknownFields, m.unknownFields)
-	}
-	return r
-}
-
-func (m *ServiceInstanceTransactionMetrics) CloneMessageVT() proto.Message {
 	return m.CloneVT()
 }
 
@@ -417,10 +349,9 @@ func (m *Overflow) CloneVT() *Overflow {
 		return (*Overflow)(nil)
 	}
 	r := &Overflow{
-		OverflowTransactions:                m.OverflowTransactions.CloneVT(),
-		OverflowServiceTransactions:         m.OverflowServiceTransactions.CloneVT(),
-		OverflowSpans:                       m.OverflowSpans.CloneVT(),
-		OverflowServiceInstanceTransactions: m.OverflowServiceInstanceTransactions.CloneVT(),
+		OverflowTransactions:        m.OverflowTransactions.CloneVT(),
+		OverflowServiceTransactions: m.OverflowServiceTransactions.CloneVT(),
+		OverflowSpans:               m.OverflowSpans.CloneVT(),
 	}
 	if rhs := m.OverflowTransactionsEstimator; rhs != nil {
 		tmpBytes := make([]byte, len(rhs))
@@ -436,11 +367,6 @@ func (m *Overflow) CloneVT() *Overflow {
 		tmpBytes := make([]byte, len(rhs))
 		copy(tmpBytes, rhs)
 		r.OverflowSpansEstimator = tmpBytes
-	}
-	if rhs := m.OverflowServiceInstanceTransactionsEstimator; rhs != nil {
-		tmpBytes := make([]byte, len(rhs))
-		copy(tmpBytes, rhs)
-		r.OverflowServiceInstanceTransactionsEstimator = tmpBytes
 	}
 	if len(m.unknownFields) > 0 {
 		r.unknownFields = make([]byte, len(m.unknownFields))
@@ -712,18 +638,6 @@ func (m *ServiceMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.ServiceInstanceTransactionMetrics) > 0 {
-		for iNdEx := len(m.ServiceInstanceTransactionMetrics) - 1; iNdEx >= 0; iNdEx-- {
-			size, err := m.ServiceInstanceTransactionMetrics[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
-			if err != nil {
-				return 0, err
-			}
-			i -= size
-			i = encodeVarint(dAtA, i, uint64(size))
-			i--
-			dAtA[i] = 0x2a
-		}
-	}
 	if len(m.SpanMetrics) > 0 {
 		for iNdEx := len(m.SpanMetrics) - 1; iNdEx >= 0; iNdEx-- {
 			size, err := m.SpanMetrics[iNdEx].MarshalToSizedBufferVT(dAtA[:i])
@@ -856,92 +770,225 @@ func (m *TransactionAggregationKey) MarshalToSizedBufferVT(dAtA []byte) (int, er
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
+	if len(m.CloudProjectName) > 0 {
+		i -= len(m.CloudProjectName)
+		copy(dAtA[i:], m.CloudProjectName)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudProjectName)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xea
+	}
+	if len(m.CloudProjectId) > 0 {
+		i -= len(m.CloudProjectId)
+		copy(dAtA[i:], m.CloudProjectId)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudProjectId)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xe2
+	}
+	if len(m.CloudMachineType) > 0 {
+		i -= len(m.CloudMachineType)
+		copy(dAtA[i:], m.CloudMachineType)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudMachineType)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xda
+	}
+	if len(m.CloudAccountName) > 0 {
+		i -= len(m.CloudAccountName)
+		copy(dAtA[i:], m.CloudAccountName)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudAccountName)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xd2
+	}
+	if len(m.CloudAccountId) > 0 {
+		i -= len(m.CloudAccountId)
+		copy(dAtA[i:], m.CloudAccountId)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudAccountId)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xca
+	}
+	if len(m.CloudServiceName) > 0 {
+		i -= len(m.CloudServiceName)
+		copy(dAtA[i:], m.CloudServiceName)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudServiceName)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xc2
+	}
+	if len(m.CloudAvailabilityZone) > 0 {
+		i -= len(m.CloudAvailabilityZone)
+		copy(dAtA[i:], m.CloudAvailabilityZone)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudAvailabilityZone)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xba
+	}
+	if len(m.CloudRegion) > 0 {
+		i -= len(m.CloudRegion)
+		copy(dAtA[i:], m.CloudRegion)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudRegion)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xb2
+	}
+	if len(m.CloudProvider) > 0 {
+		i -= len(m.CloudProvider)
+		copy(dAtA[i:], m.CloudProvider)
+		i = encodeVarint(dAtA, i, uint64(len(m.CloudProvider)))
+		i--
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xaa
+	}
 	if len(m.FaasTriggerType) > 0 {
 		i -= len(m.FaasTriggerType)
 		copy(dAtA[i:], m.FaasTriggerType)
 		i = encodeVarint(dAtA, i, uint64(len(m.FaasTriggerType)))
 		i--
-		dAtA[i] = 0x72
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0xa2
 	}
 	if len(m.FaasVersion) > 0 {
 		i -= len(m.FaasVersion)
 		copy(dAtA[i:], m.FaasVersion)
 		i = encodeVarint(dAtA, i, uint64(len(m.FaasVersion)))
 		i--
-		dAtA[i] = 0x6a
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x9a
 	}
 	if len(m.FaasName) > 0 {
 		i -= len(m.FaasName)
 		copy(dAtA[i:], m.FaasName)
 		i = encodeVarint(dAtA, i, uint64(len(m.FaasName)))
 		i--
-		dAtA[i] = 0x62
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x92
 	}
 	if len(m.FaasId) > 0 {
 		i -= len(m.FaasId)
 		copy(dAtA[i:], m.FaasId)
 		i = encodeVarint(dAtA, i, uint64(len(m.FaasId)))
 		i--
-		dAtA[i] = 0x5a
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x8a
 	}
 	if m.FaasColdstart != 0 {
 		i = encodeVarint(dAtA, i, uint64(m.FaasColdstart))
 		i--
-		dAtA[i] = 0x50
+		dAtA[i] = 0x1
+		i--
+		dAtA[i] = 0x80
 	}
 	if len(m.TransactionResult) > 0 {
 		i -= len(m.TransactionResult)
 		copy(dAtA[i:], m.TransactionResult)
 		i = encodeVarint(dAtA, i, uint64(len(m.TransactionResult)))
 		i--
-		dAtA[i] = 0x4a
+		dAtA[i] = 0x7a
 	}
 	if len(m.TransactionType) > 0 {
 		i -= len(m.TransactionType)
 		copy(dAtA[i:], m.TransactionType)
 		i = encodeVarint(dAtA, i, uint64(len(m.TransactionType)))
 		i--
-		dAtA[i] = 0x42
+		dAtA[i] = 0x72
 	}
 	if len(m.TransactionName) > 0 {
 		i -= len(m.TransactionName)
 		copy(dAtA[i:], m.TransactionName)
 		i = encodeVarint(dAtA, i, uint64(len(m.TransactionName)))
 		i--
-		dAtA[i] = 0x3a
+		dAtA[i] = 0x6a
 	}
 	if len(m.EventOutcome) > 0 {
 		i -= len(m.EventOutcome)
 		copy(dAtA[i:], m.EventOutcome)
 		i = encodeVarint(dAtA, i, uint64(len(m.EventOutcome)))
 		i--
-		dAtA[i] = 0x32
+		dAtA[i] = 0x62
+	}
+	if len(m.HostOsPlatform) > 0 {
+		i -= len(m.HostOsPlatform)
+		copy(dAtA[i:], m.HostOsPlatform)
+		i = encodeVarint(dAtA, i, uint64(len(m.HostOsPlatform)))
+		i--
+		dAtA[i] = 0x5a
+	}
+	if len(m.HostName) > 0 {
+		i -= len(m.HostName)
+		copy(dAtA[i:], m.HostName)
+		i = encodeVarint(dAtA, i, uint64(len(m.HostName)))
+		i--
+		dAtA[i] = 0x52
+	}
+	if len(m.HostHostname) > 0 {
+		i -= len(m.HostHostname)
+		copy(dAtA[i:], m.HostHostname)
+		i = encodeVarint(dAtA, i, uint64(len(m.HostHostname)))
+		i--
+		dAtA[i] = 0x4a
 	}
 	if len(m.ServiceLanguageVersion) > 0 {
 		i -= len(m.ServiceLanguageVersion)
 		copy(dAtA[i:], m.ServiceLanguageVersion)
 		i = encodeVarint(dAtA, i, uint64(len(m.ServiceLanguageVersion)))
 		i--
-		dAtA[i] = 0x2a
+		dAtA[i] = 0x42
 	}
 	if len(m.ServiceRuntimeVersion) > 0 {
 		i -= len(m.ServiceRuntimeVersion)
 		copy(dAtA[i:], m.ServiceRuntimeVersion)
 		i = encodeVarint(dAtA, i, uint64(len(m.ServiceRuntimeVersion)))
 		i--
-		dAtA[i] = 0x22
+		dAtA[i] = 0x3a
 	}
 	if len(m.ServiceRuntimeName) > 0 {
 		i -= len(m.ServiceRuntimeName)
 		copy(dAtA[i:], m.ServiceRuntimeName)
 		i = encodeVarint(dAtA, i, uint64(len(m.ServiceRuntimeName)))
 		i--
-		dAtA[i] = 0x1a
+		dAtA[i] = 0x32
+	}
+	if len(m.ServiceNodeName) > 0 {
+		i -= len(m.ServiceNodeName)
+		copy(dAtA[i:], m.ServiceNodeName)
+		i = encodeVarint(dAtA, i, uint64(len(m.ServiceNodeName)))
+		i--
+		dAtA[i] = 0x2a
 	}
 	if len(m.ServiceVersion) > 0 {
 		i -= len(m.ServiceVersion)
 		copy(dAtA[i:], m.ServiceVersion)
 		i = encodeVarint(dAtA, i, uint64(len(m.ServiceVersion)))
+		i--
+		dAtA[i] = 0x22
+	}
+	if len(m.KubernetesPodName) > 0 {
+		i -= len(m.KubernetesPodName)
+		copy(dAtA[i:], m.KubernetesPodName)
+		i = encodeVarint(dAtA, i, uint64(len(m.KubernetesPodName)))
+		i--
+		dAtA[i] = 0x1a
+	}
+	if len(m.ContainerId) > 0 {
+		i -= len(m.ContainerId)
+		copy(dAtA[i:], m.ContainerId)
+		i = encodeVarint(dAtA, i, uint64(len(m.ContainerId)))
 		i--
 		dAtA[i] = 0x12
 	}
@@ -987,297 +1034,6 @@ func (m *TransactionMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 	if m.unknownFields != nil {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.Histogram != nil {
-		size, err := m.Histogram.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *KeyedServiceInstanceTransactionMetrics) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *KeyedServiceInstanceTransactionMetrics) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *KeyedServiceInstanceTransactionMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.Metrics != nil {
-		size, err := m.Metrics.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x12
-	}
-	if m.Key != nil {
-		size, err := m.Key.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *ServiceInstanceTransactionAggregationKey) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ServiceInstanceTransactionAggregationKey) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *ServiceInstanceTransactionAggregationKey) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if len(m.CloudProjectName) > 0 {
-		i -= len(m.CloudProjectName)
-		copy(dAtA[i:], m.CloudProjectName)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudProjectName)))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0xa2
-	}
-	if len(m.CloudProjectId) > 0 {
-		i -= len(m.CloudProjectId)
-		copy(dAtA[i:], m.CloudProjectId)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudProjectId)))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0x9a
-	}
-	if len(m.CloudMachineType) > 0 {
-		i -= len(m.CloudMachineType)
-		copy(dAtA[i:], m.CloudMachineType)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudMachineType)))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0x92
-	}
-	if len(m.CloudAccountName) > 0 {
-		i -= len(m.CloudAccountName)
-		copy(dAtA[i:], m.CloudAccountName)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudAccountName)))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0x8a
-	}
-	if len(m.CloudAccountId) > 0 {
-		i -= len(m.CloudAccountId)
-		copy(dAtA[i:], m.CloudAccountId)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudAccountId)))
-		i--
-		dAtA[i] = 0x1
-		i--
-		dAtA[i] = 0x82
-	}
-	if len(m.CloudServiceName) > 0 {
-		i -= len(m.CloudServiceName)
-		copy(dAtA[i:], m.CloudServiceName)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudServiceName)))
-		i--
-		dAtA[i] = 0x7a
-	}
-	if len(m.CloudAvailabilityZone) > 0 {
-		i -= len(m.CloudAvailabilityZone)
-		copy(dAtA[i:], m.CloudAvailabilityZone)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudAvailabilityZone)))
-		i--
-		dAtA[i] = 0x72
-	}
-	if len(m.CloudRegion) > 0 {
-		i -= len(m.CloudRegion)
-		copy(dAtA[i:], m.CloudRegion)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudRegion)))
-		i--
-		dAtA[i] = 0x6a
-	}
-	if len(m.CloudProvider) > 0 {
-		i -= len(m.CloudProvider)
-		copy(dAtA[i:], m.CloudProvider)
-		i = encodeVarint(dAtA, i, uint64(len(m.CloudProvider)))
-		i--
-		dAtA[i] = 0x62
-	}
-	if len(m.TransactionType) > 0 {
-		i -= len(m.TransactionType)
-		copy(dAtA[i:], m.TransactionType)
-		i = encodeVarint(dAtA, i, uint64(len(m.TransactionType)))
-		i--
-		dAtA[i] = 0x5a
-	}
-	if len(m.HostOsPlatform) > 0 {
-		i -= len(m.HostOsPlatform)
-		copy(dAtA[i:], m.HostOsPlatform)
-		i = encodeVarint(dAtA, i, uint64(len(m.HostOsPlatform)))
-		i--
-		dAtA[i] = 0x52
-	}
-	if len(m.HostName) > 0 {
-		i -= len(m.HostName)
-		copy(dAtA[i:], m.HostName)
-		i = encodeVarint(dAtA, i, uint64(len(m.HostName)))
-		i--
-		dAtA[i] = 0x4a
-	}
-	if len(m.HostHostname) > 0 {
-		i -= len(m.HostHostname)
-		copy(dAtA[i:], m.HostHostname)
-		i = encodeVarint(dAtA, i, uint64(len(m.HostHostname)))
-		i--
-		dAtA[i] = 0x42
-	}
-	if len(m.ServiceLanguageVersion) > 0 {
-		i -= len(m.ServiceLanguageVersion)
-		copy(dAtA[i:], m.ServiceLanguageVersion)
-		i = encodeVarint(dAtA, i, uint64(len(m.ServiceLanguageVersion)))
-		i--
-		dAtA[i] = 0x3a
-	}
-	if len(m.ServiceRuntimeVersion) > 0 {
-		i -= len(m.ServiceRuntimeVersion)
-		copy(dAtA[i:], m.ServiceRuntimeVersion)
-		i = encodeVarint(dAtA, i, uint64(len(m.ServiceRuntimeVersion)))
-		i--
-		dAtA[i] = 0x32
-	}
-	if len(m.ServiceRuntimeName) > 0 {
-		i -= len(m.ServiceRuntimeName)
-		copy(dAtA[i:], m.ServiceRuntimeName)
-		i = encodeVarint(dAtA, i, uint64(len(m.ServiceRuntimeName)))
-		i--
-		dAtA[i] = 0x2a
-	}
-	if len(m.ServiceNodeName) > 0 {
-		i -= len(m.ServiceNodeName)
-		copy(dAtA[i:], m.ServiceNodeName)
-		i = encodeVarint(dAtA, i, uint64(len(m.ServiceNodeName)))
-		i--
-		dAtA[i] = 0x22
-	}
-	if len(m.ServiceVersion) > 0 {
-		i -= len(m.ServiceVersion)
-		copy(dAtA[i:], m.ServiceVersion)
-		i = encodeVarint(dAtA, i, uint64(len(m.ServiceVersion)))
-		i--
-		dAtA[i] = 0x1a
-	}
-	if len(m.KubernetesPodName) > 0 {
-		i -= len(m.KubernetesPodName)
-		copy(dAtA[i:], m.KubernetesPodName)
-		i = encodeVarint(dAtA, i, uint64(len(m.KubernetesPodName)))
-		i--
-		dAtA[i] = 0x12
-	}
-	if len(m.ContainerId) > 0 {
-		i -= len(m.ContainerId)
-		copy(dAtA[i:], m.ContainerId)
-		i = encodeVarint(dAtA, i, uint64(len(m.ContainerId)))
-		i--
-		dAtA[i] = 0xa
-	}
-	return len(dAtA) - i, nil
-}
-
-func (m *ServiceInstanceTransactionMetrics) MarshalVT() (dAtA []byte, err error) {
-	if m == nil {
-		return nil, nil
-	}
-	size := m.SizeVT()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalToSizedBufferVT(dAtA[:size])
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *ServiceInstanceTransactionMetrics) MarshalToVT(dAtA []byte) (int, error) {
-	size := m.SizeVT()
-	return m.MarshalToSizedBufferVT(dAtA[:size])
-}
-
-func (m *ServiceInstanceTransactionMetrics) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
-	if m == nil {
-		return 0, nil
-	}
-	i := len(dAtA)
-	_ = i
-	var l int
-	_ = l
-	if m.unknownFields != nil {
-		i -= len(m.unknownFields)
-		copy(dAtA[i:], m.unknownFields)
-	}
-	if m.SuccessCount != 0 {
-		i -= 8
-		binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.SuccessCount))))
-		i--
-		dAtA[i] = 0x19
-	}
-	if m.FailureCount != 0 {
-		i -= 8
-		binary.LittleEndian.PutUint64(dAtA[i:], uint64(math.Float64bits(float64(m.FailureCount))))
-		i--
-		dAtA[i] = 0x11
 	}
 	if m.Histogram != nil {
 		size, err := m.Histogram.MarshalToSizedBufferVT(dAtA[:i])
@@ -1636,23 +1392,6 @@ func (m *Overflow) MarshalToSizedBufferVT(dAtA []byte) (int, error) {
 		i -= len(m.unknownFields)
 		copy(dAtA[i:], m.unknownFields)
 	}
-	if len(m.OverflowServiceInstanceTransactionsEstimator) > 0 {
-		i -= len(m.OverflowServiceInstanceTransactionsEstimator)
-		copy(dAtA[i:], m.OverflowServiceInstanceTransactionsEstimator)
-		i = encodeVarint(dAtA, i, uint64(len(m.OverflowServiceInstanceTransactionsEstimator)))
-		i--
-		dAtA[i] = 0x42
-	}
-	if m.OverflowServiceInstanceTransactions != nil {
-		size, err := m.OverflowServiceInstanceTransactions.MarshalToSizedBufferVT(dAtA[:i])
-		if err != nil {
-			return 0, err
-		}
-		i -= size
-		i = encodeVarint(dAtA, i, uint64(size))
-		i--
-		dAtA[i] = 0x3a
-	}
 	if len(m.OverflowSpansEstimator) > 0 {
 		i -= len(m.OverflowSpansEstimator)
 		copy(dAtA[i:], m.OverflowSpansEstimator)
@@ -1898,15 +1637,10 @@ func (m *ServiceMetrics) ResetVT() {
 		mm.ResetVT()
 	}
 	f2 := m.SpanMetrics[:0]
-	for _, mm := range m.ServiceInstanceTransactionMetrics {
-		mm.ResetVT()
-	}
-	f3 := m.ServiceInstanceTransactionMetrics[:0]
 	m.Reset()
 	m.TransactionMetrics = f0
 	m.ServiceTransactionMetrics = f1
 	m.SpanMetrics = f2
-	m.ServiceInstanceTransactionMetrics = f3
 }
 func (m *ServiceMetrics) ReturnToVTPool() {
 	if m != nil {
@@ -1976,66 +1710,6 @@ func (m *TransactionMetrics) ReturnToVTPool() {
 }
 func TransactionMetricsFromVTPool() *TransactionMetrics {
 	return vtprotoPool_TransactionMetrics.Get().(*TransactionMetrics)
-}
-
-var vtprotoPool_KeyedServiceInstanceTransactionMetrics = sync.Pool{
-	New: func() interface{} {
-		return &KeyedServiceInstanceTransactionMetrics{}
-	},
-}
-
-func (m *KeyedServiceInstanceTransactionMetrics) ResetVT() {
-	m.Key.ReturnToVTPool()
-	m.Metrics.ReturnToVTPool()
-	m.Reset()
-}
-func (m *KeyedServiceInstanceTransactionMetrics) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_KeyedServiceInstanceTransactionMetrics.Put(m)
-	}
-}
-func KeyedServiceInstanceTransactionMetricsFromVTPool() *KeyedServiceInstanceTransactionMetrics {
-	return vtprotoPool_KeyedServiceInstanceTransactionMetrics.Get().(*KeyedServiceInstanceTransactionMetrics)
-}
-
-var vtprotoPool_ServiceInstanceTransactionAggregationKey = sync.Pool{
-	New: func() interface{} {
-		return &ServiceInstanceTransactionAggregationKey{}
-	},
-}
-
-func (m *ServiceInstanceTransactionAggregationKey) ResetVT() {
-	m.Reset()
-}
-func (m *ServiceInstanceTransactionAggregationKey) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_ServiceInstanceTransactionAggregationKey.Put(m)
-	}
-}
-func ServiceInstanceTransactionAggregationKeyFromVTPool() *ServiceInstanceTransactionAggregationKey {
-	return vtprotoPool_ServiceInstanceTransactionAggregationKey.Get().(*ServiceInstanceTransactionAggregationKey)
-}
-
-var vtprotoPool_ServiceInstanceTransactionMetrics = sync.Pool{
-	New: func() interface{} {
-		return &ServiceInstanceTransactionMetrics{}
-	},
-}
-
-func (m *ServiceInstanceTransactionMetrics) ResetVT() {
-	m.Histogram.ReturnToVTPool()
-	m.Reset()
-}
-func (m *ServiceInstanceTransactionMetrics) ReturnToVTPool() {
-	if m != nil {
-		m.ResetVT()
-		vtprotoPool_ServiceInstanceTransactionMetrics.Put(m)
-	}
-}
-func ServiceInstanceTransactionMetricsFromVTPool() *ServiceInstanceTransactionMetrics {
-	return vtprotoPool_ServiceInstanceTransactionMetrics.Get().(*ServiceInstanceTransactionMetrics)
 }
 
 var vtprotoPool_KeyedServiceTransactionMetrics = sync.Pool{
@@ -2170,13 +1844,10 @@ func (m *Overflow) ResetVT() {
 	f0 := m.OverflowTransactionsEstimator[:0]
 	f1 := m.OverflowServiceTransactionsEstimator[:0]
 	f2 := m.OverflowSpansEstimator[:0]
-	m.OverflowServiceInstanceTransactions.ReturnToVTPool()
-	f3 := m.OverflowServiceInstanceTransactionsEstimator[:0]
 	m.Reset()
 	m.OverflowTransactionsEstimator = f0
 	m.OverflowServiceTransactionsEstimator = f1
 	m.OverflowSpansEstimator = f2
-	m.OverflowServiceInstanceTransactionsEstimator = f3
 }
 func (m *Overflow) ReturnToVTPool() {
 	if m != nil {
@@ -2319,12 +1990,6 @@ func (m *ServiceMetrics) SizeVT() (n int) {
 			n += 1 + l + sov(uint64(l))
 		}
 	}
-	if len(m.ServiceInstanceTransactionMetrics) > 0 {
-		for _, e := range m.ServiceInstanceTransactionMetrics {
-			l = e.SizeVT()
-			n += 1 + l + sov(uint64(l))
-		}
-	}
 	n += len(m.unknownFields)
 	return n
 }
@@ -2356,99 +2021,6 @@ func (m *TransactionAggregationKey) SizeVT() (n int) {
 	if m.TraceRoot {
 		n += 2
 	}
-	l = len(m.ServiceVersion)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.ServiceRuntimeName)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.ServiceRuntimeVersion)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.ServiceLanguageVersion)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.EventOutcome)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.TransactionName)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.TransactionType)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.TransactionResult)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	if m.FaasColdstart != 0 {
-		n += 1 + sov(uint64(m.FaasColdstart))
-	}
-	l = len(m.FaasId)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.FaasName)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.FaasVersion)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.FaasTriggerType)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *TransactionMetrics) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Histogram != nil {
-		l = m.Histogram.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *KeyedServiceInstanceTransactionMetrics) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
-	if m.Key != nil {
-		l = m.Key.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	if m.Metrics != nil {
-		l = m.Metrics.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	n += len(m.unknownFields)
-	return n
-}
-
-func (m *ServiceInstanceTransactionAggregationKey) SizeVT() (n int) {
-	if m == nil {
-		return 0
-	}
-	var l int
-	_ = l
 	l = len(m.ContainerId)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
@@ -2489,25 +2061,56 @@ func (m *ServiceInstanceTransactionAggregationKey) SizeVT() (n int) {
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
+	l = len(m.EventOutcome)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
+	l = len(m.TransactionName)
+	if l > 0 {
+		n += 1 + l + sov(uint64(l))
+	}
 	l = len(m.TransactionType)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
-	l = len(m.CloudProvider)
+	l = len(m.TransactionResult)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
+	}
+	if m.FaasColdstart != 0 {
+		n += 2 + sov(uint64(m.FaasColdstart))
+	}
+	l = len(m.FaasId)
+	if l > 0 {
+		n += 2 + l + sov(uint64(l))
+	}
+	l = len(m.FaasName)
+	if l > 0 {
+		n += 2 + l + sov(uint64(l))
+	}
+	l = len(m.FaasVersion)
+	if l > 0 {
+		n += 2 + l + sov(uint64(l))
+	}
+	l = len(m.FaasTriggerType)
+	if l > 0 {
+		n += 2 + l + sov(uint64(l))
+	}
+	l = len(m.CloudProvider)
+	if l > 0 {
+		n += 2 + l + sov(uint64(l))
 	}
 	l = len(m.CloudRegion)
 	if l > 0 {
-		n += 1 + l + sov(uint64(l))
+		n += 2 + l + sov(uint64(l))
 	}
 	l = len(m.CloudAvailabilityZone)
 	if l > 0 {
-		n += 1 + l + sov(uint64(l))
+		n += 2 + l + sov(uint64(l))
 	}
 	l = len(m.CloudServiceName)
 	if l > 0 {
-		n += 1 + l + sov(uint64(l))
+		n += 2 + l + sov(uint64(l))
 	}
 	l = len(m.CloudAccountId)
 	if l > 0 {
@@ -2533,7 +2136,7 @@ func (m *ServiceInstanceTransactionAggregationKey) SizeVT() (n int) {
 	return n
 }
 
-func (m *ServiceInstanceTransactionMetrics) SizeVT() (n int) {
+func (m *TransactionMetrics) SizeVT() (n int) {
 	if m == nil {
 		return 0
 	}
@@ -2542,12 +2145,6 @@ func (m *ServiceInstanceTransactionMetrics) SizeVT() (n int) {
 	if m.Histogram != nil {
 		l = m.Histogram.SizeVT()
 		n += 1 + l + sov(uint64(l))
-	}
-	if m.FailureCount != 0 {
-		n += 9
-	}
-	if m.SuccessCount != 0 {
-		n += 9
 	}
 	n += len(m.unknownFields)
 	return n
@@ -2696,14 +2293,6 @@ func (m *Overflow) SizeVT() (n int) {
 		n += 1 + l + sov(uint64(l))
 	}
 	l = len(m.OverflowSpansEstimator)
-	if l > 0 {
-		n += 1 + l + sov(uint64(l))
-	}
-	if m.OverflowServiceInstanceTransactions != nil {
-		l = m.OverflowServiceInstanceTransactions.SizeVT()
-		n += 1 + l + sov(uint64(l))
-	}
-	l = len(m.OverflowServiceInstanceTransactionsEstimator)
 	if l > 0 {
 		n += 1 + l + sov(uint64(l))
 	}
@@ -3485,47 +3074,6 @@ func (m *ServiceMetrics) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ServiceInstanceTransactionMetrics", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if len(m.ServiceInstanceTransactionMetrics) == cap(m.ServiceInstanceTransactionMetrics) {
-				m.ServiceInstanceTransactionMetrics = append(m.ServiceInstanceTransactionMetrics, &KeyedServiceInstanceTransactionMetrics{})
-			} else {
-				m.ServiceInstanceTransactionMetrics = m.ServiceInstanceTransactionMetrics[:len(m.ServiceInstanceTransactionMetrics)+1]
-				if m.ServiceInstanceTransactionMetrics[len(m.ServiceInstanceTransactionMetrics)-1] == nil {
-					m.ServiceInstanceTransactionMetrics[len(m.ServiceInstanceTransactionMetrics)-1] = &KeyedServiceInstanceTransactionMetrics{}
-				}
-			}
-			if err := m.ServiceInstanceTransactionMetrics[len(m.ServiceInstanceTransactionMetrics)-1].UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -3722,6 +3270,70 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			m.TraceRoot = bool(v != 0)
 		case 2:
 			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ContainerId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ContainerId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field KubernetesPodName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.KubernetesPodName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ServiceVersion", wireType)
 			}
 			var stringLen uint64
@@ -3752,7 +3364,39 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ServiceVersion = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 3:
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServiceNodeName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServiceNodeName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 6:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ServiceRuntimeName", wireType)
 			}
@@ -3784,7 +3428,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ServiceRuntimeName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 4:
+		case 7:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ServiceRuntimeVersion", wireType)
 			}
@@ -3816,7 +3460,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ServiceRuntimeVersion = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 5:
+		case 8:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field ServiceLanguageVersion", wireType)
 			}
@@ -3848,7 +3492,103 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.ServiceLanguageVersion = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 6:
+		case 9:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HostHostname", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.HostHostname = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 10:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HostName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.HostName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 11:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field HostOsPlatform", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.HostOsPlatform = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 12:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field EventOutcome", wireType)
 			}
@@ -3880,7 +3620,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.EventOutcome = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 7:
+		case 13:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TransactionName", wireType)
 			}
@@ -3912,7 +3652,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.TransactionName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 8:
+		case 14:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TransactionType", wireType)
 			}
@@ -3944,7 +3684,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.TransactionType = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 9:
+		case 15:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field TransactionResult", wireType)
 			}
@@ -3976,7 +3716,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.TransactionResult = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 10:
+		case 16:
 			if wireType != 0 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FaasColdstart", wireType)
 			}
@@ -3995,7 +3735,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 					break
 				}
 			}
-		case 11:
+		case 17:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FaasId", wireType)
 			}
@@ -4027,7 +3767,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.FaasId = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 12:
+		case 18:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FaasName", wireType)
 			}
@@ -4059,7 +3799,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.FaasName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 13:
+		case 19:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FaasVersion", wireType)
 			}
@@ -4091,7 +3831,7 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 			}
 			m.FaasVersion = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
-		case 14:
+		case 20:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field FaasTriggerType", wireType)
 			}
@@ -4122,6 +3862,294 @@ func (m *TransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.FaasTriggerType = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 21:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudProvider", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudProvider = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 22:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudRegion", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudRegion = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 23:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudAvailabilityZone", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudAvailabilityZone = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 24:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudServiceName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudServiceName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 25:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudAccountId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudAccountId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 26:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudAccountName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudAccountName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 27:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudMachineType", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudMachineType = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 28:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudProjectId", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudProjectId = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 29:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field CloudProjectName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflow
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLength
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLength
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.CloudProjectName = string(dAtA[iNdEx:postIndex])
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -4210,929 +4238,6 @@ func (m *TransactionMetrics) UnmarshalVT(dAtA []byte) error {
 				return err
 			}
 			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *KeyedServiceInstanceTransactionMetrics) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: KeyedServiceInstanceTransactionMetrics: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: KeyedServiceInstanceTransactionMetrics: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Key", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Key == nil {
-				m.Key = ServiceInstanceTransactionAggregationKeyFromVTPool()
-			}
-			if err := m.Key.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Metrics", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Metrics == nil {
-				m.Metrics = ServiceInstanceTransactionMetricsFromVTPool()
-			}
-			if err := m.Metrics.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ServiceInstanceTransactionAggregationKey) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ServiceInstanceTransactionAggregationKey: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ServiceInstanceTransactionAggregationKey: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ContainerId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ContainerId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field KubernetesPodName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.KubernetesPodName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 3:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ServiceVersion", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ServiceVersion = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 4:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ServiceNodeName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ServiceNodeName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 5:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ServiceRuntimeName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ServiceRuntimeName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 6:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ServiceRuntimeVersion", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ServiceRuntimeVersion = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 7:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field ServiceLanguageVersion", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.ServiceLanguageVersion = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 8:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field HostHostname", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.HostHostname = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 9:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field HostName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.HostName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 10:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field HostOsPlatform", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.HostOsPlatform = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 11:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TransactionType", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.TransactionType = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 12:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudProvider", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudProvider = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 13:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudRegion", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudRegion = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 14:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudAvailabilityZone", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudAvailabilityZone = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 15:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudServiceName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudServiceName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 16:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudAccountId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudAccountId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 17:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudAccountName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudAccountName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 18:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudMachineType", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudMachineType = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 19:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudProjectId", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudProjectId = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		case 20:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field CloudProjectName", wireType)
-			}
-			var stringLen uint64
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				stringLen |= uint64(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			intStringLen := int(stringLen)
-			if intStringLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + intStringLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.CloudProjectName = string(dAtA[iNdEx:postIndex])
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skip(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if (skippy < 0) || (iNdEx+skippy) < 0 {
-				return ErrInvalidLength
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.unknownFields = append(m.unknownFields, dAtA[iNdEx:iNdEx+skippy]...)
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *ServiceInstanceTransactionMetrics) UnmarshalVT(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflow
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= uint64(b&0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: ServiceInstanceTransactionMetrics: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: ServiceInstanceTransactionMetrics: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Histogram", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Histogram == nil {
-				m.Histogram = HDRHistogramFromVTPool()
-			}
-			if err := m.Histogram.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field FailureCount", wireType)
-			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-			m.FailureCount = float64(math.Float64frombits(v))
-		case 3:
-			if wireType != 1 {
-				return fmt.Errorf("proto: wrong wireType = %d for field SuccessCount", wireType)
-			}
-			var v uint64
-			if (iNdEx + 8) > l {
-				return io.ErrUnexpectedEOF
-			}
-			v = uint64(binary.LittleEndian.Uint64(dAtA[iNdEx:]))
-			iNdEx += 8
-			m.SuccessCount = float64(math.Float64frombits(v))
 		default:
 			iNdEx = preIndex
 			skippy, err := skip(dAtA[iNdEx:])
@@ -6114,76 +5219,6 @@ func (m *Overflow) UnmarshalVT(dAtA []byte) error {
 			m.OverflowSpansEstimator = append(m.OverflowSpansEstimator[:0], dAtA[iNdEx:postIndex]...)
 			if m.OverflowSpansEstimator == nil {
 				m.OverflowSpansEstimator = []byte{}
-			}
-			iNdEx = postIndex
-		case 7:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceInstanceTransactions", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + msglen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.OverflowServiceInstanceTransactions == nil {
-				m.OverflowServiceInstanceTransactions = ServiceInstanceTransactionMetricsFromVTPool()
-			}
-			if err := m.OverflowServiceInstanceTransactions.UnmarshalVT(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		case 8:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field OverflowServiceInstanceTransactionsEstimator", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflow
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= int(b&0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLength
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex < 0 {
-				return ErrInvalidLength
-			}
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.OverflowServiceInstanceTransactionsEstimator = append(m.OverflowServiceInstanceTransactionsEstimator[:0], dAtA[iNdEx:postIndex]...)
-			if m.OverflowServiceInstanceTransactionsEstimator == nil {
-				m.OverflowServiceInstanceTransactionsEstimator = []byte{}
 			}
 			iNdEx = postIndex
 		default:

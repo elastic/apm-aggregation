@@ -679,7 +679,6 @@ func TestMerge(t *testing.T) {
 			constraints := newConstraints(tc.limits)
 			for _, svc := range metrics.Services {
 				constraints.totalTransactionGroups.Add(len(svc.TransactionGroups))
-				constraints.totalServiceInstanceTransactionGroups.Add(len(svc.ServiceInstanceTransactionGroups))
 				constraints.totalServiceTransactionGroups.Add(len(svc.ServiceTransactionGroups))
 				constraints.totalSpanGroups.Add(len(svc.SpanGroups))
 			}
