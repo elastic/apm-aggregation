@@ -1196,13 +1196,6 @@ func TestHarvestOverflowCount(t *testing.T) {
 			}, {
 				Attributes: attribute.NewSet(
 					attribute.String(aggregationIvlKey, "1m"),
-					attribute.String(aggregationTypeKey, "service_instance_transaction"),
-					attribute.String("id_key", "id_value"),
-				),
-				Value: int64(limits.MaxServiceInstanceTransactionGroups) + 2,
-			}, {
-				Attributes: attribute.NewSet(
-					attribute.String(aggregationIvlKey, "1m"),
 					attribute.String(aggregationTypeKey, "service_transaction"),
 					attribute.String("id_key", "id_value"),
 				),
