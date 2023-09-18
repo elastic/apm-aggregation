@@ -229,67 +229,6 @@ func (tsm *TestServiceMetrics) AddTransactionOverflow(
 	return tsm
 }
 
-func (tsm *TestServiceMetrics) AddServiceInstanceTransaction(
-	sitk serviceInstanceTransactionAggregationKey,
-	opts ...TestTransactionOpt,
-) *TestServiceMetrics {
-	if tsm.overflow {
-		panic("cannot add transaction to overflowed service transaction")
-	}
-	cfg := defaultTestTransactionCfg
-	for _, opt := range opts {
-		cfg = opt(cfg)
-	}
-
-	hdr := hdrhistogram.New()
-	hdr.RecordDuration(cfg.duration, float64(cfg.count))
-	ksitm := aggregationpb.KeyedServiceInstanceTransactionMetricsFromVTPool()
-	ksitm.Key = sitk.ToProto()
-	ksitm.Metrics = aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
-	ksitm.Metrics.Histogram = histogramToProto(hdr)
-	ksitm.Metrics.SuccessCount += float64(cfg.count)
-
-	svc := tsm.tcm.Services[tsm.sk]
-	if oldKsitm, ok := svc.ServiceInstanceTransactionGroups[sitk]; ok {
-		mergeKeyedServiceInstanceTransactionMetrics(oldKsitm, ksitm)
-		ksitm = oldKsitm
-	}
-	svc.ServiceInstanceTransactionGroups[sitk] = ksitm
-	return tsm
-}
-
-func (tsm *TestServiceMetrics) AddServiceInstanceTransactionOverflow(
-	sitk serviceInstanceTransactionAggregationKey,
-	opts ...TestTransactionOpt,
-) *TestServiceMetrics {
-	cfg := defaultTestTransactionCfg
-	for _, opt := range opts {
-		cfg = opt(cfg)
-	}
-
-	hdr := hdrhistogram.New()
-	hdr.RecordDuration(cfg.duration, float64(cfg.count))
-	from := aggregationpb.ServiceInstanceTransactionMetricsFromVTPool()
-	from.Histogram = histogramToProto(hdr)
-	from.SuccessCount += float64(cfg.count)
-
-	hash := protohash.HashServiceInstanceTransactionAggregationKey(
-		protohash.HashServiceAggregationKey(xxhash.Digest{}, tsm.sk.ToProto()),
-		sitk.ToProto(),
-	)
-
-	if tsm.overflow {
-		// Global overflow
-		tsm.tcm.OverflowServices.OverflowServiceInstanceTransaction.Merge(from, hash.Sum64())
-	} else {
-		// Per service overflow
-		svc := tsm.tcm.Services[tsm.sk]
-		svc.OverflowGroups.OverflowServiceInstanceTransaction.Merge(from, hash.Sum64())
-		tsm.tcm.Services[tsm.sk] = svc
-	}
-	return tsm
-}
-
 func (tsm *TestServiceMetrics) AddServiceTransaction(
 	stk serviceTransactionAggregationKey,
 	opts ...TestTransactionOpt,
@@ -431,12 +370,6 @@ var combinedMetricsSliceSorters = []cmp.Option{
 		return xxhashDigestLess(
 			protohash.HashTransactionAggregationKey(xxhash.Digest{}, a.Key),
 			protohash.HashTransactionAggregationKey(xxhash.Digest{}, b.Key),
-		)
-	}),
-	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedServiceInstanceTransactionMetrics) bool {
-		return xxhashDigestLess(
-			protohash.HashServiceInstanceTransactionAggregationKey(xxhash.Digest{}, a.Key),
-			protohash.HashServiceInstanceTransactionAggregationKey(xxhash.Digest{}, b.Key),
 		)
 	}),
 	protocmp.SortRepeated(func(a, b *aggregationpb.KeyedServiceTransactionMetrics) bool {

@@ -515,7 +515,6 @@ func (a *Aggregator) harvestForInterval(
 		}
 		recordMetricsOverflow(harvestStats.servicesOverflowed, "service")
 		recordMetricsOverflow(harvestStats.transactionsOverflowed, "transaction")
-		recordMetricsOverflow(harvestStats.serviceInstanceTransactionsOverflowed, "service_instance_transaction")
 		recordMetricsOverflow(harvestStats.serviceTransactionsOverflowed, "service_transaction")
 		recordMetricsOverflow(harvestStats.spansOverflowed, "service_destination")
 
@@ -634,17 +633,6 @@ var (
 		overflowBucketName,
 	)
 
-	serviceInstanceTransactionGroupLimitReachedMessage = fmt.Sprintf(""+
-		"Service instance transaction group per service limit reached, new metric documents will be grouped "+
-		"under a dedicated bucket identified by transaction type '%s'.",
-		overflowBucketName,
-	)
-	overallServiceInstanceTransactionGroupLimitReachedMessage = fmt.Sprintf(""+
-		"Overall service instance transaction group limit reached, new metric documents will be grouped "+
-		"under a dedicated bucket identified by transaction type '%s'.",
-		overflowBucketName,
-	)
-
 	serviceTransactionGroupLimitReachedMessage = fmt.Sprintf(""+
 		"Service transaction group per service limit reached, new metric documents will be grouped "+
 		"under a dedicated bucket identified by transaction type '%s'.",
@@ -672,11 +660,10 @@ type harvestStats struct {
 	eventsTotal            float64
 	youngestEventTimestamp time.Time
 
-	servicesOverflowed                    uint64
-	transactionsOverflowed                uint64
-	serviceTransactionsOverflowed         uint64
-	serviceInstanceTransactionsOverflowed uint64
-	spansOverflowed                       uint64
+	servicesOverflowed            uint64
+	transactionsOverflowed        uint64
+	serviceTransactionsOverflowed uint64
+	spansOverflowed               uint64
 }
 
 func (hs *harvestStats) addOverflows(cm *aggregationpb.CombinedMetrics, limits Limits, logger *zap.Logger) {
@@ -688,7 +675,6 @@ func (hs *harvestStats) addOverflows(cm *aggregationpb.CombinedMetrics, limits L
 	// so that they are only logged once.
 	var loggedOverallTransactionGroupLimitReached bool
 	var loggedOverallServiceTransactionGroupLimitReached bool
-	var loggedOverallServiceInstanceTransactionGroupLimitReached bool
 	var loggedOverallSpanGroupLimitReached bool
 	logLimitReached := func(
 		n, limit int,
@@ -729,17 +715,6 @@ func (hs *harvestStats) addOverflows(cm *aggregationpb.CombinedMetrics, limits L
 				transactionGroupLimitReachedMessage,
 				overallTransactionGroupLimitReachedMessage,
 				&loggedOverallTransactionGroupLimitReached,
-			)
-		}
-		if overflowed := hllSketchEstimate(o.OverflowServiceInstanceTransactionsEstimator); overflowed > 0 {
-			hs.serviceInstanceTransactionsOverflowed += overflowed
-			logLimitReached(
-				len(ksm.GetMetrics().GetServiceInstanceTransactionMetrics()),
-				limits.MaxServiceInstanceTransactionGroupsPerService,
-				ksm.GetKey(),
-				serviceInstanceTransactionGroupLimitReachedMessage,
-				overallServiceInstanceTransactionGroupLimitReachedMessage,
-				&loggedOverallServiceInstanceTransactionGroupLimitReached,
 			)
 		}
 		if overflowed := hllSketchEstimate(o.OverflowServiceTransactionsEstimator); overflowed > 0 {
