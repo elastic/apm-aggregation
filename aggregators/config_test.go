@@ -162,26 +162,28 @@ func TestNewConfig(t *testing.T) {
 			expectedErrorMsg: "aggregation interval greater than 18 hours is not supported",
 		},
 	} {
-		actual, err := NewConfig(tc.opts...)
+		t.Run(tc.name, func(t *testing.T) {
+			actual, err := NewConfig(tc.opts...)
 
-		if tc.expectedErrorMsg != "" {
-			assert.EqualError(t, err, tc.expectedErrorMsg)
-			continue
-		}
+			if tc.expectedErrorMsg != "" {
+				assert.EqualError(t, err, tc.expectedErrorMsg)
+				return
+			}
 
-		expected := tc.expected()
-		assert.NoError(t, err)
+			expected := tc.expected()
+			assert.NoError(t, err)
 
-		// New logger is created for every call
-		assert.NotNil(t, actual.Logger)
-		actual.Logger, expected.Logger = nil, nil
+			// New logger is created for every call
+			assert.NotNil(t, actual.Logger)
+			actual.Logger, expected.Logger = nil, nil
 
-		// Function values are not comparable
-		assert.NotNil(t, actual.CombinedMetricsIDToKVs)
-		actual.CombinedMetricsIDToKVs, expected.CombinedMetricsIDToKVs = nil, nil
-		assert.NotNil(t, actual.Processor)
-		actual.Processor, expected.Processor = nil, nil
+			// Function values are not comparable
+			assert.NotNil(t, actual.CombinedMetricsIDToKVs)
+			actual.CombinedMetricsIDToKVs, expected.CombinedMetricsIDToKVs = nil, nil
+			assert.NotNil(t, actual.Processor)
+			actual.Processor, expected.Processor = nil, nil
 
-		assert.Equal(t, expected, actual)
+			assert.Equal(t, expected, actual)
+		})
 	}
 }
