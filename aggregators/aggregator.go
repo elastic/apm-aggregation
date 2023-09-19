@@ -110,7 +110,7 @@ func New(opts ...Option) (*Aggregator, error) {
 		db:             pb,
 		writeOptions:   writeOptions,
 		cfg:            cfg,
-		processingTime: time.Now().Truncate(cfg.AggregationIntervals[0]),
+		processingTime: cfg.OriginProcessTime.Truncate(cfg.AggregationIntervals[0]),
 		closed:         make(chan struct{}),
 		metrics:        metrics,
 	}, nil

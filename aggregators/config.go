@@ -44,6 +44,7 @@ type Config struct {
 	HarvestDelay           time.Duration
 	CombinedMetricsIDToKVs func([16]byte) []attribute.KeyValue
 	InMemory               bool
+	OriginProcessTime      time.Time
 
 	Meter           metric.Meter
 	Tracer          trace.Tracer
@@ -111,6 +112,20 @@ func WithPartitions(n uint16) Option {
 func WithAggregationIntervals(aggIvls []time.Duration) Option {
 	return func(c Config) Config {
 		c.AggregationIntervals = aggIvls
+		return c
+	}
+}
+
+// WithOriginProcessTime sets the time when the aggregator will start
+// processing events at boot.
+// Setting this to a higher value in the past means we will re-process more
+// data before moving on to fresh one, while also being able to handle as much
+// downtime before we start dropping aggregations.
+//
+// Defaults to `time.Now()`
+func WithOriginProcessTime(t time.Time) Option {
+	return func(c Config) Config {
+		c.OriginProcessTime = t
 		return c
 	}
 }
@@ -200,6 +215,7 @@ func defaultCfg() Config {
 		Processor:              stdoutProcessor,
 		Partitions:             1,
 		AggregationIntervals:   []time.Duration{time.Minute},
+		OriginProcessTime:      time.Now(),
 		Meter:                  otel.Meter(instrumentationName),
 		Tracer:                 otel.Tracer(instrumentationName),
 		CombinedMetricsIDToKVs: func(_ [16]byte) []attribute.KeyValue { return nil },
