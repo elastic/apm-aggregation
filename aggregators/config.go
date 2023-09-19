@@ -22,6 +22,8 @@ import (
 
 const instrumentationName = "aggregators"
 
+var now = time.Now()
+
 // Processor defines handling of the aggregated metrics post harvest.
 // CombinedMetrics passed to the processor is pooled and it is released
 // back to the pool after processor has returned. If the processor mutates
@@ -122,7 +124,7 @@ func WithAggregationIntervals(aggIvls []time.Duration) Option {
 // data before moving on to fresh one, while also being able to handle as much
 // downtime before we start dropping aggregations.
 //
-// Defaults to `time.Now()`
+// Defaults to `time.Now()` when `init()` runs.
 func WithOriginProcessTime(t time.Time) Option {
 	return func(c Config) Config {
 		c.OriginProcessTime = t
@@ -215,7 +217,7 @@ func defaultCfg() Config {
 		Processor:              stdoutProcessor,
 		Partitions:             1,
 		AggregationIntervals:   []time.Duration{time.Minute},
-		OriginProcessTime:      time.Now(),
+		OriginProcessTime:      now,
 		Meter:                  otel.Meter(instrumentationName),
 		Tracer:                 otel.Tracer(instrumentationName),
 		CombinedMetricsIDToKVs: func(_ [16]byte) []attribute.KeyValue { return nil },
