@@ -9,9 +9,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// kvsToZapFields converts []attribute.KeyValue to []zap.Field.
+// otelKVsToZapFields converts []attribute.KeyValue to []zap.Field.
 // Designed to work with CombinedMetricsIDToKVs for logging.
-func kvsToZapFields(kvs []attribute.KeyValue) []zap.Field {
+func otelKVsToZapFields(kvs []attribute.KeyValue) []zap.Field {
 	if kvs == nil {
 		return nil
 	}
