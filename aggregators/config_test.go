@@ -80,6 +80,17 @@ func TestNewConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "with_origin_process_time",
+			opts: []Option{
+				WithOriginProcessTime(now.Add(-time.Hour)),
+			},
+			expected: func() Config {
+				cfg := defaultCfg
+				cfg.OriginProcessTime = now.Add(-time.Hour)
+				return cfg
+			},
+		},
+		{
 			name: "with_harvest_delay",
 			opts: []Option{
 				WithHarvestDelay(time.Hour),
