@@ -1225,7 +1225,8 @@ func TestHarvestOverflowCount(t *testing.T) {
 		assert.True(t, found)
 
 		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
-			return strings.Contains(entry.Message, "Service limit reached")
+			return strings.Contains(entry.Message, "Service limit reached") &&
+				entry.ContextMap()["id_key"] == "id_value"
 		}).All(), 1)
 
 		var expectedLogPerServiceCount, expectedGlobalLogCount int
@@ -1238,27 +1239,33 @@ func TestHarvestOverflowCount(t *testing.T) {
 		}
 
 		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
-			return strings.Contains(entry.Message, "Transaction group per service limit reached")
+			return strings.Contains(entry.Message, "Transaction group per service limit reached") &&
+				entry.ContextMap()["id_key"] == "id_value"
 		}).All(), expectedLogPerServiceCount)
 
 		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
-			return strings.Contains(entry.Message, "Service transaction group per service limit reached")
+			return strings.Contains(entry.Message, "Service transaction group per service limit reached") &&
+				entry.ContextMap()["id_key"] == "id_value"
 		}).All(), expectedLogPerServiceCount)
 
 		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
-			return strings.Contains(entry.Message, "Span group per service limit reached")
+			return strings.Contains(entry.Message, "Span group per service limit reached") &&
+				entry.ContextMap()["id_key"] == "id_value"
 		}).All(), expectedLogPerServiceCount)
 
 		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
-			return strings.Contains(entry.Message, "Overall transaction group limit reached")
+			return strings.Contains(entry.Message, "Overall transaction group limit reached") &&
+				entry.ContextMap()["id_key"] == "id_value"
 		}).All(), expectedGlobalLogCount)
 
 		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
-			return strings.Contains(entry.Message, "Overall service transaction group limit reached")
+			return strings.Contains(entry.Message, "Overall service transaction group limit reached") &&
+				entry.ContextMap()["id_key"] == "id_value"
 		}).All(), expectedGlobalLogCount)
 
 		assert.Len(t, observedLogs.Filter(func(entry observer.LoggedEntry) bool {
-			return strings.Contains(entry.Message, "Overall span group limit reached")
+			return strings.Contains(entry.Message, "Overall span group limit reached") &&
+				entry.ContextMap()["id_key"] == "id_value"
 		}).All(), expectedGlobalLogCount)
 	}
 }

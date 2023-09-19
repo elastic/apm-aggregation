@@ -555,11 +555,14 @@ func (a *Aggregator) harvestForInterval(
 			continue
 		}
 		if eventsTotal < 0 {
-			a.cfg.Logger.Warn(
-				"unexpectedly failed to harvest all collected events",
+			fields := append([]zap.Field{
 				zap.Duration("aggregation_interval_ns", ivl),
 				zap.ByteString("id", cmID[:]),
 				zap.Float64("remaining_events", eventsTotal),
+			}, kvsToZapFields(a.cfg.CombinedMetricsIDToKVs(cmID))...)
+			a.cfg.Logger.Warn(
+				"unexpectedly failed to harvest all collected events",
+				fields...,
 			)
 			continue
 		}
@@ -598,6 +601,9 @@ func (a *Aggregator) processHarvest(
 	overflowLogger := nopLogger
 	if a.cfg.OverflowLogging {
 		overflowLogger = a.cfg.Logger.With(zap.Duration("aggregation_interval_ns", aggIvl))
+		if kvs := a.cfg.CombinedMetricsIDToKVs(cmk.ID); len(kvs) > 0 {
+			overflowLogger = overflowLogger.With(kvsToZapFields(kvs)...)
+		}
 	}
 	hs.addOverflows(cm, a.cfg.Limits, overflowLogger)
 
