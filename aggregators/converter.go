@@ -420,7 +420,7 @@ func CombinedMetricsToBatch(
 	for _, ksm := range cm.ServiceMetrics {
 		sk, sm := ksm.Key, ksm.Metrics
 
-		var gl GlobalLabels
+		var gl globalLabels
 		if err := gl.UnmarshalBinary(sk.GlobalLabelsStr); err != nil {
 			return nil, fmt.Errorf("failed to unmarshal global labels: %w", err)
 		}

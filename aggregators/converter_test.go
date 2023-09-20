@@ -769,7 +769,7 @@ func createTestSpanMetric(
 
 func getTestGlobalLabelsStr(t *testing.T, s string) string {
 	t.Helper()
-	var gl GlobalLabels
+	var gl globalLabels
 	gl.Labels = make(modelpb.Labels)
 	gl.Labels["test"] = &modelpb.LabelValue{Value: s}
 	gls, err := gl.MarshalString()
@@ -828,7 +828,7 @@ func TestMarshalEventGlobalLabels(t *testing.T) {
 	}
 	b, err := marshalEventGlobalLabels(e)
 	require.NoError(t, err)
-	gl := GlobalLabels{}
+	gl := globalLabels{}
 	err = gl.UnmarshalBinary(b)
 	require.NoError(t, err)
 	assert.Equal(t, modelpb.Labels{
