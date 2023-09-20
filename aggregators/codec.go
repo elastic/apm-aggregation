@@ -317,7 +317,7 @@ func (o *overflow) FromProto(pb *aggregationpb.Overflow) {
 }
 
 // ToProto converts GlobalLabels to its protobuf representation.
-func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
+func (gl *globalLabels) ToProto() *aggregationpb.GlobalLabels {
 	pb := aggregationpb.GlobalLabelsFromVTPool()
 
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
@@ -355,8 +355,8 @@ func (gl *GlobalLabels) ToProto() *aggregationpb.GlobalLabels {
 	return pb
 }
 
-// FromProto converts protobuf representation to GlobalLabels.
-func (gl *GlobalLabels) FromProto(pb *aggregationpb.GlobalLabels) {
+// FromProto converts protobuf representation to globalLabels.
+func (gl *globalLabels) FromProto(pb *aggregationpb.GlobalLabels) {
 	gl.Labels = make(modelpb.Labels, len(pb.Labels))
 	for _, l := range pb.Labels {
 		gl.Labels[l.Key] = &modelpb.LabelValue{Value: l.Value, Values: l.Values, Global: true}
@@ -367,8 +367,8 @@ func (gl *GlobalLabels) FromProto(pb *aggregationpb.GlobalLabels) {
 	}
 }
 
-// MarshalBinary marshals GlobalLabels to binary using protobuf.
-func (gl *GlobalLabels) MarshalBinary() ([]byte, error) {
+// MarshalBinary marshals globalLabels to binary using protobuf.
+func (gl *globalLabels) MarshalBinary() ([]byte, error) {
 	if gl.Labels == nil && gl.NumericLabels == nil {
 		return nil, nil
 	}
@@ -377,14 +377,14 @@ func (gl *GlobalLabels) MarshalBinary() ([]byte, error) {
 	return pb.MarshalVT()
 }
 
-// MarshalString marshals GlobalLabels to string from binary using protobuf.
-func (gl *GlobalLabels) MarshalString() (string, error) {
+// MarshalString marshals globalLabels to string from binary using protobuf.
+func (gl *globalLabels) MarshalString() (string, error) {
 	b, err := gl.MarshalBinary()
 	return string(b), err
 }
 
-// UnmarshalBinary unmarshals binary protobuf to GlobalLabels.
-func (gl *GlobalLabels) UnmarshalBinary(data []byte) error {
+// UnmarshalBinary unmarshals binary protobuf to globalLabels.
+func (gl *globalLabels) UnmarshalBinary(data []byte) error {
 	if len(data) == 0 {
 		gl.Labels = nil
 		gl.NumericLabels = nil
@@ -399,8 +399,8 @@ func (gl *GlobalLabels) UnmarshalBinary(data []byte) error {
 	return nil
 }
 
-// UnmarshalString unmarshals string of binary protobuf to GlobalLabels.
-func (gl *GlobalLabels) UnmarshalString(data string) error {
+// UnmarshalString unmarshals string of binary protobuf to globalLabels.
+func (gl *globalLabels) UnmarshalString(data string) error {
 	return gl.UnmarshalBinary([]byte(data))
 }
 

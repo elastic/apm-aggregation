@@ -333,7 +333,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				return nil
 			}
 			for _, e := range tc.input() {
-				err := EventToCombinedMetrics(e, cmk, tc.partitions, collector)
+				err := eventToCombinedMetrics(e, cmk, tc.partitions, collector)
 				require.NoError(t, err)
 			}
 			assert.Empty(t, cmp.Diff(
@@ -571,7 +571,7 @@ func BenchmarkEventToCombinedMetrics(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := EventToCombinedMetrics(event, cmk, 1 /*partitions*/, noop)
+		err := eventToCombinedMetrics(event, cmk, 1 /*partitions*/, noop)
 		if err != nil {
 			b.Fatal(err)
 		}
@@ -769,7 +769,7 @@ func createTestSpanMetric(
 
 func getTestGlobalLabelsStr(t *testing.T, s string) string {
 	t.Helper()
-	var gl GlobalLabels
+	var gl globalLabels
 	gl.Labels = make(modelpb.Labels)
 	gl.Labels["test"] = &modelpb.LabelValue{Value: s}
 	gls, err := gl.MarshalString()
@@ -828,7 +828,7 @@ func TestMarshalEventGlobalLabels(t *testing.T) {
 	}
 	b, err := marshalEventGlobalLabels(e)
 	require.NoError(t, err)
-	gl := GlobalLabels{}
+	gl := globalLabels{}
 	err = gl.UnmarshalBinary(b)
 	require.NoError(t, err)
 	assert.Equal(t, modelpb.Labels{

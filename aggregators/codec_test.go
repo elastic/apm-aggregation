@@ -52,7 +52,7 @@ func TestGetEncodedCombinedMetricsKeyWithoutPartitionID(t *testing.T) {
 }
 
 func TestGlobalLabels(t *testing.T) {
-	expected := GlobalLabels{
+	expected := globalLabels{
 		Labels: map[string]*modelpb.LabelValue{
 			"lb01": {
 				Values: []string{"test01", "test02"},
@@ -68,7 +68,7 @@ func TestGlobalLabels(t *testing.T) {
 	}
 	str, err := expected.MarshalString()
 	assert.NoError(t, err)
-	var actual GlobalLabels
+	var actual globalLabels
 	assert.NoError(t, actual.UnmarshalString(str))
 	assert.Empty(t, cmp.Diff(
 		expected, actual,

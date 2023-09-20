@@ -34,8 +34,8 @@ type Processor func(
 	aggregationIvl time.Duration,
 ) error
 
-// Config contains the required config for running the aggregator.
-type Config struct {
+// config contains the required config for running the aggregator.
+type config struct {
 	DataDir                string
 	Limits                 Limits
 	Processor              Processor
@@ -53,10 +53,10 @@ type Config struct {
 }
 
 // Option allows configuring aggregator based on functional options.
-type Option func(Config) Config
+type Option func(config) config
 
 // NewConfig creates a new aggregator config based on the passed options.
-func NewConfig(opts ...Option) (Config, error) {
+func newConfig(opts ...Option) (config, error) {
 	cfg := defaultCfg()
 	for _, opt := range opts {
 		cfg = opt(cfg)
@@ -66,7 +66,7 @@ func NewConfig(opts ...Option) (Config, error) {
 
 // WithDataDir configures the data directory to be used by the database.
 func WithDataDir(dataDir string) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.DataDir = dataDir
 		return c
 	}
@@ -74,7 +74,7 @@ func WithDataDir(dataDir string) Option {
 
 // WithLimits configures the limits to be used by the aggregator.
 func WithLimits(limits Limits) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.Limits = limits
 		return c
 	}
@@ -88,7 +88,7 @@ func WithLimits(limits Limits) Option {
 // can no longer access the pooled objects, then the Processor should
 // release the objects back to the pool.
 func WithProcessor(processor Processor) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.Processor = processor
 		return c
 	}
@@ -101,7 +101,7 @@ func WithProcessor(processor Processor) Option {
 // combined metric are listed before any other if compared using the bytes
 // comparer.
 func WithPartitions(n uint16) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.Partitions = n
 		return c
 	}
@@ -110,7 +110,7 @@ func WithPartitions(n uint16) Option {
 // WithAggregationIntervals defines the intervals that aggregator will
 // aggregate for.
 func WithAggregationIntervals(aggIvls []time.Duration) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.AggregationIntervals = aggIvls
 		return c
 	}
@@ -135,7 +135,7 @@ func WithAggregationIntervals(aggIvls []time.Duration) Option {
 // metrics are aggregated. This is because AggregateBatch API is
 // not used by the l2 aggregator.
 func WithHarvestDelay(delay time.Duration) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.HarvestDelay = delay
 		return c
 	}
@@ -156,7 +156,7 @@ func WithHarvestDelay(delay time.Duration) Option {
 // aggregates and thus we can have multiple aggregated metrics for
 // the same CombinedMetricsKey{Interval, ProcessingTime, ID}.
 func WithLookback(lookback time.Duration) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.Lookback = lookback
 		return c
 	}
@@ -165,7 +165,7 @@ func WithLookback(lookback time.Duration) Option {
 // WithMeter defines a custom meter which will be used for collecting
 // telemetry. Defaults to the meter provided by global provider.
 func WithMeter(meter metric.Meter) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.Meter = meter
 		return c
 	}
@@ -174,7 +174,7 @@ func WithMeter(meter metric.Meter) Option {
 // WithTracer defines a custom tracer which will be used for collecting
 // traces. Defaults to the tracer provided by global provider.
 func WithTracer(tracer trace.Tracer) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.Tracer = tracer
 		return c
 	}
@@ -183,7 +183,7 @@ func WithTracer(tracer trace.Tracer) Option {
 // WithCombinedMetricsIDToKVs defines a function that converts a combined
 // metrics ID to zero or more attribute.KeyValue for telemetry.
 func WithCombinedMetricsIDToKVs(f func([16]byte) []attribute.KeyValue) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.CombinedMetricsIDToKVs = f
 		return c
 	}
@@ -191,7 +191,7 @@ func WithCombinedMetricsIDToKVs(f func([16]byte) []attribute.KeyValue) Option {
 
 // WithLogger defines a custom logger to be used by aggregator.
 func WithLogger(logger *zap.Logger) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.Logger = logger
 		return c
 	}
@@ -202,7 +202,7 @@ func WithLogger(logger *zap.Logger) Option {
 // Logging of overflows is disabled by default, as most callers are expected to rely on
 // metrics to surface cardinality issues. Support for logging exists for historical reasons.
 func WithOverflowLogging(enabled bool) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.OverflowLogging = enabled
 		return c
 	}
@@ -210,14 +210,14 @@ func WithOverflowLogging(enabled bool) Option {
 
 // WithInMemory defines whether aggregator uses in-memory file system.
 func WithInMemory(enabled bool) Option {
-	return func(c Config) Config {
+	return func(c config) config {
 		c.InMemory = enabled
 		return c
 	}
 }
 
-func defaultCfg() Config {
-	return Config{
+func defaultCfg() config {
+	return config{
 		DataDir:                "/tmp",
 		Processor:              stdoutProcessor,
 		Partitions:             1,
@@ -229,7 +229,7 @@ func defaultCfg() Config {
 	}
 }
 
-func validateCfg(cfg Config) error {
+func validateCfg(cfg config) error {
 	if cfg.DataDir == "" {
 		return errors.New("data directory is required")
 	}

@@ -47,7 +47,7 @@ var (
 type Aggregator struct {
 	db           *pebble.DB
 	writeOptions *pebble.WriteOptions
-	cfg          Config
+	cfg          config
 
 	mu             sync.Mutex
 	processingTime time.Time
@@ -64,7 +64,7 @@ type Aggregator struct {
 //
 // Close must be called when the the aggregator is no longer needed.
 func New(opts ...Option) (*Aggregator, error) {
-	cfg, err := NewConfig(opts...)
+	cfg, err := newConfig(opts...)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create aggregation config: %w", err)
 	}
@@ -339,7 +339,7 @@ func (a *Aggregator) aggregateAPMEvent(
 		totalBytesIn += bytesIn
 		return err
 	}
-	err := EventToCombinedMetrics(e, cmk, a.cfg.Partitions, aggregateFunc)
+	err := eventToCombinedMetrics(e, cmk, a.cfg.Partitions, aggregateFunc)
 	if err != nil {
 		return 0, fmt.Errorf("failed to aggregate combined metrics: %w", err)
 	}

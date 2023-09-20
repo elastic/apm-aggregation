@@ -70,10 +70,10 @@ type CombinedMetricsKey struct {
 	ID             [16]byte
 }
 
-// GlobalLabels is an intermediate struct used to marshal/unmarshal the
+// globalLabels is an intermediate struct used to marshal/unmarshal the
 // provided global labels into a comparable format. The format is used by
 // pebble db to compare service aggregation keys.
-type GlobalLabels struct {
+type globalLabels struct {
 	Labels        modelpb.Labels
 	NumericLabels modelpb.NumericLabels
 }
