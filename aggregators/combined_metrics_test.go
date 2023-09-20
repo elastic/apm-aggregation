@@ -18,11 +18,19 @@ import (
 )
 
 type TestCombinedMetricsCfg struct {
+	key                    CombinedMetricsKey
 	eventsTotal            float64
 	youngestEventTimestamp time.Time
 }
 
 type TestCombinedMetricsOpt func(cfg TestCombinedMetricsCfg) TestCombinedMetricsCfg
+
+func WithKey(key CombinedMetricsKey) TestCombinedMetricsOpt {
+	return func(cfg TestCombinedMetricsCfg) TestCombinedMetricsCfg {
+		cfg.key = key
+		return cfg
+	}
+}
 
 func WithEventsTotal(total float64) TestCombinedMetricsOpt {
 	return func(cfg TestCombinedMetricsCfg) TestCombinedMetricsCfg {
@@ -114,7 +122,10 @@ var defaultTestSpanCfg = TestSpanCfg{
 // TestCombinedMetrics creates combined metrics for testing. The creation logic
 // is arranged in a way to allow chained creation and addition of leaf nodes
 // to combined metrics.
-type TestCombinedMetrics combinedMetrics
+type TestCombinedMetrics struct {
+	key   CombinedMetricsKey
+	value *combinedMetrics
+}
 
 func NewTestCombinedMetrics(opts ...TestCombinedMetricsOpt) *TestCombinedMetrics {
 	cfg := defaultTestCombinedMetricsCfg
@@ -125,18 +136,22 @@ func NewTestCombinedMetrics(opts ...TestCombinedMetricsOpt) *TestCombinedMetrics
 	cm.EventsTotal = cfg.eventsTotal
 	cm.YoungestEventTimestamp = modelpb.FromTime(cfg.youngestEventTimestamp)
 	cm.Services = make(map[serviceAggregationKey]serviceMetrics)
-	return (*TestCombinedMetrics)(&cm)
+	return &TestCombinedMetrics{
+		key:   cfg.key,
+		value: &cm,
+	}
 }
 
 func (tcm *TestCombinedMetrics) GetProto() *aggregationpb.CombinedMetrics {
-	cm := (*combinedMetrics)(tcm)
-	cmproto := cm.ToProto()
-	return cmproto
+	return tcm.value.ToProto()
 }
 
 func (tcm *TestCombinedMetrics) Get() combinedMetrics {
-	cm := (*combinedMetrics)(tcm)
-	return *cm
+	return *tcm.value
+}
+
+func (tcm *TestCombinedMetrics) GetKey() CombinedMetricsKey {
+	return tcm.key
 }
 
 type TestServiceMetrics struct {
@@ -148,8 +163,8 @@ type TestServiceMetrics struct {
 func (tcm *TestCombinedMetrics) AddServiceMetrics(
 	sk serviceAggregationKey,
 ) *TestServiceMetrics {
-	if _, ok := tcm.Services[sk]; !ok {
-		tcm.Services[sk] = newServiceMetrics()
+	if _, ok := tcm.value.Services[sk]; !ok {
+		tcm.value.Services[sk] = newServiceMetrics()
 	}
 	return &TestServiceMetrics{sk: sk, tcm: tcm}
 }
@@ -157,12 +172,12 @@ func (tcm *TestCombinedMetrics) AddServiceMetrics(
 func (tcm *TestCombinedMetrics) AddServiceMetricsOverflow(
 	sk serviceAggregationKey,
 ) *TestServiceMetrics {
-	if _, ok := tcm.Services[sk]; ok {
+	if _, ok := tcm.value.Services[sk]; ok {
 		panic("service already added as non overflow")
 	}
 
 	hash := protohash.HashServiceAggregationKey(xxhash.Digest{}, sk.ToProto())
-	insertHash(&tcm.OverflowServicesEstimator, hash.Sum64())
+	insertHash(&tcm.value.OverflowServicesEstimator, hash.Sum64())
 
 	// Does not save to a map, any service instance added to this will
 	// automatically be overflowed to the global overflow bucket.
@@ -189,7 +204,7 @@ func (tsm *TestServiceMetrics) AddTransaction(
 	ktm.Metrics = aggregationpb.TransactionMetricsFromVTPool()
 	ktm.Metrics.Histogram = histogramToProto(hdr)
 
-	svc := tsm.tcm.Services[tsm.sk]
+	svc := tsm.tcm.value.Services[tsm.sk]
 	if oldKtm, ok := svc.TransactionGroups[tk]; ok {
 		mergeKeyedTransactionMetrics(oldKtm, ktm)
 		ktm = oldKtm
@@ -219,12 +234,12 @@ func (tsm *TestServiceMetrics) AddTransactionOverflow(
 	)
 	if tsm.overflow {
 		// Global overflow
-		tsm.tcm.OverflowServices.OverflowTransaction.Merge(from, hash.Sum64())
+		tsm.tcm.value.OverflowServices.OverflowTransaction.Merge(from, hash.Sum64())
 	} else {
 		// Per service overflow
-		svc := tsm.tcm.Services[tsm.sk]
+		svc := tsm.tcm.value.Services[tsm.sk]
 		svc.OverflowGroups.OverflowTransaction.Merge(from, hash.Sum64())
-		tsm.tcm.Services[tsm.sk] = svc
+		tsm.tcm.value.Services[tsm.sk] = svc
 	}
 	return tsm
 }
@@ -251,7 +266,7 @@ func (tsm *TestServiceMetrics) AddServiceTransaction(
 		kstm.Metrics.SuccessCount = float64(cfg.count)
 	}
 
-	svc := tsm.tcm.Services[tsm.sk]
+	svc := tsm.tcm.value.Services[tsm.sk]
 	if oldKstm, ok := svc.ServiceTransactionGroups[stk]; ok {
 		mergeKeyedServiceTransactionMetrics(oldKstm, kstm)
 		kstm = oldKstm
@@ -286,12 +301,12 @@ func (tsm *TestServiceMetrics) AddServiceTransactionOverflow(
 	)
 	if tsm.overflow {
 		// Global overflow
-		tsm.tcm.OverflowServices.OverflowServiceTransaction.Merge(from, hash.Sum64())
+		tsm.tcm.value.OverflowServices.OverflowServiceTransaction.Merge(from, hash.Sum64())
 	} else {
 		// Per service overflow
-		svc := tsm.tcm.Services[tsm.sk]
+		svc := tsm.tcm.value.Services[tsm.sk]
 		svc.OverflowGroups.OverflowServiceTransaction.Merge(from, hash.Sum64())
-		tsm.tcm.Services[tsm.sk] = svc
+		tsm.tcm.value.Services[tsm.sk] = svc
 	}
 	return tsm
 }
@@ -311,7 +326,7 @@ func (tsm *TestServiceMetrics) AddSpan(
 	ksm.Metrics.Sum += float64(cfg.duration * time.Duration(cfg.count))
 	ksm.Metrics.Count += float64(cfg.count)
 
-	svc := tsm.tcm.Services[tsm.sk]
+	svc := tsm.tcm.value.Services[tsm.sk]
 	if oldKsm, ok := svc.SpanGroups[spk]; ok {
 		mergeKeyedSpanMetrics(oldKsm, ksm)
 		ksm = oldKsm
@@ -339,12 +354,12 @@ func (tsm *TestServiceMetrics) AddSpanOverflow(
 	)
 	if tsm.overflow {
 		// Global overflow
-		tsm.tcm.OverflowServices.OverflowSpan.Merge(from, hash.Sum64())
+		tsm.tcm.value.OverflowServices.OverflowSpan.Merge(from, hash.Sum64())
 	} else {
 		// Per service overflow
-		svc := tsm.tcm.Services[tsm.sk]
+		svc := tsm.tcm.value.Services[tsm.sk]
 		svc.OverflowGroups.OverflowSpan.Merge(from, hash.Sum64())
-		tsm.tcm.Services[tsm.sk] = svc
+		tsm.tcm.value.Services[tsm.sk] = svc
 	}
 	return tsm
 }
@@ -355,6 +370,10 @@ func (tsm *TestServiceMetrics) GetProto() *aggregationpb.CombinedMetrics {
 
 func (tsm *TestServiceMetrics) Get() combinedMetrics {
 	return tsm.tcm.Get()
+}
+
+func (tsm *TestServiceMetrics) GetTest() *TestCombinedMetrics {
+	return tsm.tcm
 }
 
 // Set of cmp options to sort combined metrics based on key hash. Hash collisions

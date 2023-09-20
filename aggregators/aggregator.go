@@ -428,7 +428,7 @@ func (a *Aggregator) harvest(
 	for _, ivl := range a.cfg.AggregationIntervals {
 		// Check if the given aggregation interval needs to be harvested now
 		if end.Truncate(ivl).Equal(end) {
-			start := end.Add(-ivl)
+			start := end.Add(-ivl).Add(-a.cfg.MaxLookback)
 			cmCount, err := a.harvestForInterval(
 				ctx, snap, start, end, ivl, cachedEventsStats[ivl],
 			)

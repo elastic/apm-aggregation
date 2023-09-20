@@ -42,6 +42,7 @@ type Config struct {
 	Partitions             uint16
 	AggregationIntervals   []time.Duration
 	HarvestDelay           time.Duration
+	MaxLookback            time.Duration
 	CombinedMetricsIDToKVs func([16]byte) []attribute.KeyValue
 	InMemory               bool
 
@@ -136,6 +137,27 @@ func WithAggregationIntervals(aggIvls []time.Duration) Option {
 func WithHarvestDelay(delay time.Duration) Option {
 	return func(c Config) Config {
 		c.HarvestDelay = delay
+		return c
+	}
+}
+
+// WithMaxLookback configures the maximum duration that the
+// aggregator will use to query the database during harvest time
+// in addition to the original period derived from aggregation
+// interval i.e. the harvest interval for each aggregation interval
+// will be defined as [end-MaxLookback-AggregationIvl, end).
+//
+// The main purpose of MaxLookback is to protect against data loss for
+// multi level deployments of aggregators where AggregateCombinedMetrics
+// is used to aggregate partial aggregates. In these cases, the
+// MaxLookback configuration can protect against data loss due to
+// delayed partial aggregates. Note that these delayed partial
+// aggregates will only be aggregated with other delayed partial
+// aggregates and thus we can have multiple aggregated metrics for
+// the same CombinedMetricsKey{Interval, ProcessingTime, ID}.
+func WithMaxLookback(lookback time.Duration) Option {
+	return func(c Config) Config {
+		c.MaxLookback = lookback
 		return c
 	}
 }
