@@ -20,13 +20,13 @@ func TestNewConfig(t *testing.T) {
 	for _, tc := range []struct {
 		name             string
 		opts             []Option
-		expected         func() Config
+		expected         func() config
 		expectedErrorMsg string
 	}{
 		{
 			name: "empty",
 			opts: nil,
-			expected: func() Config {
+			expected: func() config {
 				return defaultCfg
 			},
 		},
@@ -35,7 +35,7 @@ func TestNewConfig(t *testing.T) {
 			opts: []Option{
 				WithDataDir("/test"),
 			},
-			expected: func() Config {
+			expected: func() config {
 				cfg := defaultCfg
 				cfg.DataDir = "/test"
 				return cfg
@@ -54,7 +54,7 @@ func TestNewConfig(t *testing.T) {
 					MaxServiceTransactionGroupsPerService: 10,
 				}),
 			},
-			expected: func() Config {
+			expected: func() config {
 				cfg := defaultCfg
 				cfg.Limits = Limits{
 					MaxServices:                           10,
@@ -73,7 +73,7 @@ func TestNewConfig(t *testing.T) {
 			opts: []Option{
 				WithAggregationIntervals([]time.Duration{time.Minute, time.Hour}),
 			},
-			expected: func() Config {
+			expected: func() config {
 				cfg := defaultCfg
 				cfg.AggregationIntervals = []time.Duration{time.Minute, time.Hour}
 				return cfg
@@ -84,7 +84,7 @@ func TestNewConfig(t *testing.T) {
 			opts: []Option{
 				WithHarvestDelay(time.Hour),
 			},
-			expected: func() Config {
+			expected: func() config {
 				cfg := defaultCfg
 				cfg.HarvestDelay = time.Hour
 				return cfg
@@ -95,7 +95,7 @@ func TestNewConfig(t *testing.T) {
 			opts: []Option{
 				WithLookback(time.Hour),
 			},
-			expected: func() Config {
+			expected: func() config {
 				cfg := defaultCfg
 				cfg.Lookback = time.Hour
 				return cfg
@@ -106,7 +106,7 @@ func TestNewConfig(t *testing.T) {
 			opts: []Option{
 				WithMeter(customMeter),
 			},
-			expected: func() Config {
+			expected: func() config {
 				cfg := defaultCfg
 				cfg.Meter = customMeter
 				return cfg
@@ -117,7 +117,7 @@ func TestNewConfig(t *testing.T) {
 			opts: []Option{
 				WithTracer(customTracer),
 			},
-			expected: func() Config {
+			expected: func() config {
 				cfg := defaultCfg
 				cfg.Tracer = customTracer
 				return cfg
@@ -173,7 +173,7 @@ func TestNewConfig(t *testing.T) {
 			expectedErrorMsg: "aggregation interval greater than 18 hours is not supported",
 		},
 	} {
-		actual, err := NewConfig(tc.opts...)
+		actual, err := newConfig(tc.opts...)
 
 		if tc.expectedErrorMsg != "" {
 			assert.EqualError(t, err, tc.expectedErrorMsg)
