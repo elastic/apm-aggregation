@@ -111,15 +111,13 @@ func TestAggregateBatch(t *testing.T) {
 	agg, err := New(
 		WithDataDir(t.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                                 1000,
-			MaxSpanGroupsPerService:                       100,
-			MaxTransactionGroups:                          100,
-			MaxTransactionGroupsPerService:                10,
-			MaxServiceInstanceTransactionGroups:           100,
-			MaxServiceInstanceTransactionGroupsPerService: 10,
-			MaxServiceTransactionGroups:                   100,
-			MaxServiceTransactionGroupsPerService:         10,
-			MaxServices:                                   10,
+			MaxSpanGroups:                         1000,
+			MaxSpanGroupsPerService:               100,
+			MaxTransactionGroups:                  100,
+			MaxTransactionGroupsPerService:        10,
+			MaxServiceTransactionGroups:           100,
+			MaxServiceTransactionGroupsPerService: 10,
+			MaxServices:                           10,
 		}),
 		WithProcessor(combinedMetricsProcessor(out)),
 		WithAggregationIntervals([]time.Duration{aggIvl}),
@@ -157,7 +155,7 @@ func TestAggregateBatch(t *testing.T) {
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 153700},
+				"events.processed.bytes": {Value: 131250},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -188,9 +186,6 @@ func TestAggregateBatch(t *testing.T) {
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 			EventOutcome:    "success",
 		}
-		sitxKey := serviceInstanceTransactionAggregationKey{
-			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
-		}
 		stxKey := serviceTransactionAggregationKey{
 			TransactionType: fmt.Sprintf("txtype%d", i%uniqueEventCount),
 		}
@@ -206,7 +201,6 @@ func TestAggregateBatch(t *testing.T) {
 		expectedCombinedMetrics.
 			AddServiceMetrics(svcKey).
 			AddTransaction(txKey, WithTransactionDuration(eventDuration)).
-			AddServiceInstanceTransaction(sitxKey, WithTransactionDuration(eventDuration)).
 			AddServiceTransaction(stxKey, WithTransactionDuration(eventDuration)).
 			AddSpan(spanKey, WithSpanDuration(eventDuration)).
 			AddSpan(dssKey, WithSpanDuration(dssDuration))
@@ -575,15 +569,13 @@ func TestAggregateSpanMetrics(t *testing.T) {
 			aggregationIvls := []time.Duration{time.Minute, 10 * time.Minute, time.Hour}
 			agg, err := New(
 				WithLimits(Limits{
-					MaxSpanGroups:                                 1000,
-					MaxSpanGroupsPerService:                       100,
-					MaxTransactionGroups:                          100,
-					MaxTransactionGroupsPerService:                10,
-					MaxServiceInstanceTransactionGroups:           100,
-					MaxServiceInstanceTransactionGroupsPerService: 10,
-					MaxServiceTransactionGroups:                   100,
-					MaxServiceTransactionGroupsPerService:         10,
-					MaxServices:                                   10,
+					MaxSpanGroups:                         1000,
+					MaxSpanGroupsPerService:               100,
+					MaxTransactionGroups:                  100,
+					MaxTransactionGroupsPerService:        10,
+					MaxServiceTransactionGroups:           100,
+					MaxServiceTransactionGroupsPerService: 10,
+					MaxServices:                           10,
 				}),
 				WithAggregationIntervals(aggregationIvls),
 				WithProcessor(sliceProcessor(&actualEvents)),
@@ -651,6 +643,178 @@ func TestAggregateSpanMetrics(t *testing.T) {
 				cmpopts.IgnoreTypes(netip.Addr{}),
 				protocmp.Transform(),
 				protocmp.IgnoreFields(&modelpb.Event{}, "received"),
+			))
+		})
+	}
+}
+
+func TestAggregateCombinedMetrics(t *testing.T) {
+	aggIvl := time.Second
+	now := time.Now().Truncate(aggIvl)
+	cmkID := EncodeToCombinedMetricsKeyID(t, "ab01")
+
+	for _, tc := range []struct {
+		name     string
+		cfgOpts  []Option
+		input    []*TestCombinedMetrics
+		expected []*aggregationpb.CombinedMetrics
+	}{
+		{
+			name: "base",
+			input: []*TestCombinedMetrics{
+				NewTestCombinedMetrics(
+					WithEventsTotal(1),
+					WithKey(CombinedMetricsKey{
+						Interval:       aggIvl,
+						ProcessingTime: now,
+						ID:             cmkID,
+					}),
+				).AddServiceMetrics(serviceAggregationKey{
+					Timestamp:   now,
+					ServiceName: "test-svc",
+				}).AddTransaction(transactionAggregationKey{
+					TransactionName: "txntest",
+					TransactionType: "txntype",
+				}).AddServiceTransaction(serviceTransactionAggregationKey{
+					TransactionType: "txntype",
+				}).GetTest(),
+
+				NewTestCombinedMetrics(
+					WithEventsTotal(1),
+					WithKey(CombinedMetricsKey{
+						Interval:       aggIvl,
+						ProcessingTime: now,
+						ID:             cmkID,
+					}),
+				).AddServiceMetrics(serviceAggregationKey{
+					Timestamp:   now,
+					ServiceName: "test-svc",
+				}).AddSpan(spanAggregationKey{
+					SpanName:   "spantest",
+					TargetType: "db",
+					TargetName: "test",
+				}, WithSpanDuration(time.Second), WithSpanCount(100)).GetTest(),
+			},
+			expected: []*aggregationpb.CombinedMetrics{
+				NewTestCombinedMetrics(WithEventsTotal(2)).
+					AddServiceMetrics(serviceAggregationKey{
+						Timestamp:   now,
+						ServiceName: "test-svc",
+					}).
+					AddSpan(spanAggregationKey{
+						SpanName:   "spantest",
+						TargetType: "db",
+						TargetName: "test",
+					}, WithSpanDuration(time.Second), WithSpanCount(100)).
+					AddTransaction(transactionAggregationKey{
+						TransactionName: "txntest",
+						TransactionType: "txntype",
+					}).
+					AddServiceTransaction(serviceTransactionAggregationKey{
+						TransactionType: "txntype",
+					}).GetProto(),
+			},
+		},
+		{
+			name: "without_lookback",
+			input: []*TestCombinedMetrics{
+				NewTestCombinedMetrics(
+					WithEventsTotal(1),
+					// Key with very old processing time will be dropped if
+					// it is not within lookback period.
+					WithKey(CombinedMetricsKey{
+						Interval:       aggIvl,
+						ProcessingTime: now.Add(-time.Hour),
+						ID:             cmkID,
+					}),
+				).AddServiceMetrics(serviceAggregationKey{
+					Timestamp:   now,
+					ServiceName: "test-svc",
+				}).AddTransaction(transactionAggregationKey{
+					TransactionName: "txntest",
+					TransactionType: "txntype",
+				}).AddServiceTransaction(serviceTransactionAggregationKey{
+					TransactionType: "txntype",
+				}).GetTest(),
+			},
+			expected: []*aggregationpb.CombinedMetrics{},
+		},
+		{
+			name:    "with_lookback",
+			cfgOpts: []Option{WithLookback(2 * time.Hour)},
+			input: []*TestCombinedMetrics{
+				NewTestCombinedMetrics(
+					WithEventsTotal(1),
+					// Key with very old processing time will be dropped if
+					// it is not within lookback period.
+					WithKey(CombinedMetricsKey{
+						Interval:       aggIvl,
+						ProcessingTime: now.Add(-time.Hour),
+						ID:             cmkID,
+					}),
+				).AddServiceMetrics(serviceAggregationKey{
+					Timestamp:   now,
+					ServiceName: "test-svc",
+				}).AddTransaction(transactionAggregationKey{
+					TransactionName: "txntest",
+					TransactionType: "txntype",
+				}).AddServiceTransaction(serviceTransactionAggregationKey{
+					TransactionType: "txntype",
+				}).GetTest(),
+			},
+			expected: []*aggregationpb.CombinedMetrics{
+				NewTestCombinedMetrics(WithEventsTotal(1)).
+					AddServiceMetrics(serviceAggregationKey{
+						Timestamp:   now,
+						ServiceName: "test-svc",
+					}).
+					AddTransaction(transactionAggregationKey{
+						TransactionName: "txntest",
+						TransactionType: "txntype",
+					}).
+					AddServiceTransaction(serviceTransactionAggregationKey{
+						TransactionType: "txntype",
+					}).GetProto(),
+			},
+		},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			var output []*aggregationpb.CombinedMetrics
+			agg, err := New(append(
+				tc.cfgOpts,
+				WithDataDir(t.TempDir()),
+				WithAggregationIntervals([]time.Duration{aggIvl}),
+				WithProcessor(combinedMetricsSliceProcessor(&output)),
+				WithLimits(Limits{
+					MaxServices:                           100,
+					MaxSpanGroups:                         100,
+					MaxSpanGroupsPerService:               100,
+					MaxTransactionGroups:                  100,
+					MaxTransactionGroupsPerService:        100,
+					MaxServiceTransactionGroups:           100,
+					MaxServiceTransactionGroupsPerService: 100,
+				}),
+				WithHarvestDelay(time.Hour),
+			)...)
+			require.NoError(t, err)
+
+			for _, tcm := range tc.input {
+				err := agg.AggregateCombinedMetrics(context.Background(), tcm.GetKey(), tcm.GetProto())
+				require.NoError(t, err)
+			}
+			require.NoError(t, agg.Close(context.Background()))
+
+			assert.Empty(t, cmp.Diff(
+				tc.expected,
+				output,
+				append(combinedMetricsSliceSorters,
+					cmpopts.EquateEmpty(),
+					cmpopts.EquateApprox(0, 0.01),
+					cmp.Comparer(func(a, b hdrhistogram.HybridCountsRep) bool {
+						return a.Equal(&b)
+					}),
+					protocmp.Transform(),
+				)...,
 			))
 		})
 	}
@@ -783,14 +947,12 @@ func TestHarvest(t *testing.T) {
 	agg, err := New(
 		WithDataDir(t.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                                 1000,
-			MaxTransactionGroups:                          100,
-			MaxTransactionGroupsPerService:                10,
-			MaxServiceInstanceTransactionGroups:           100,
-			MaxServiceInstanceTransactionGroupsPerService: 10,
-			MaxServiceTransactionGroups:                   100,
-			MaxServiceTransactionGroupsPerService:         10,
-			MaxServices:                                   10,
+			MaxSpanGroups:                         1000,
+			MaxTransactionGroups:                  100,
+			MaxTransactionGroupsPerService:        10,
+			MaxServiceTransactionGroups:           100,
+			MaxServiceTransactionGroupsPerService: 10,
+			MaxServices:                           10,
 		}),
 		WithProcessor(processor),
 		WithAggregationIntervals(ivls),
@@ -821,7 +983,7 @@ func TestHarvest(t *testing.T) {
 		require.NoError(t, agg.AggregateBatch(context.Background(), cmID, &batch))
 		expectedMeasurements = append(expectedMeasurements, apmmodel.Metrics{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 372},
+				"events.processed.bytes": {Value: 252},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
@@ -909,15 +1071,13 @@ func TestAggregateAndHarvest(t *testing.T) {
 	agg, err := New(
 		WithDataDir(t.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                                 1000,
-			MaxSpanGroupsPerService:                       100,
-			MaxTransactionGroups:                          100,
-			MaxTransactionGroupsPerService:                10,
-			MaxServiceInstanceTransactionGroups:           100,
-			MaxServiceInstanceTransactionGroupsPerService: 10,
-			MaxServiceTransactionGroups:                   100,
-			MaxServiceTransactionGroupsPerService:         10,
-			MaxServices:                                   10,
+			MaxSpanGroups:                         1000,
+			MaxSpanGroupsPerService:               100,
+			MaxTransactionGroups:                  100,
+			MaxTransactionGroupsPerService:        10,
+			MaxServiceTransactionGroups:           100,
+			MaxServiceTransactionGroupsPerService: 10,
+			MaxServices:                           10,
 		}),
 		WithProcessor(sliceProcessor(&events)),
 		WithAggregationIntervals([]time.Duration{time.Second}),
@@ -967,43 +1127,6 @@ func TestAggregateAndHarvest(t *testing.T) {
 			},
 			Metricset: &modelpb.Metricset{
 				Name:     "transaction",
-				DocCount: 1,
-				Interval: "1s",
-			},
-		},
-		{
-			Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
-			Event: &modelpb.Event{
-				SuccessCount: &modelpb.SummaryMetric{
-					Count: 1,
-					Sum:   1,
-				},
-			},
-			Transaction: &modelpb.Transaction{
-				Type: "txtype",
-				DurationSummary: &modelpb.SummaryMetric{
-					Count: 1,
-					Sum:   100351, // Estimate from histogram
-				},
-				DurationHistogram: &modelpb.Histogram{
-					Values: []float64{100351},
-					Counts: []uint64{1},
-				},
-			},
-			Service: &modelpb.Service{
-				Name: "svc",
-			},
-			Labels: modelpb.Labels{
-				"department_name": &modelpb.LabelValue{Global: true, Value: "apm"},
-				"organization":    &modelpb.LabelValue{Global: true, Value: "observability"},
-				"company":         &modelpb.LabelValue{Global: true, Value: "elastic"},
-			},
-			NumericLabels: modelpb.NumericLabels{
-				"user_id":     &modelpb.NumericLabelValue{Global: true, Value: 100},
-				"cost_center": &modelpb.NumericLabelValue{Global: true, Value: 10},
-			},
-			Metricset: &modelpb.Metricset{
-				Name:     "service_instance_transaction",
 				DocCount: 1,
 				Interval: "1s",
 			},
@@ -1085,29 +1208,25 @@ func TestHarvestOverflowCount(t *testing.T) {
 	}{
 		{
 			limits: Limits{
-				MaxSpanGroups:                                 4,
-				MaxSpanGroupsPerService:                       4,
-				MaxTransactionGroups:                          3,
-				MaxTransactionGroupsPerService:                3,
-				MaxServiceInstanceTransactionGroups:           2,
-				MaxServiceInstanceTransactionGroupsPerService: 2,
-				MaxServiceTransactionGroups:                   2,
-				MaxServiceTransactionGroupsPerService:         2,
-				MaxServices:                                   1,
+				MaxSpanGroups:                         4,
+				MaxSpanGroupsPerService:               4,
+				MaxTransactionGroups:                  3,
+				MaxTransactionGroupsPerService:        3,
+				MaxServiceTransactionGroups:           2,
+				MaxServiceTransactionGroupsPerService: 2,
+				MaxServices:                           1,
 			},
 			expectedLogPerService: true,
 		},
 		{
 			limits: Limits{
-				MaxSpanGroups:                                 4,
-				MaxSpanGroupsPerService:                       100,
-				MaxTransactionGroups:                          3,
-				MaxTransactionGroupsPerService:                100,
-				MaxServiceInstanceTransactionGroups:           2,
-				MaxServiceInstanceTransactionGroupsPerService: 100,
-				MaxServiceTransactionGroups:                   2,
-				MaxServiceTransactionGroupsPerService:         100,
-				MaxServices:                                   1,
+				MaxSpanGroups:                         4,
+				MaxSpanGroupsPerService:               100,
+				MaxTransactionGroups:                  3,
+				MaxTransactionGroupsPerService:        100,
+				MaxServiceTransactionGroups:           2,
+				MaxServiceTransactionGroupsPerService: 100,
+				MaxServices:                           1,
 			},
 			expectedLogPerService: false,
 		},
@@ -1357,15 +1476,13 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 	agg, err := New(
 		WithDataDir(b.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                                 1000,
-			MaxSpanGroupsPerService:                       100,
-			MaxTransactionGroups:                          1000,
-			MaxTransactionGroupsPerService:                100,
-			MaxServiceInstanceTransactionGroups:           1000,
-			MaxServiceInstanceTransactionGroupsPerService: 100,
-			MaxServiceTransactionGroups:                   1000,
-			MaxServiceTransactionGroupsPerService:         100,
-			MaxServices:                                   100,
+			MaxSpanGroups:                         1000,
+			MaxSpanGroupsPerService:               100,
+			MaxTransactionGroups:                  1000,
+			MaxTransactionGroupsPerService:        100,
+			MaxServiceTransactionGroups:           1000,
+			MaxServiceTransactionGroupsPerService: 100,
+			MaxServices:                           100,
 		}),
 		WithProcessor(noOpProcessor()),
 		WithMeter(mp.Meter("test")),
@@ -1446,15 +1563,13 @@ func newTestAggregator(tb testing.TB, opts ...Option) *Aggregator {
 	agg, err := New(append([]Option{
 		WithDataDir(tb.TempDir()),
 		WithLimits(Limits{
-			MaxSpanGroups:                                 1000,
-			MaxSpanGroupsPerService:                       100,
-			MaxTransactionGroups:                          1000,
-			MaxTransactionGroupsPerService:                100,
-			MaxServiceInstanceTransactionGroups:           1000,
-			MaxServiceInstanceTransactionGroupsPerService: 100,
-			MaxServiceTransactionGroups:                   1000,
-			MaxServiceTransactionGroupsPerService:         100,
-			MaxServices:                                   100,
+			MaxSpanGroups:                         1000,
+			MaxSpanGroupsPerService:               100,
+			MaxTransactionGroups:                  1000,
+			MaxTransactionGroupsPerService:        100,
+			MaxServiceTransactionGroups:           1000,
+			MaxServiceTransactionGroupsPerService: 100,
+			MaxServices:                           100,
 		}),
 		WithProcessor(noOpProcessor()),
 		WithAggregationIntervals([]time.Duration{time.Second, time.Minute, time.Hour}),
@@ -1498,6 +1613,18 @@ func combinedMetricsProcessor(out chan<- *aggregationpb.CombinedMetrics) Process
 		_ time.Duration,
 	) error {
 		out <- cm.CloneVT()
+		return nil
+	}
+}
+
+func combinedMetricsSliceProcessor(slice *[]*aggregationpb.CombinedMetrics) Processor {
+	return func(
+		_ context.Context,
+		_ CombinedMetricsKey,
+		cm *aggregationpb.CombinedMetrics,
+		_ time.Duration,
+	) error {
+		*slice = append(*slice, cm.CloneVT())
 		return nil
 	}
 }

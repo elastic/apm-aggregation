@@ -45,29 +45,25 @@ func TestNewConfig(t *testing.T) {
 			name: "with_limits",
 			opts: []Option{
 				WithLimits(Limits{
-					MaxServices:                                   10,
-					MaxSpanGroups:                                 10,
-					MaxSpanGroupsPerService:                       10,
-					MaxTransactionGroups:                          10,
-					MaxTransactionGroupsPerService:                10,
-					MaxServiceInstanceTransactionGroups:           10,
-					MaxServiceInstanceTransactionGroupsPerService: 10,
-					MaxServiceTransactionGroups:                   10,
-					MaxServiceTransactionGroupsPerService:         10,
+					MaxServices:                           10,
+					MaxSpanGroups:                         10,
+					MaxSpanGroupsPerService:               10,
+					MaxTransactionGroups:                  10,
+					MaxTransactionGroupsPerService:        10,
+					MaxServiceTransactionGroups:           10,
+					MaxServiceTransactionGroupsPerService: 10,
 				}),
 			},
 			expected: func() Config {
 				cfg := defaultCfg
 				cfg.Limits = Limits{
-					MaxServices:                                   10,
-					MaxSpanGroups:                                 10,
-					MaxSpanGroupsPerService:                       10,
-					MaxTransactionGroups:                          10,
-					MaxTransactionGroupsPerService:                10,
-					MaxServiceInstanceTransactionGroups:           10,
-					MaxServiceInstanceTransactionGroupsPerService: 10,
-					MaxServiceTransactionGroups:                   10,
-					MaxServiceTransactionGroupsPerService:         10,
+					MaxServices:                           10,
+					MaxSpanGroups:                         10,
+					MaxSpanGroupsPerService:               10,
+					MaxTransactionGroups:                  10,
+					MaxTransactionGroupsPerService:        10,
+					MaxServiceTransactionGroups:           10,
+					MaxServiceTransactionGroupsPerService: 10,
 				}
 				return cfg
 			},
@@ -91,6 +87,17 @@ func TestNewConfig(t *testing.T) {
 			expected: func() Config {
 				cfg := defaultCfg
 				cfg.HarvestDelay = time.Hour
+				return cfg
+			},
+		},
+		{
+			name: "with_lookback",
+			opts: []Option{
+				WithLookback(time.Hour),
+			},
+			expected: func() Config {
+				cfg := defaultCfg
+				cfg.Lookback = time.Hour
 				return cfg
 			},
 		},
