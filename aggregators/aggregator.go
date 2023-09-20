@@ -599,10 +599,10 @@ func (a *Aggregator) processHarvest(
 	}
 	overflowLogger := nopLogger
 	if a.cfg.OverflowLogging {
-		overflowLogger = a.cfg.Logger.With(zap.Duration("aggregation_interval_ns", aggIvl))
-		if kvs := a.cfg.CombinedMetricsIDToKVs(cmk.ID); len(kvs) > 0 {
-			overflowLogger = overflowLogger.With(otelKVsToZapFields(kvs)...)
-		}
+		fields := append([]zap.Field{
+			zap.Duration("aggregation_interval_ns", aggIvl),
+		}, otelKVsToZapFields(kvs)...)
+		overflowLogger = a.cfg.Logger.WithLazy(fields...)
 	}
 	hs.addOverflows(cm, a.cfg.Limits, overflowLogger)
 
