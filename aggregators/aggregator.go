@@ -557,7 +557,6 @@ func (a *Aggregator) harvestForInterval(
 		if eventsTotal < 0 {
 			fields := append([]zap.Field{
 				zap.Duration("aggregation_interval_ns", ivl),
-				zap.ByteString("id", cmID[:]),
 				zap.Float64("remaining_events", eventsTotal),
 			}, otelKVsToZapFields(a.cfg.CombinedMetricsIDToKVs(cmID))...)
 			a.cfg.Logger.Warn(
