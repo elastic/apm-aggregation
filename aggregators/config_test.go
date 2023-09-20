@@ -91,6 +91,17 @@ func TestNewConfig(t *testing.T) {
 			},
 		},
 		{
+			name: "with_lookback",
+			opts: []Option{
+				WithLookback(time.Hour),
+			},
+			expected: func() Config {
+				cfg := defaultCfg
+				cfg.Lookback = time.Hour
+				return cfg
+			},
+		},
+		{
 			name: "with_meter",
 			opts: []Option{
 				WithMeter(customMeter),
