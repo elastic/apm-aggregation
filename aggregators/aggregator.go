@@ -339,7 +339,7 @@ func (a *Aggregator) aggregateAPMEvent(
 		totalBytesIn += bytesIn
 		return err
 	}
-	err := EventToCombinedMetrics(e, cmk, a.cfg.Partitions, aggregateFunc)
+	err := eventToCombinedMetrics(e, cmk, a.cfg.Partitions, aggregateFunc)
 	if err != nil {
 		return 0, fmt.Errorf("failed to aggregate combined metrics: %w", err)
 	}

@@ -51,7 +51,7 @@ type partitionedMetricsBuilder struct {
 
 	// We reuse a single CombinedMetrics for all partitions, by iterating
 	// through each partition's metrics and setting them on the CombinedMetrics
-	// before invoking the callback in EventToCombinedMetrics.
+	// before invoking the callback in eventToCombinedMetrics.
 	combinedMetrics aggregationpb.CombinedMetrics
 }
 
@@ -301,16 +301,16 @@ func (mb *eventMetricsBuilder) release() {
 	eventMetricsBuilderPool.Put(mb)
 }
 
-// EventToCombinedMetrics converts APMEvent to one or more CombinedMetrics and
+// eventToCombinedMetrics converts APMEvent to one or more CombinedMetrics and
 // calls the provided callback for each pair of CombinedMetricsKey and
 // CombinedMetrics. The callback MUST NOT hold the reference of the passed
 // CombinedMetrics. If required, the callback can call CloneVT to clone the
 // CombinedMetrics. If an event results in multiple metrics, they may be spread
 // across different partitions.
 //
-// EventToCombinedMetrics will never produce overflow metrics, as it applies to a
+// eventToCombinedMetrics will never produce overflow metrics, as it applies to a
 // single APMEvent.
-func EventToCombinedMetrics(
+func eventToCombinedMetrics(
 	e *modelpb.APMEvent,
 	unpartitionedKey CombinedMetricsKey,
 	partitions uint16,
