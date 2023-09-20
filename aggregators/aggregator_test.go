@@ -658,6 +658,7 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 		cfgOpts  []Option
 		input    []*TestCombinedMetrics
 		expected []*aggregationpb.CombinedMetrics
+		errMsg   string
 	}{
 		{
 			name: "base",
@@ -737,7 +738,7 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 					TransactionType: "txntype",
 				}).GetTest(),
 			},
-			expected: []*aggregationpb.CombinedMetrics{},
+			errMsg: "received combined metrics too old to be processed",
 		},
 		{
 			name:    "with_lookback",
@@ -800,7 +801,11 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 
 			for _, tcm := range tc.input {
 				err := agg.AggregateCombinedMetrics(context.Background(), tcm.GetKey(), tcm.GetProto())
-				require.NoError(t, err)
+				if tc.errMsg != "" {
+					require.ErrorContains(t, err, tc.errMsg)
+				} else {
+					require.NoError(t, err)
+				}
 			}
 			require.NoError(t, agg.Close(context.Background()))
 

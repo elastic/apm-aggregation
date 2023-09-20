@@ -197,6 +197,21 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	default:
 	}
 
+	if cmk.ProcessingTime.Before(a.processingTime.Add(-a.cfg.Lookback)) {
+		a.metrics.EventsProcessed.Add(
+			ctx, cm.EventsTotal,
+			metric.WithAttributes(append(
+				a.cfg.CombinedMetricsIDToKVs(cmk.ID),
+				attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
+				telemetry.WithFailure(),
+			)...),
+		)
+		return fmt.Errorf(
+			"received combined metrics too old to be processed, received_ts: %s, current_ts: %s",
+			cmk.ProcessingTime.String(), a.processingTime.String(),
+		)
+	}
+
 	var attrSetOpt metric.MeasurementOption
 	bytesIn, err := a.aggregate(ctx, cmk, cm)
 	if err != nil {
