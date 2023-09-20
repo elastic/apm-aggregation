@@ -652,67 +652,49 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 	aggIvl := time.Second
 	now := time.Now().Truncate(aggIvl)
 	cmkID := EncodeToCombinedMetricsKeyID(t, "ab01")
-	input := []*TestCombinedMetrics{
-		NewTestCombinedMetrics(
-			WithEventsTotal(1),
-			// Key with very old processing time will be dropped if
-			// it is not within max lookback period.
-			WithKey(CombinedMetricsKey{
-				Interval:       aggIvl,
-				ProcessingTime: now.Add(-time.Hour),
-				ID:             cmkID,
-			}),
-		).AddServiceMetrics(serviceAggregationKey{
-			Timestamp:   now,
-			ServiceName: "test-svc",
-		}).AddTransaction(transactionAggregationKey{
-			TransactionName: "txntestold",
-			TransactionType: "txntypeold",
-		}).AddServiceTransaction(serviceTransactionAggregationKey{
-			TransactionType: "txntypeold",
-		}).GetTest(),
-
-		NewTestCombinedMetrics(
-			WithEventsTotal(1),
-			WithKey(CombinedMetricsKey{
-				Interval:       aggIvl,
-				ProcessingTime: now,
-				ID:             cmkID,
-			}),
-		).AddServiceMetrics(serviceAggregationKey{
-			Timestamp:   now,
-			ServiceName: "test-svc",
-		}).AddTransaction(transactionAggregationKey{
-			TransactionName: "txntest",
-			TransactionType: "txntype",
-		}).AddServiceTransaction(serviceTransactionAggregationKey{
-			TransactionType: "txntype",
-		}).GetTest(),
-
-		NewTestCombinedMetrics(
-			WithEventsTotal(1),
-			WithKey(CombinedMetricsKey{
-				Interval:       aggIvl,
-				ProcessingTime: now,
-				ID:             cmkID,
-			}),
-		).AddServiceMetrics(serviceAggregationKey{
-			Timestamp:   now,
-			ServiceName: "test-svc",
-		}).AddSpan(spanAggregationKey{
-			SpanName:   "spantest",
-			TargetType: "db",
-			TargetName: "test",
-		}, WithSpanDuration(time.Second), WithSpanCount(100)).GetTest(),
-	}
 
 	for _, tc := range []struct {
 		name     string
 		cfgOpts  []Option
+		input    []*TestCombinedMetrics
 		expected []*aggregationpb.CombinedMetrics
 	}{
 		{
-			name: "without_max_lookback",
+			name: "base",
+			input: []*TestCombinedMetrics{
+				NewTestCombinedMetrics(
+					WithEventsTotal(1),
+					WithKey(CombinedMetricsKey{
+						Interval:       aggIvl,
+						ProcessingTime: now,
+						ID:             cmkID,
+					}),
+				).AddServiceMetrics(serviceAggregationKey{
+					Timestamp:   now,
+					ServiceName: "test-svc",
+				}).AddTransaction(transactionAggregationKey{
+					TransactionName: "txntest",
+					TransactionType: "txntype",
+				}).AddServiceTransaction(serviceTransactionAggregationKey{
+					TransactionType: "txntype",
+				}).GetTest(),
+
+				NewTestCombinedMetrics(
+					WithEventsTotal(1),
+					WithKey(CombinedMetricsKey{
+						Interval:       aggIvl,
+						ProcessingTime: now,
+						ID:             cmkID,
+					}),
+				).AddServiceMetrics(serviceAggregationKey{
+					Timestamp:   now,
+					ServiceName: "test-svc",
+				}).AddSpan(spanAggregationKey{
+					SpanName:   "spantest",
+					TargetType: "db",
+					TargetName: "test",
+				}, WithSpanDuration(time.Second), WithSpanCount(100)).GetTest(),
+			},
 			expected: []*aggregationpb.CombinedMetrics{
 				NewTestCombinedMetrics(WithEventsTotal(2)).
 					AddServiceMetrics(serviceAggregationKey{
@@ -734,32 +716,58 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 			},
 		},
 		{
-			name:    "with_max_lookback",
-			cfgOpts: []Option{WithMaxLookback(2 * time.Hour)},
+			name: "without_lookback",
+			input: []*TestCombinedMetrics{
+				NewTestCombinedMetrics(
+					WithEventsTotal(1),
+					// Key with very old processing time will be dropped if
+					// it is not within lookback period.
+					WithKey(CombinedMetricsKey{
+						Interval:       aggIvl,
+						ProcessingTime: now.Add(-time.Hour),
+						ID:             cmkID,
+					}),
+				).AddServiceMetrics(serviceAggregationKey{
+					Timestamp:   now,
+					ServiceName: "test-svc",
+				}).AddTransaction(transactionAggregationKey{
+					TransactionName: "txntest",
+					TransactionType: "txntype",
+				}).AddServiceTransaction(serviceTransactionAggregationKey{
+					TransactionType: "txntype",
+				}).GetTest(),
+			},
+			expected: []*aggregationpb.CombinedMetrics{},
+		},
+		{
+			name:    "with_lookback",
+			cfgOpts: []Option{WithLookback(2 * time.Hour)},
+			input: []*TestCombinedMetrics{
+				NewTestCombinedMetrics(
+					WithEventsTotal(1),
+					// Key with very old processing time will be dropped if
+					// it is not within lookback period.
+					WithKey(CombinedMetricsKey{
+						Interval:       aggIvl,
+						ProcessingTime: now.Add(-time.Hour),
+						ID:             cmkID,
+					}),
+				).AddServiceMetrics(serviceAggregationKey{
+					Timestamp:   now,
+					ServiceName: "test-svc",
+				}).AddTransaction(transactionAggregationKey{
+					TransactionName: "txntest",
+					TransactionType: "txntype",
+				}).AddServiceTransaction(serviceTransactionAggregationKey{
+					TransactionType: "txntype",
+				}).GetTest(),
+			},
 			expected: []*aggregationpb.CombinedMetrics{
 				NewTestCombinedMetrics(WithEventsTotal(1)).
 					AddServiceMetrics(serviceAggregationKey{
 						Timestamp:   now,
 						ServiceName: "test-svc",
 					}).
-					AddTransaction(transactionAggregationKey{
-						TransactionName: "txntestold",
-						TransactionType: "txntypeold",
-					}).
-					AddServiceTransaction(serviceTransactionAggregationKey{
-						TransactionType: "txntypeold",
-					}).GetProto(),
-
-				NewTestCombinedMetrics(WithEventsTotal(2)).
-					AddServiceMetrics(serviceAggregationKey{
-						Timestamp:   now,
-						ServiceName: "test-svc",
-					}).
-					AddSpan(spanAggregationKey{
-						SpanName:   "spantest",
-						TargetType: "db",
-						TargetName: "test",
-					}, WithSpanDuration(time.Second), WithSpanCount(100)).
 					AddTransaction(transactionAggregationKey{
 						TransactionName: "txntest",
 						TransactionType: "txntype",
@@ -790,7 +798,7 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 			)...)
 			require.NoError(t, err)
 
-			for _, tcm := range input {
+			for _, tcm := range tc.input {
 				err := agg.AggregateCombinedMetrics(context.Background(), tcm.GetKey(), tcm.GetProto())
 				require.NoError(t, err)
 			}

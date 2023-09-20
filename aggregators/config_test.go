@@ -91,13 +91,13 @@ func TestNewConfig(t *testing.T) {
 			},
 		},
 		{
-			name: "with_max_lookback",
+			name: "with_lookback",
 			opts: []Option{
-				WithMaxLookback(time.Hour),
+				WithLookback(time.Hour),
 			},
 			expected: func() Config {
 				cfg := defaultCfg
-				cfg.MaxLookback = time.Hour
+				cfg.Lookback = time.Hour
 				return cfg
 			},
 		},
