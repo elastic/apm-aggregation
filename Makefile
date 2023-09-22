@@ -15,7 +15,7 @@ clean:
 
 .PHONY: test
 test: go.mod
-	go test -v ./...
+	go test -v -race ./...
 
 ##############################################################################
 # Protobuf generation
