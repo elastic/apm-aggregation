@@ -155,21 +155,21 @@ func TestAggregateBatch(t *testing.T) {
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 131250},
-			},
-			Labels: apmmodel.StringMap{
-				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
-				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
-			},
-		},
-		{
-			Samples: map[string]apmmodel.Metric{
 				"events.processed.count":          {Value: float64(len(batch))},
 				"events.processed.latency":        {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
 				"events.processed.queued-latency": {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: aggregationIvlKey, Value: formatDuration(aggIvl)},
+				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
+				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
+			},
+		},
+		{
+			Samples: map[string]apmmodel.Metric{
+				"events.processed.bytes": {Value: 131250},
+			},
+			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
 				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
 			},
