@@ -206,10 +206,12 @@ func (a *Aggregator) AggregateCombinedMetrics(
 				telemetry.WithFailure(),
 			)...),
 		)
-		return fmt.Errorf(
-			"received combined metrics too old to be processed, received_ts: %s, current_ts: %s",
-			cmk.ProcessingTime.String(), a.processingTime.String(),
+		a.cfg.Logger.Warn(
+			"received expired combined metrics, dropping silently",
+			zap.Time("received_processing_time", cmk.ProcessingTime),
+			zap.Time("current_processing_time", a.processingTime),
 		)
+		return nil
 	}
 
 	var attrSetOpt metric.MeasurementOption
