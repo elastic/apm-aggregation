@@ -155,21 +155,21 @@ func TestAggregateBatch(t *testing.T) {
 	expectedMeasurements := []apmmodel.Metrics{
 		{
 			Samples: map[string]apmmodel.Metric{
-				"events.processed.bytes": {Value: 131250},
-			},
-			Labels: apmmodel.StringMap{
-				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
-				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
-			},
-		},
-		{
-			Samples: map[string]apmmodel.Metric{
 				"events.processed.count":          {Value: float64(len(batch))},
 				"events.processed.latency":        {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
 				"events.processed.queued-latency": {Type: "histogram", Counts: []uint64{1}, Values: []float64{0}},
 			},
 			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: aggregationIvlKey, Value: formatDuration(aggIvl)},
+				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
+				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
+			},
+		},
+		{
+			Samples: map[string]apmmodel.Metric{
+				"events.processed.bytes": {Value: 131250},
+			},
+			Labels: apmmodel.StringMap{
 				apmmodel.StringMapItem{Key: "id_key", Value: string(cmID[:])},
 				apmmodel.StringMapItem{Key: "outcome", Value: string("success")},
 			},
@@ -654,10 +654,12 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 	cmkID := EncodeToCombinedMetricsKeyID(t, "ab01")
 
 	for _, tc := range []struct {
-		name     string
-		cfgOpts  []Option
-		input    []*TestCombinedMetrics
-		expected []*aggregationpb.CombinedMetrics
+		name            string
+		cfgOpts         []Option
+		input           []*TestCombinedMetrics
+		expected        []*aggregationpb.CombinedMetrics
+		expectedOutcome string
+		eventsCount     int
 	}{
 		{
 			name: "base",
@@ -714,6 +716,8 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 						TransactionType: "txntype",
 					}).GetProto(),
 			},
+			expectedOutcome: "success",
+			eventsCount:     2,
 		},
 		{
 			name: "without_lookback",
@@ -737,7 +741,9 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 					TransactionType: "txntype",
 				}).GetTest(),
 			},
-			expected: []*aggregationpb.CombinedMetrics{},
+			expected:        []*aggregationpb.CombinedMetrics{}, // metrics are silently dropped
+			expectedOutcome: "failure",
+			eventsCount:     1,
 		},
 		{
 			name:    "with_lookback",
@@ -776,10 +782,15 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 						TransactionType: "txntype",
 					}).GetProto(),
 			},
+			expectedOutcome: "success",
+			eventsCount:     1,
 		},
 	} {
 		t.Run(tc.name, func(t *testing.T) {
 			var output []*aggregationpb.CombinedMetrics
+			gatherer, err := apmotel.NewGatherer()
+			require.NoError(t, err)
+			mp := metric.NewMeterProvider(metric.WithReader(gatherer))
 			agg, err := New(append(
 				tc.cfgOpts,
 				WithDataDir(t.TempDir()),
@@ -795,6 +806,7 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 					MaxServiceTransactionGroupsPerService: 100,
 				}),
 				WithHarvestDelay(time.Hour),
+				WithMeter(mp.Meter("test")),
 			)...)
 			require.NoError(t, err)
 
@@ -815,6 +827,27 @@ func TestAggregateCombinedMetrics(t *testing.T) {
 					}),
 					protocmp.Transform(),
 				)...,
+			))
+
+			expectedMeasurements := []apmmodel.Metrics{
+				{
+					Samples: map[string]apmmodel.Metric{
+						"events.processed.count": {Value: float64(tc.eventsCount)},
+					},
+					Labels: apmmodel.StringMap{
+						apmmodel.StringMapItem{Key: aggregationIvlKey, Value: formatDuration(aggIvl)},
+						apmmodel.StringMapItem{Key: "outcome", Value: tc.expectedOutcome},
+					},
+				},
+			}
+			assert.Empty(t, cmp.Diff(
+				expectedMeasurements,
+				gatherMetrics(
+					gatherer,
+					withFilterMetrics([]string{"events.processed.count"}),
+					withZeroHistogramValues(true),
+				),
+				cmpopts.IgnoreUnexported(apmmodel.Time{}),
 			))
 		})
 	}
@@ -1651,10 +1684,23 @@ func sliceProcessor(slice *[]*modelpb.APMEvent) Processor {
 
 type gatherMetricsCfg struct {
 	ignoreMetricPrefix  string
+	filterMetrics       map[string]bool
 	zeroHistogramValues bool
 }
 
 type gatherMetricsOpt func(gatherMetricsCfg) gatherMetricsCfg
+
+// withFilterMetrics selects a set of metric names from the gathered metrics.
+// The filters are applied after withIgnoreMetricPrefix option is applied.
+func withFilterMetrics(metrics []string) gatherMetricsOpt {
+	return func(cfg gatherMetricsCfg) gatherMetricsCfg {
+		cfg.filterMetrics = make(map[string]bool, len(metrics))
+		for _, m := range metrics {
+			cfg.filterMetrics[m] = true
+		}
+		return cfg
+	}
+}
 
 // withIgnoreMetricPrefix ignores some metric prefixes from the gathered
 // metrics.
@@ -1688,7 +1734,7 @@ func gatherMetrics(g apm.MetricsGatherer, opts ...gatherMetricsOpt) []apmmodel.M
 		metrics[i].Timestamp = apmmodel.Time{}
 	}
 
-	for i, m := range metrics {
+	for _, m := range metrics {
 		for k, s := range m.Samples {
 			// Remove internal metrics
 			if strings.HasPrefix(k, "golang.") || strings.HasPrefix(k, "system.") {
@@ -1700,6 +1746,11 @@ func gatherMetrics(g apm.MetricsGatherer, opts ...gatherMetricsOpt) []apmmodel.M
 				delete(m.Samples, k)
 				continue
 			}
+			// If filter metrics option is passed then drop all unfiltered metrics
+			if len(cfg.filterMetrics) > 0 && !cfg.filterMetrics[k] {
+				delete(m.Samples, k)
+				continue
+			}
 			// Zero out histogram values if required
 			if s.Type == "histogram" && cfg.zeroHistogramValues {
 				for j := range s.Values {
@@ -1707,13 +1758,19 @@ func gatherMetrics(g apm.MetricsGatherer, opts ...gatherMetricsOpt) []apmmodel.M
 				}
 			}
 		}
-
-		if len(m.Samples) == 0 {
-			metrics[i] = metrics[len(metrics)-1]
-			metrics = metrics[:len(metrics)-1]
-		}
 	}
-	return metrics
+	// Filter out any metrics with 0 samples
+	var filledTill int
+	for i, m := range metrics {
+		if len(m.Samples) == 0 {
+			continue
+		}
+		if filledTill != i {
+			metrics[filledTill] = metrics[i]
+		}
+		filledTill++
+	}
+	return metrics[:filledTill]
 }
 
 func makeSpan(

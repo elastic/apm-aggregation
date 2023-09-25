@@ -197,6 +197,23 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	default:
 	}
 
+	if cmk.ProcessingTime.Before(a.processingTime.Add(-a.cfg.Lookback)) {
+		a.metrics.EventsProcessed.Add(
+			ctx, cm.EventsTotal,
+			metric.WithAttributes(append(
+				a.cfg.CombinedMetricsIDToKVs(cmk.ID),
+				attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
+				telemetry.WithFailure(),
+			)...),
+		)
+		a.cfg.Logger.Warn(
+			"received expired combined metrics, dropping silently",
+			zap.Time("received_processing_time", cmk.ProcessingTime),
+			zap.Time("current_processing_time", a.processingTime),
+		)
+		return nil
+	}
+
 	var attrSetOpt metric.MeasurementOption
 	bytesIn, err := a.aggregate(ctx, cmk, cm)
 	if err != nil {
