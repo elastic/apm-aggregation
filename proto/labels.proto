@@ -1,6 +1,6 @@
 syntax = "proto3";
 
-package elastic.apm;
+package elastic.apm.v1;
 
 option go_package = "./aggregationpb";
 option optimize_for = SPEED;
