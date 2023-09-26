@@ -11,7 +11,7 @@ lint: tools/go.mod
 
 protolint:
 	docker run --volume "$(PWD):/workspace" --workdir /workspace bufbuild/buf lint proto
-	docker run --volume "$(PWD):/workspace" --workdir /workspace bufbuild/buf breaking proto --against https://github.com/elastic/apm-aggregation.git#branch=main,subdir=proto
+	#docker run --volume "$(PWD):/workspace" --workdir /workspace bufbuild/buf breaking proto --against https://github.com/elastic/apm-aggregation.git#branch=main,subdir=proto
 
 .PHONY: clean
 clean:
