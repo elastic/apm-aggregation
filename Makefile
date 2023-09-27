@@ -9,6 +9,10 @@ lint: tools/go.mod
 	for dir in $(shell find . -type f -name go.mod -exec dirname '{}' \;); do (cd $$dir && go mod tidy && git diff --stat --exit-code -- go.mod go.sum) || exit $$?; done
 	go run -modfile=tools/go.mod honnef.co/go/tools/cmd/staticcheck -checks=all ./...
 
+protolint:
+	docker run --volume "$(PWD):/workspace" --workdir /workspace bufbuild/buf lint proto
+	docker run --volume "$(PWD):/workspace" --workdir /workspace bufbuild/buf breaking proto --against https://github.com/elastic/apm-aggregation.git#branch=main,subdir=proto
+
 .PHONY: clean
 clean:
 	rm -fr bin build
