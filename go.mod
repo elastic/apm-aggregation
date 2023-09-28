@@ -7,16 +7,16 @@ require (
 	github.com/axiomhq/hyperloglog v0.0.0-20230201085229-3ddf4bad03dc
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cockroachdb/pebble v0.0.0-20230627193317-c807f60529a3
-	github.com/elastic/apm-data v0.1.1-0.20230928144734-40b63726f3b7
+	github.com/elastic/apm-data v0.1.1-0.20230922162127-e198f75fda3e
 	github.com/google/go-cmp v0.5.9
 	github.com/stretchr/testify v1.8.4
 	go.elastic.co/apm/module/apmotel/v2 v2.4.4
 	go.elastic.co/apm/v2 v2.4.4
-	go.opentelemetry.io/otel v1.18.0
-	go.opentelemetry.io/otel/metric v1.18.0
-	go.opentelemetry.io/otel/sdk v1.18.0
-	go.opentelemetry.io/otel/sdk/metric v0.41.0
-	go.opentelemetry.io/otel/trace v1.18.0
+	go.opentelemetry.io/otel v1.19.0
+	go.opentelemetry.io/otel/metric v1.19.0
+	go.opentelemetry.io/otel/sdk v1.19.0
+	go.opentelemetry.io/otel/sdk/metric v1.19.0
+	go.opentelemetry.io/otel/trace v1.19.0
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/sync v0.3.0
