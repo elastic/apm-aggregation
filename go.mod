@@ -8,7 +8,7 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cockroachdb/pebble v0.0.0-20230627193317-c807f60529a3
 	github.com/elastic/apm-data v0.1.1-0.20231013131353-35b1c4047c77
-	github.com/google/go-cmp v0.6.0
+	github.com/google/go-cmp v0.5.9
 	github.com/stretchr/testify v1.8.4
 	go.elastic.co/apm/module/apmotel/v2 v2.4.4
 	go.elastic.co/apm/v2 v2.4.4
@@ -19,7 +19,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.19.0
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
-	golang.org/x/sync v0.3.0
+	golang.org/x/sync v0.4.0
 	golang.org/x/tools v0.13.0
 	google.golang.org/protobuf v1.31.0
 )
