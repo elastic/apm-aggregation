@@ -159,12 +159,12 @@ func (a *Aggregator) AggregateBatch(
 
 	var err error
 	if len(errs) > 0 {
-		a.metrics.BytesProcessed.Add(ctx, failBytes, metric.WithAttributeSet(
+		a.metrics.BytesProcessed.Add(context.Background(), failBytes, metric.WithAttributeSet(
 			attribute.NewSet(append(cmIDAttrs, telemetry.WithFailure())...),
 		))
 		err = fmt.Errorf("failed batch aggregation:\n%w", errors.Join(errs...))
 	}
-	a.metrics.BytesProcessed.Add(ctx, successBytes, metric.WithAttributeSet(
+	a.metrics.BytesProcessed.Add(context.Background(), successBytes, metric.WithAttributeSet(
 		attribute.NewSet(append(cmIDAttrs, telemetry.WithSuccess())...),
 	))
 	return err
@@ -199,7 +199,7 @@ func (a *Aggregator) AggregateCombinedMetrics(
 
 	if cmk.ProcessingTime.Before(a.processingTime.Add(-a.cfg.Lookback)) {
 		a.metrics.EventsProcessed.Add(
-			ctx, cm.EventsTotal,
+			context.Background(), cm.EventsTotal,
 			metric.WithAttributes(append(
 				a.cfg.CombinedMetricsIDToKVs(cmk.ID),
 				attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
@@ -228,7 +228,7 @@ func (a *Aggregator) AggregateCombinedMetrics(
 
 	span.SetAttributes(attribute.Int("bytes_ingested", bytesIn))
 	a.cachedEvents.add(cmk.Interval, cmk.ID, cm.EventsTotal)
-	a.metrics.BytesProcessed.Add(ctx, int64(bytesIn), attrSetOpt)
+	a.metrics.BytesProcessed.Add(context.Background(), int64(bytesIn), attrSetOpt)
 	return err
 }
 
@@ -526,7 +526,7 @@ func (a *Aggregator) harvestForInterval(
 			if n == 0 {
 				return
 			}
-			a.metrics.MetricsOverflowed.Add(ctx, int64(n), commonAttrsOpt, metric.WithAttributes(
+			a.metrics.MetricsOverflowed.Add(context.Background(), int64(n), commonAttrsOpt, metric.WithAttributes(
 				attribute.String(aggregationTypeKey, aggregationType),
 			))
 		}
@@ -550,11 +550,11 @@ func (a *Aggregator) harvestForInterval(
 		// Negative values are possible at edges due to delays in running the
 		// harvest loop or time sync issues between agents and server.
 		queuedDelay := time.Since(harvestStats.youngestEventTimestamp).Seconds()
-		a.metrics.MinQueuedDelay.Record(ctx, queuedDelay, commonAttrsOpt, outcomeAttrOpt)
-		a.metrics.ProcessingLatency.Record(ctx, processingDelay, commonAttrsOpt, outcomeAttrOpt)
+		a.metrics.MinQueuedDelay.Record(context.Background(), queuedDelay, commonAttrsOpt, outcomeAttrOpt)
+		a.metrics.ProcessingLatency.Record(context.Background(), processingDelay, commonAttrsOpt, outcomeAttrOpt)
 		// Events harvested have been successfully processed, publish these
 		// as success. Update the map to keep track of events failed.
-		a.metrics.EventsProcessed.Add(ctx, harvestStats.eventsTotal, commonAttrsOpt, outcomeAttrOpt)
+		a.metrics.EventsProcessed.Add(context.Background(), harvestStats.eventsTotal, commonAttrsOpt, outcomeAttrOpt)
 		cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
 	}
 	err := a.db.DeleteRange(lb, ub, a.writeOptions)
@@ -589,7 +589,7 @@ func (a *Aggregator) harvestForInterval(
 				telemetry.WithFailure(),
 			)...),
 		)
-		a.metrics.EventsProcessed.Add(ctx, eventsTotal, attrSetOpt)
+		a.metrics.EventsProcessed.Add(context.Background(), eventsTotal, attrSetOpt)
 	}
 	return cmCount, err
 }
