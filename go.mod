@@ -8,15 +8,15 @@ require (
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cockroachdb/pebble v0.0.0-20230627193317-c807f60529a3
 	github.com/elastic/apm-data v0.1.1-0.20231013131353-35b1c4047c77
-	github.com/google/go-cmp v0.5.9
+	github.com/google/go-cmp v0.6.0
 	github.com/stretchr/testify v1.8.4
 	go.elastic.co/apm/module/apmotel/v2 v2.4.4
 	go.elastic.co/apm/v2 v2.4.4
-	go.opentelemetry.io/otel v1.19.0
-	go.opentelemetry.io/otel/metric v1.19.0
-	go.opentelemetry.io/otel/sdk v1.19.0
-	go.opentelemetry.io/otel/sdk/metric v1.19.0
-	go.opentelemetry.io/otel/trace v1.19.0
+	go.opentelemetry.io/otel v1.21.0
+	go.opentelemetry.io/otel/metric v1.21.0
+	go.opentelemetry.io/otel/sdk v1.21.0
+	go.opentelemetry.io/otel/sdk/metric v1.21.0
+	go.opentelemetry.io/otel/trace v1.21.0
 	go.uber.org/zap v1.26.0
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/sync v0.4.0
@@ -37,7 +37,7 @@ require (
 	github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc // indirect
 	github.com/elastic/go-sysinfo v1.7.1 // indirect
 	github.com/elastic/go-windows v1.0.1 // indirect
-	github.com/go-logr/logr v1.2.4 // indirect
+	github.com/go-logr/logr v1.3.0 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
 	github.com/gogo/protobuf v1.3.2 // indirect
 	github.com/golang/protobuf v1.5.3 // indirect
@@ -64,7 +64,7 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/mod v0.12.0 // indirect
 	golang.org/x/net v0.15.0 // indirect
-	golang.org/x/sys v0.12.0 // indirect
+	golang.org/x/sys v0.14.0 // indirect
 	golang.org/x/text v0.13.0 // indirect
 	google.golang.org/genproto v0.0.0-20230110181048-76db0878b65f // indirect
 	google.golang.org/grpc v1.54.0 // indirect
