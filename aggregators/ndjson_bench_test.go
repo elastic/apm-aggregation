@@ -54,7 +54,6 @@ func ndjsonToBatch(reader io.Reader) (*modelpb.Batch, error) {
 	var elasticapmResult elasticapm.Result
 	if err := elasticapmProcessor.HandleStream(
 		context.TODO(),
-		false, // async
 		&baseEvent,
 		reader,
 		math.MaxInt32, // batch size
