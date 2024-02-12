@@ -102,8 +102,8 @@ github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc h1:8WFBn63wegobsY
 github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc/go.mod h1:c9O8+fpSOX1DM8cPNSkX/qsBWdkD4yd2dpciOWQjpBw=
 github.com/dustin/go-humanize v1.0.0/go.mod h1:HtrtbFcZ19U5GC7JDqmcUSB87Iq5E25KnS6fMYU6eOk=
 github.com/eknkc/amber v0.0.0-20171010120322-cdade1c07385/go.mod h1:0vRUJqYpeSZifjYj7uP3BG/gKcuzL9xWVV/Y+cK33KM=
-github.com/elastic/apm-data v0.1.1-0.20240205124152-575dc0dc89f8 h1:7Vvk4oaTQufogdqmoEpzTQHMKBiSetrLWkUARJ3t/GM=
-github.com/elastic/apm-data v0.1.1-0.20240205124152-575dc0dc89f8/go.mod h1:z4iJVl8vyQa5v5o7UapWGHTsycBKsKfJfILuf2TZpYo=
+github.com/elastic/apm-data v1.0.0 h1:23JEBSOq9bIKcocghV38so2mFZzdlFgst0Re+ApxuFo=
+github.com/elastic/apm-data v1.0.0/go.mod h1:QUZMN5IFWhqbNfSUQxvd7Tuj7tx/6NoVJpFLAXd8ScY=
 github.com/elastic/go-sysinfo v1.7.1 h1:Wx4DSARcKLllpKT2TnFVdSUJOsybqMYCNQZq1/wO+s0=
 github.com/elastic/go-sysinfo v1.7.1/go.mod h1:i1ZYdU10oLNfRzq4vq62BEwD2fH8KaWh6eh0ikPT9F0=
 github.com/elastic/go-windows v1.0.0/go.mod h1:TsU0Nrp7/y3+VwE82FoZF8gC/XFg/Elz6CcloAxnPgU=
