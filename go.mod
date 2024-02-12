@@ -7,7 +7,7 @@ require (
 	github.com/axiomhq/hyperloglog v0.0.0-20230201085229-3ddf4bad03dc
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cockroachdb/pebble v1.0.0
-	github.com/elastic/apm-data v0.1.1-0.20240205124152-575dc0dc89f8
+	github.com/elastic/apm-data v1.0.0
 	github.com/google/go-cmp v0.6.0
 	github.com/stretchr/testify v1.8.4
 	go.elastic.co/apm/module/apmotel/v2 v2.4.7
