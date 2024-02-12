@@ -6,10 +6,10 @@ package aggregators
 
 import (
 	"io"
+	"slices"
 	"sort"
 
 	"github.com/cespare/xxhash/v2"
-	"golang.org/x/exp/slices"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/constraint"
