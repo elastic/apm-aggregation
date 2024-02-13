@@ -32,9 +32,8 @@ import (
 	"fmt"
 	"math"
 	"math/bits"
+	"slices"
 	"time"
-
-	"golang.org/x/exp/slices"
 )
 
 const (
