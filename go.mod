@@ -10,8 +10,8 @@ require (
 	github.com/elastic/apm-data v1.0.0
 	github.com/google/go-cmp v0.6.0
 	github.com/stretchr/testify v1.8.4
-	go.elastic.co/apm/module/apmotel/v2 v2.4.7
-	go.elastic.co/apm/v2 v2.4.7
+	go.elastic.co/apm/module/apmotel/v2 v2.4.8
+	go.elastic.co/apm/v2 v2.4.8
 	go.opentelemetry.io/otel v1.21.0
 	go.opentelemetry.io/otel/metric v1.21.0
 	go.opentelemetry.io/otel/sdk v1.21.0
@@ -55,7 +55,7 @@ require (
 	github.com/prometheus/common v0.32.1 // indirect
 	github.com/prometheus/procfs v0.11.1 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
-	go.elastic.co/apm/module/apmhttp/v2 v2.4.7 // indirect
+	go.elastic.co/apm/module/apmhttp/v2 v2.4.8 // indirect
 	go.elastic.co/fastjson v1.3.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.87.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.0.0-rcv0016 // indirect
