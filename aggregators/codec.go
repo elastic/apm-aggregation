@@ -10,11 +10,11 @@ package aggregators
 import (
 	"encoding/binary"
 	"errors"
+	"slices"
 	"sort"
 	"time"
 
 	"github.com/axiomhq/hyperloglog"
-	"golang.org/x/exp/slices"
 
 	"github.com/elastic/apm-aggregation/aggregationpb"
 	"github.com/elastic/apm-aggregation/aggregators/internal/hdrhistogram"

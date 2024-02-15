@@ -1,13 +1,13 @@
 module github.com/elastic/apm-aggregation
 
-go 1.20
+go 1.21
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/axiomhq/hyperloglog v0.0.0-20230201085229-3ddf4bad03dc
 	github.com/cespare/xxhash/v2 v2.2.0
 	github.com/cockroachdb/pebble v1.0.0
-	github.com/elastic/apm-data v0.1.1-0.20240205124152-575dc0dc89f8
+	github.com/elastic/apm-data v1.0.0
 	github.com/google/go-cmp v0.6.0
 	github.com/stretchr/testify v1.8.4
 	go.elastic.co/apm/module/apmotel/v2 v2.4.7
@@ -18,7 +18,6 @@ require (
 	go.opentelemetry.io/otel/sdk/metric v1.21.0
 	go.opentelemetry.io/otel/trace v1.21.0
 	go.uber.org/zap v1.26.0
-	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1
 	golang.org/x/sync v0.4.0
 	golang.org/x/tools v0.14.0
 	google.golang.org/protobuf v1.31.0
@@ -62,6 +61,7 @@ require (
 	go.opentelemetry.io/collector/pdata v1.0.0-rcv0016 // indirect
 	go.opentelemetry.io/collector/semconv v0.87.0 // indirect
 	go.uber.org/multierr v1.11.0 // indirect
+	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect
 	golang.org/x/mod v0.13.0 // indirect
 	golang.org/x/net v0.17.0 // indirect
 	golang.org/x/sys v0.14.0 // indirect
