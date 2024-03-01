@@ -491,11 +491,14 @@ func (a *Aggregator) harvestForInterval(
 	from.MarshalBinaryToSizedBuffer(lb)
 	to.MarshalBinaryToSizedBuffer(ub)
 
-	iter := snap.NewIter(&pebble.IterOptions{
+	iter, err := snap.NewIter(&pebble.IterOptions{
 		LowerBound: lb,
 		UpperBound: ub,
 		KeyTypes:   pebble.IterKeyTypePointsOnly,
 	})
+	if err != nil {
+		return 0, fmt.Errorf("failed to create iter: %w", err)
+	}
 	defer iter.Close()
 
 	var errs []error
@@ -557,7 +560,7 @@ func (a *Aggregator) harvestForInterval(
 		a.metrics.EventsProcessed.Add(context.Background(), harvestStats.eventsTotal, commonAttrsOpt, outcomeAttrOpt)
 		cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
 	}
-	err := a.db.DeleteRange(lb, ub, a.writeOptions)
+	err = a.db.DeleteRange(lb, ub, a.writeOptions)
 	if len(errs) > 0 {
 		err = errors.Join(err, fmt.Errorf(
 			"failed to process %d out of %d metrics:\n%w",
