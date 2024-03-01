@@ -9,7 +9,7 @@ require (
 	github.com/cockroachdb/pebble v1.0.0
 	github.com/elastic/apm-data v1.0.0
 	github.com/google/go-cmp v0.6.0
-	github.com/stretchr/testify v1.8.4
+	github.com/stretchr/testify v1.9.0
 	go.elastic.co/apm/module/apmotel/v2 v2.4.8
 	go.elastic.co/apm/v2 v2.4.8
 	go.opentelemetry.io/otel v1.24.0
