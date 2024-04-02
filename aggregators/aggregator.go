@@ -180,9 +180,10 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	cm *aggregationpb.CombinedMetrics,
 ) error {
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(cmk.ID)
-	traceAttrs := append(append([]attribute.KeyValue{}, cmIDAttrs...),
+	traceAttrs := append(cmIDAttrs,
 		attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
-		attribute.String("processing_time", cmk.ProcessingTime.String()))
+		attribute.String("processing_time", cmk.ProcessingTime.String()),
+	)
 	ctx, span := a.cfg.Tracer.Start(ctx, "AggregateCombinedMetrics", trace.WithAttributes(traceAttrs...))
 	defer span.End()
 
@@ -200,11 +201,12 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	if cmk.ProcessingTime.Before(a.processingTime.Add(-a.cfg.Lookback)) {
 		a.metrics.EventsProcessed.Add(
 			context.Background(), cm.EventsTotal,
-			metric.WithAttributes(append(
-				a.cfg.CombinedMetricsIDToKVs(cmk.ID),
-				attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
-				telemetry.WithFailure(),
-			)...),
+			metric.WithAttributeSet(attribute.NewSet(
+				append(a.cfg.CombinedMetricsIDToKVs(cmk.ID),
+					attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
+					telemetry.WithFailure(),
+				)...,
+			)),
 		)
 		a.cfg.Logger.Warn(
 			"received expired combined metrics, dropping silently",
@@ -517,10 +519,9 @@ func (a *Aggregator) harvestForInterval(
 		}
 		cmCount++
 
-		commonAttrsOpt := metric.WithAttributes(
+		commonAttrsOpt := metric.WithAttributeSet(attribute.NewSet(
 			append(a.cfg.CombinedMetricsIDToKVs(cmk.ID), ivlAttr)...,
-		)
-		outcomeAttrOpt := metric.WithAttributes(telemetry.WithSuccess())
+		))
 
 		// Report the estimated number of overflowed metrics per aggregation interval.
 		// It is not meaningful to aggregate these across intervals or aggregators,
@@ -529,9 +530,11 @@ func (a *Aggregator) harvestForInterval(
 			if n == 0 {
 				return
 			}
-			a.metrics.MetricsOverflowed.Add(context.Background(), int64(n), commonAttrsOpt, metric.WithAttributes(
-				attribute.String(aggregationTypeKey, aggregationType),
-			))
+			a.metrics.MetricsOverflowed.Add(context.Background(), int64(n), commonAttrsOpt,
+				metric.WithAttributeSet(attribute.NewSet(
+					attribute.String(aggregationTypeKey, aggregationType),
+				)),
+			)
 		}
 		recordMetricsOverflow(harvestStats.servicesOverflowed, "service")
 		recordMetricsOverflow(harvestStats.transactionsOverflowed, "transaction")
@@ -553,6 +556,9 @@ func (a *Aggregator) harvestForInterval(
 		// Negative values are possible at edges due to delays in running the
 		// harvest loop or time sync issues between agents and server.
 		queuedDelay := time.Since(harvestStats.youngestEventTimestamp).Seconds()
+		outcomeAttrOpt := metric.WithAttributeSet(attribute.NewSet(
+			telemetry.WithSuccess()),
+		)
 		a.metrics.MinQueuedDelay.Record(context.Background(), queuedDelay, commonAttrsOpt, outcomeAttrOpt)
 		a.metrics.ProcessingLatency.Record(context.Background(), processingDelay, commonAttrsOpt, outcomeAttrOpt)
 		// Events harvested have been successfully processed, publish these
