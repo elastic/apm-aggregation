@@ -73,4 +73,4 @@ require (
 	howett.net/plist v1.0.0 // indirect
 )
 
-replace github.com/cockroachdb/pebble => /Users/lahsivjar/Projects/pebble
+replace github.com/cockroachdb/pebble => github.com/elastic/pebble v1.1.1-0.20240409145300-da0a7c5d42b3
