@@ -367,7 +367,7 @@ func (gl *globalLabels) FromProto(pb *aggregationpb.GlobalLabels) {
 	}
 	gl.NumericLabels = make(modelpb.NumericLabels, len(pb.NumericLabels))
 	for _, l := range pb.NumericLabels {
-		gl.NumericLabels[l.Key] = &modelpb.NumericLabelValue{Value: l.Value, Values: l.Values, Global: true}
+		gl.NumericLabels[l.Key] = &modelpb.NumericLabelValue{Value: l.Value, Global: true}
 		gl.NumericLabels[l.Key].Values = slices.Grow(gl.NumericLabels[l.Key].Values, len(l.Values))[:len(l.Values)]
 		copy(gl.NumericLabels[l.Key].Values, l.Values)
 	}
