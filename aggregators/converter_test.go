@@ -7,6 +7,7 @@ package aggregators
 import (
 	"fmt"
 	"net/netip"
+	"sync"
 	"testing"
 	"time"
 
@@ -779,8 +780,8 @@ func getTestGlobalLabelsStr(t *testing.T, s string) string {
 	return gls
 }
 
-func TestMarshalEventGlobalLabels(t *testing.T) {
-	e := &modelpb.APMEvent{
+func globalLabelsEvent() *modelpb.APMEvent {
+	return &modelpb.APMEvent{
 		Labels: modelpb.Labels{
 			"tag1": &modelpb.LabelValue{
 				Value:  "1",
@@ -826,6 +827,10 @@ func TestMarshalEventGlobalLabels(t *testing.T) {
 			},
 		},
 	}
+}
+
+func TestMarshalEventGlobalLabels(t *testing.T) {
+	e := globalLabelsEvent()
 	b, err := marshalEventGlobalLabels(e)
 	require.NoError(t, err)
 	gl := globalLabels{}
@@ -855,4 +860,26 @@ func TestMarshalEventGlobalLabels(t *testing.T) {
 			Global: true,
 		},
 	}, gl.NumericLabels)
+}
+
+func TestMarshalEventGlobalLabelsRace(t *testing.T) {
+	const N = 1000
+	wg := sync.WaitGroup{}
+	for i := 0; i < N; i++ {
+		wg.Add(1)
+		go func() {
+			e := globalLabelsEvent()
+			b, err := marshalEventGlobalLabels(e)
+			require.NoError(t, err)
+			gl := globalLabels{}
+			err = gl.UnmarshalBinary(b)
+			require.NoError(t, err)
+			b, err = gl.MarshalBinary()
+			require.NoError(t, err)
+			err = gl.UnmarshalBinary(b)
+			require.NoError(t, err)
+			wg.Done()
+		}()
+	}
+	wg.Wait()
 }
