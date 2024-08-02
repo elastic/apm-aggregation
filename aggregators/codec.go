@@ -330,7 +330,8 @@ func (gl *globalLabels) ToProto() *aggregationpb.GlobalLabels {
 		}
 		pb.Labels[i].Key = k
 		pb.Labels[i].Value = v.Value
-		pb.Labels[i].Values = v.Values
+		pb.Labels[i].Values = slices.Grow(pb.Labels[i].Values, len(v.Values))[:len(v.Values)]
+		copy(pb.Labels[i].Values, v.Values)
 		i++
 	}
 	sort.Slice(pb.Labels, func(i, j int) bool {
@@ -345,7 +346,8 @@ func (gl *globalLabels) ToProto() *aggregationpb.GlobalLabels {
 		}
 		pb.NumericLabels[i].Key = k
 		pb.NumericLabels[i].Value = v.Value
-		pb.NumericLabels[i].Values = v.Values
+		pb.NumericLabels[i].Values = slices.Grow(pb.NumericLabels[i].Values, len(v.Values))[:len(v.Values)]
+		copy(pb.NumericLabels[i].Values, v.Values)
 		i++
 	}
 	sort.Slice(pb.NumericLabels, func(i, j int) bool {
@@ -359,11 +361,15 @@ func (gl *globalLabels) ToProto() *aggregationpb.GlobalLabels {
 func (gl *globalLabels) FromProto(pb *aggregationpb.GlobalLabels) {
 	gl.Labels = make(modelpb.Labels, len(pb.Labels))
 	for _, l := range pb.Labels {
-		gl.Labels[l.Key] = &modelpb.LabelValue{Value: l.Value, Values: l.Values, Global: true}
+		gl.Labels[l.Key] = &modelpb.LabelValue{Value: l.Value, Global: true}
+		gl.Labels[l.Key].Values = slices.Grow(gl.Labels[l.Key].Values, len(l.Values))[:len(l.Values)]
+		copy(gl.Labels[l.Key].Values, l.Values)
 	}
 	gl.NumericLabels = make(modelpb.NumericLabels, len(pb.NumericLabels))
 	for _, l := range pb.NumericLabels {
-		gl.NumericLabels[l.Key] = &modelpb.NumericLabelValue{Value: l.Value, Values: l.Values, Global: true}
+		gl.NumericLabels[l.Key] = &modelpb.NumericLabelValue{Value: l.Value, Global: true}
+		gl.NumericLabels[l.Key].Values = slices.Grow(gl.NumericLabels[l.Key].Values, len(l.Values))[:len(l.Values)]
+		copy(gl.NumericLabels[l.Key].Values, l.Values)
 	}
 }
 
