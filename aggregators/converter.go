@@ -8,6 +8,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"slices"
 	"sort"
 	"sync"
 	"time"
@@ -1013,7 +1014,8 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 		}
 		pb.Labels[i].Key = k
 		pb.Labels[i].Value = v.Value
-		pb.Labels[i].Values = v.Values
+		pb.Labels[i].Values = slices.Grow(pb.Labels[i].Values, len(v.Values))[:len(v.Values)]
+		copy(pb.Labels[i].Values, v.Values)
 	}
 	if pb != nil {
 		sort.Slice(pb.Labels, func(i, j int) bool {
@@ -1042,7 +1044,8 @@ func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
 		}
 		pb.NumericLabels[i].Key = k
 		pb.NumericLabels[i].Value = v.Value
-		pb.NumericLabels[i].Values = v.Values
+		pb.NumericLabels[i].Values = slices.Grow(pb.NumericLabels[i].Values, len(v.Values))[:len(v.Values)]
+		copy(pb.NumericLabels[i].Values, v.Values)
 	}
 	if pb != nil {
 		sort.Slice(pb.NumericLabels, func(i, j int) bool {
