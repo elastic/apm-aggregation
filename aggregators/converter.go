@@ -985,77 +985,67 @@ func overflowSpanMetricsToAPMEvent(
 }
 
 func marshalEventGlobalLabels(e *modelpb.APMEvent) ([]byte, error) {
-	if len(e.Labels) == 0 && len(e.NumericLabels) == 0 {
+	var labelsCnt, numericLabelsCnt int
+	for _, v := range e.Labels {
+		if !v.Global {
+			continue
+		}
+		labelsCnt++
+	}
+	for _, v := range e.NumericLabels {
+		if !v.Global {
+			continue
+		}
+		numericLabelsCnt++
+	}
+
+	if labelsCnt == 0 && numericLabelsCnt == 0 {
 		return nil, nil
 	}
 
-	var pb *aggregationpb.GlobalLabels
+	pb := aggregationpb.GlobalLabelsFromVTPool()
+	defer pb.ReturnToVTPool()
+	pb.Labels = slices.Grow(pb.Labels, labelsCnt)[:labelsCnt]
+	pb.NumericLabels = slices.Grow(pb.NumericLabels, numericLabelsCnt)[:numericLabelsCnt]
 
+	var i int
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
 	// i.e. Protobuf formats are equal if and only if the structs are equal
 	for k, v := range e.Labels {
 		if !v.Global {
 			continue
 		}
-
-		if pb == nil {
-			pb = aggregationpb.GlobalLabelsFromVTPool()
-			defer pb.ReturnToVTPool()
-		}
-
-		i := len(pb.Labels)
-		if i == cap(pb.Labels) {
-			pb.Labels = append(pb.Labels, &aggregationpb.Label{})
-		} else {
-			pb.Labels = pb.Labels[:i+1]
-			if pb.Labels[i] == nil {
-				pb.Labels[i] = &aggregationpb.Label{}
-			}
+		if pb.Labels[i] == nil {
+			pb.Labels[i] = &aggregationpb.Label{}
 		}
 		pb.Labels[i].Key = k
 		pb.Labels[i].Value = v.Value
 		pb.Labels[i].Values = slices.Grow(pb.Labels[i].Values, len(v.Values))[:len(v.Values)]
 		copy(pb.Labels[i].Values, v.Values)
+		i++
 	}
-	if pb != nil {
-		sort.Slice(pb.Labels, func(i, j int) bool {
-			return pb.Labels[i].Key < pb.Labels[j].Key
-		})
-	}
+	sort.Slice(pb.Labels, func(i, j int) bool {
+		return pb.Labels[i].Key < pb.Labels[j].Key
+	})
 
+	i = 0
 	for k, v := range e.NumericLabels {
 		if !v.Global {
 			continue
 		}
-
-		if pb == nil {
-			pb = aggregationpb.GlobalLabelsFromVTPool()
-			defer pb.ReturnToVTPool()
-		}
-
-		i := len(pb.NumericLabels)
-		if i == cap(pb.NumericLabels) {
-			pb.NumericLabels = append(pb.NumericLabels, &aggregationpb.NumericLabel{})
-		} else {
-			pb.NumericLabels = pb.NumericLabels[:i+1]
-			if pb.NumericLabels[i] == nil {
-				pb.NumericLabels[i] = &aggregationpb.NumericLabel{}
-			}
+		if pb.NumericLabels[i] == nil {
+			pb.NumericLabels[i] = &aggregationpb.NumericLabel{}
 		}
 		pb.NumericLabels[i].Key = k
 		pb.NumericLabels[i].Value = v.Value
 		pb.NumericLabels[i].Values = slices.Grow(pb.NumericLabels[i].Values, len(v.Values))[:len(v.Values)]
 		copy(pb.NumericLabels[i].Values, v.Values)
+		i++
 	}
-	if pb != nil {
-		sort.Slice(pb.NumericLabels, func(i, j int) bool {
-			return pb.NumericLabels[i].Key < pb.NumericLabels[j].Key
-		})
-	}
+	sort.Slice(pb.NumericLabels, func(i, j int) bool {
+		return pb.NumericLabels[i].Key < pb.NumericLabels[j].Key
+	})
 
-	if pb == nil {
-		return nil, nil
-	}
 	return pb.MarshalVT()
 }
 
