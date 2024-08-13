@@ -83,7 +83,7 @@ func WithLimits(limits Limits) Option {
 // WithProcessor configures the processor for handling of the aggregated
 // metrics post harvest. Processor is called for each decoded combined
 // metrics after they are harvested. CombinedMetrics passed to the
-// processor is pooled and it is releasd back to the pool after processor
+// processor is pooled and it is released back to the pool after processor
 // has returned. If the processor mutates the CombinedMetrics such that it
 // can no longer access the pooled objects, then the Processor should
 // release the objects back to the pool.
