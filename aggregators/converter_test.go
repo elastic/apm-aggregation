@@ -883,3 +883,65 @@ func TestMarshalEventGlobalLabelsRace(t *testing.T) {
 	}
 	wg.Wait()
 }
+
+func TestUnmarshalBinary(t *testing.T) {
+	// prep work to get b and b2
+	e := &modelpb.APMEvent{
+		Labels: modelpb.Labels{
+			"tag4": &modelpb.LabelValue{
+				Value:  "",
+				Values: []string{"a", "b"},
+				Global: true,
+			},
+		},
+	}
+	b, err := marshalEventGlobalLabels(e)
+	require.NoError(t, err)
+	e2 := &modelpb.APMEvent{
+		Labels: modelpb.Labels{
+			"tag4": &modelpb.LabelValue{
+				Value:  "",
+				Values: []string{"c", "d"},
+				Global: true,
+			},
+		},
+	}
+	b2, err := marshalEventGlobalLabels(e2)
+	require.NoError(t, err)
+	// prep work done
+
+	// check gl
+	gl := globalLabels{}
+	err = gl.UnmarshalBinary(b)
+	require.NoError(t, err)
+	assert.Equal(t, modelpb.Labels{
+		"tag4": &modelpb.LabelValue{
+			Value:  "",
+			Values: []string{"a", "b"},
+			Global: true,
+		},
+	}, gl.Labels)
+
+	// check gl2
+	gl2 := globalLabels{}
+	err = gl2.UnmarshalBinary(b2)
+	require.NoError(t, err)
+	assert.Equal(t, modelpb.Labels{
+		"tag4": &modelpb.LabelValue{
+			Value:  "",
+			Values: []string{"c", "d"},
+			Global: true,
+		},
+	}, gl2.Labels)
+
+	// check gl again
+	// NOTE: this should NOT fail.
+	// It does because of a bug.
+	assert.Equal(t, modelpb.Labels{
+		"tag4": &modelpb.LabelValue{
+			Value:  "",
+			Values: []string{"a", "b"},
+			Global: true,
+		},
+	}, gl.Labels)
+}
