@@ -1365,6 +1365,43 @@ func TestAggregateAndHarvest(t *testing.T) {
 			},
 			{
 				Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
+				Event: &modelpb.Event{
+					SuccessCount: &modelpb.SummaryMetric{
+						Count: 1,
+						Sum:   1,
+					},
+					Outcome: "success",
+				},
+				Transaction: &modelpb.Transaction{
+					Name: "foo",
+					Type: "txtype",
+					Root: true,
+					DurationSummary: &modelpb.SummaryMetric{
+						Count: 1,
+						Sum:   100351, // Estimate from histogram
+					},
+					DurationHistogram: &modelpb.Histogram{
+						Values: []float64{100351},
+						Counts: []uint64{1},
+					},
+				},
+				Service: &modelpb.Service{
+					Name: "svc",
+				},
+				Labels: modelpb.Labels{
+					"baz": &modelpb.LabelValue{Global: true, Values: []string{"asd", "qwe"}},
+				},
+				NumericLabels: modelpb.NumericLabels{
+					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{1, 2}},
+				},
+				Metricset: &modelpb.Metricset{
+					Name:     "transaction",
+					DocCount: 1,
+					Interval: "1s",
+				},
+			},
+			{
+				Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
 				Event:     &modelpb.Event{},
 				Service: &modelpb.Service{
 					Name: "svc",
@@ -1374,6 +1411,23 @@ func TestAggregateAndHarvest(t *testing.T) {
 				},
 				NumericLabels: modelpb.NumericLabels{
 					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{4, 5}},
+				},
+				Metricset: &modelpb.Metricset{
+					Name:     "service_summary",
+					Interval: "1s",
+				},
+			},
+			{
+				Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
+				Event:     &modelpb.Event{},
+				Service: &modelpb.Service{
+					Name: "svc",
+				},
+				Labels: modelpb.Labels{
+					"baz": &modelpb.LabelValue{Global: true, Values: []string{"asd", "qwe"}},
+				},
+				NumericLabels: modelpb.NumericLabels{
+					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{1, 2}},
 				},
 				Metricset: &modelpb.Metricset{
 					Name:     "service_summary",
@@ -1407,6 +1461,40 @@ func TestAggregateAndHarvest(t *testing.T) {
 				},
 				NumericLabels: modelpb.NumericLabels{
 					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{4, 5}},
+				},
+				Metricset: &modelpb.Metricset{
+					Name:     "service_transaction",
+					DocCount: 1,
+					Interval: "1s",
+				},
+			},
+			{
+				Timestamp: modelpb.FromTime(time.Unix(0, 0).UTC()),
+				Event: &modelpb.Event{
+					SuccessCount: &modelpb.SummaryMetric{
+						Count: 1,
+						Sum:   1,
+					},
+				},
+				Transaction: &modelpb.Transaction{
+					Type: "txtype",
+					DurationSummary: &modelpb.SummaryMetric{
+						Count: 1,
+						Sum:   100351, // Estimate from histogram
+					},
+					DurationHistogram: &modelpb.Histogram{
+						Values: []float64{100351},
+						Counts: []uint64{1},
+					},
+				},
+				Service: &modelpb.Service{
+					Name: "svc",
+				},
+				Labels: modelpb.Labels{
+					"baz": &modelpb.LabelValue{Global: true, Values: []string{"asd", "qwe"}},
+				},
+				NumericLabels: modelpb.NumericLabels{
+					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{1, 2}},
 				},
 				Metricset: &modelpb.Metricset{
 					Name:     "service_transaction",
