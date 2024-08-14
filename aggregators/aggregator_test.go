@@ -1309,10 +1309,10 @@ func TestAggregateAndHarvest(t *testing.T) {
 					Name: "svc",
 				},
 				Labels: modelpb.Labels{
-					"baz": &modelpb.LabelValue{Global: true, Values: []string{"asd", "qwe", "rty", "fgh"}},
+					"baz": &modelpb.LabelValue{Global: true, Values: []string{"rty", "fgh"}},
 				},
 				NumericLabels: modelpb.NumericLabels{
-					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{1, 2, 4, 5}},
+					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{4, 5}},
 				},
 				Metricset: &modelpb.Metricset{
 					Name:     "transaction",
@@ -1327,10 +1327,10 @@ func TestAggregateAndHarvest(t *testing.T) {
 					Name: "svc",
 				},
 				Labels: modelpb.Labels{
-					"baz": &modelpb.LabelValue{Global: true, Values: []string{"asd", "qwe", "rty", "fgh"}},
+					"baz": &modelpb.LabelValue{Global: true, Values: []string{"rty", "fgh"}},
 				},
 				NumericLabels: modelpb.NumericLabels{
-					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{1, 2, 4, 5}},
+					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{4, 5}},
 				},
 				Metricset: &modelpb.Metricset{
 					Name:     "service_summary",
@@ -1360,10 +1360,10 @@ func TestAggregateAndHarvest(t *testing.T) {
 					Name: "svc",
 				},
 				Labels: modelpb.Labels{
-					"baz": &modelpb.LabelValue{Global: true, Values: []string{"asd", "qwe", "rty", "fgh"}},
+					"baz": &modelpb.LabelValue{Global: true, Values: []string{"rty", "fgh"}},
 				},
 				NumericLabels: modelpb.NumericLabels{
-					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{1, 2, 4, 5}},
+					"bar": &modelpb.NumericLabelValue{Global: true, Values: []float64{4, 5}},
 				},
 				Metricset: &modelpb.Metricset{
 					Name:     "service_transaction",
