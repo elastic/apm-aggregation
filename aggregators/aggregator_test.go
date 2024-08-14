@@ -1105,7 +1105,50 @@ func TestAggregateAndHarvest(t *testing.T) {
 			events,
 			cmpopts.IgnoreTypes(netip.Addr{}),
 			cmpopts.SortSlices(func(a, b *modelpb.APMEvent) bool {
-				return a.Metricset.Name < b.Metricset.Name
+				// Sort by Metricset.Name, then by (sorted) labels.
+				// labels are sorted by key before comparing.
+				// labels keys are compared and when equal, Value are compared.
+				// If Value is equal, compare each element in Values.
+
+				// handle base case, we can sort by Metricset.Name
+				if a.Metricset.Name != b.Metricset.Name {
+					return a.Metricset.Name < b.Metricset.Name
+				}
+
+				// otherwise sort by sorted labels
+				akeys := make([]string, 0, len(a.Labels))
+				for k := range a.Labels {
+					akeys = append(akeys, k)
+				}
+				sort.Strings(akeys)
+
+				bkeys := make([]string, 0, len(b.Labels))
+				for k := range a.Labels {
+					bkeys = append(bkeys, k)
+				}
+				sort.Strings(bkeys)
+
+				for i := 0; i < len(akeys); i++ {
+					if akeys[i] != bkeys[i] {
+						return akeys[i] < bkeys[i]
+					}
+
+					akey := akeys[i]
+					if a.Labels[akey].Value != "" && a.Labels[akey].Value != b.Labels[akey].Value {
+						return a.Labels[akey].Value < b.Labels[akey].Value
+					}
+
+					bkey := bkeys[i]
+					for _, v := range a.Labels[akey].Values {
+						for _, w := range b.Labels[bkey].Values {
+							if v != w {
+								return v < w
+							}
+						}
+					}
+				}
+
+				return false
 			}),
 			protocmp.Transform(),
 			protocmp.IgnoreFields(&modelpb.Event{}, "received"),
