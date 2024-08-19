@@ -1123,7 +1123,7 @@ func TestAggregateAndHarvest(t *testing.T) {
 				sort.Strings(akeys)
 
 				bkeys := make([]string, 0, len(b.Labels))
-				for k := range a.Labels {
+				for k := range b.Labels {
 					bkeys = append(bkeys, k)
 				}
 				sort.Strings(bkeys)
