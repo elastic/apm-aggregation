@@ -1128,7 +1128,13 @@ func TestAggregateAndHarvest(t *testing.T) {
 				}
 				sort.Strings(bkeys)
 
-				for i := 0; i < len(akeys); i++ {
+				// guard for b labels being shorter than a labels
+				enough := len(akeys)
+				if len(bkeys) < enough {
+					enough = len(bkeys)
+				}
+
+				for i := 0; i < enough; i++ {
 					if akeys[i] != bkeys[i] {
 						return akeys[i] < bkeys[i]
 					}
