@@ -4,7 +4,7 @@ go 1.21
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/axiomhq/hyperloglog v0.0.0-20230201085229-3ddf4bad03dc
+	github.com/axiomhq/hyperloglog v0.1.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cockroachdb/pebble v1.1.2
 	github.com/elastic/apm-data v1.1.0
