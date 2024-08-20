@@ -368,7 +368,7 @@ func eventToCombinedMetrics(
 }
 
 // CombinedMetricsToBatch converts CombinedMetrics to a batch of APMEvents.
-// Events in the batch are popualted using vtproto's sync pool and should be
+// Events in the batch are populated using vtproto's sync pool and should be
 // released back to the pool using `APMEvent#ReturnToVTPool`.
 func CombinedMetricsToBatch(
 	cm *aggregationpb.CombinedMetrics,
