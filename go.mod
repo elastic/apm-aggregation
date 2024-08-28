@@ -7,7 +7,7 @@ require (
 	github.com/axiomhq/hyperloglog v0.2.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cockroachdb/pebble v1.1.2
-	github.com/elastic/apm-data v1.10.0
+	github.com/elastic/apm-data v1.11.0
 	github.com/google/go-cmp v0.6.0
 	github.com/stretchr/testify v1.9.0
 	go.elastic.co/apm/module/apmotel/v2 v2.6.0
@@ -61,7 +61,7 @@ require (
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rogpeppe/go-internal v1.10.0 // indirect
 	go.elastic.co/apm/module/apmhttp/v2 v2.6.0 // indirect
-	go.elastic.co/fastjson v1.3.0 // indirect
+	go.elastic.co/fastjson v1.4.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.107.0 // indirect
 	go.opentelemetry.io/collector/pdata v1.13.0 // indirect
 	go.opentelemetry.io/collector/semconv v0.107.0 // indirect
