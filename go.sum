@@ -84,8 +84,8 @@ github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc h1:U9qPSI2PIWSS1
 github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc/go.mod h1:J7Y8YcW2NihsgmVo/mv3lAwl/skON4iLHjSsI+c5H38=
 github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc h1:8WFBn63wegobsYAX0YjD+8suexZDga5CctH4CCTx2+8=
 github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc/go.mod h1:c9O8+fpSOX1DM8cPNSkX/qsBWdkD4yd2dpciOWQjpBw=
-github.com/elastic/apm-data v1.10.0 h1:g7jE5xdX5gAILmgIdbsQY5Xhzcc8cWZyHtVX7SDNfeQ=
-github.com/elastic/apm-data v1.10.0/go.mod h1:Y4yTJqupDxrO7RrzH3As512NUvEc5UTIfM0K6M+YjeI=
+github.com/elastic/apm-data v1.11.0 h1:fbbKbsodp1meGnsI1uPKxNcjEOnV1rDb1Pjcox022Ts=
+github.com/elastic/apm-data v1.11.0/go.mod h1:8ZgwhOPHxaLPb9I3YglGNYPWfoPsDkunhYOp3zDyRX0=
 github.com/elastic/go-sysinfo v1.7.1 h1:Wx4DSARcKLllpKT2TnFVdSUJOsybqMYCNQZq1/wO+s0=
 github.com/elastic/go-sysinfo v1.7.1/go.mod h1:i1ZYdU10oLNfRzq4vq62BEwD2fH8KaWh6eh0ikPT9F0=
 github.com/elastic/go-windows v1.0.0/go.mod h1:TsU0Nrp7/y3+VwE82FoZF8gC/XFg/Elz6CcloAxnPgU=
@@ -298,8 +298,8 @@ go.elastic.co/apm/module/apmotel/v2 v2.6.0 h1:5z1/kH2FD/K8Yacl04plBy2YVW6cDPTCMN
 go.elastic.co/apm/module/apmotel/v2 v2.6.0/go.mod h1:jU0+sy3GUHvM70Pf99BXbxgSZyHBFMaBiMWxiNwaxng=
 go.elastic.co/apm/v2 v2.6.0 h1:VieBMLQFtXua2YxpYxaSdYGnmmxhLT46gosI5yErJgY=
 go.elastic.co/apm/v2 v2.6.0/go.mod h1:33rOXgtHwbgZcDgi6I/GtCSMZQqgxkHC0IQT3gudKvo=
-go.elastic.co/fastjson v1.3.0 h1:hJO3OsYIhiqiT4Fgu0ZxAECnKASbwgiS+LMW5oCopKs=
-go.elastic.co/fastjson v1.3.0/go.mod h1:K9vDh7O0ODsVKV2B5e2XYLY277QZaCbB3tS1SnARvko=
+go.elastic.co/fastjson v1.4.0 h1:a4BXUKXZHAzjVOPrqtEx2FDsIRBCMek01vCnrtyutWs=
+go.elastic.co/fastjson v1.4.0/go.mod h1:ZD5um63l0/8TIdddZbL2znD83FAr2IckYa3KR7VcdNA=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
 go.opencensus.io v0.22.0/go.mod h1:+kGneAE2xo2IficOXnaByMWTGM9T73dGwxeWcUqIpI8=
 go.opencensus.io v0.22.2/go.mod h1:yxeiOL68Rb0Xd1ddK5vPZ/oVn4vY4Ynel7k9FzqtOIw=
