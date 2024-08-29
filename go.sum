@@ -296,8 +296,8 @@ go.elastic.co/apm/module/apmhttp/v2 v2.6.0 h1:s8UeNFQmVBCNd4eoz7KDD9rEFhQC0HeUFX
 go.elastic.co/apm/module/apmhttp/v2 v2.6.0/go.mod h1:D0GLppLuI0Ddwvtl595GUxRgn6Z8L5KaDFVMv2H3GK0=
 go.elastic.co/apm/module/apmotel/v2 v2.6.0 h1:5z1/kH2FD/K8Yacl04plBy2YVW6cDPTCMNmM6zG4FJk=
 go.elastic.co/apm/module/apmotel/v2 v2.6.0/go.mod h1:jU0+sy3GUHvM70Pf99BXbxgSZyHBFMaBiMWxiNwaxng=
-go.elastic.co/apm/v2 v2.6.0 h1:VieBMLQFtXua2YxpYxaSdYGnmmxhLT46gosI5yErJgY=
-go.elastic.co/apm/v2 v2.6.0/go.mod h1:33rOXgtHwbgZcDgi6I/GtCSMZQqgxkHC0IQT3gudKvo=
+go.elastic.co/apm/v2 v2.6.1 h1:uOYKCPgrQiB2O9uMxOQXQ82xh/FUrIwaiXKPfCW1Uk0=
+go.elastic.co/apm/v2 v2.6.1/go.mod h1:33rOXgtHwbgZcDgi6I/GtCSMZQqgxkHC0IQT3gudKvo=
 go.elastic.co/fastjson v1.4.0 h1:a4BXUKXZHAzjVOPrqtEx2FDsIRBCMek01vCnrtyutWs=
 go.elastic.co/fastjson v1.4.0/go.mod h1:ZD5um63l0/8TIdddZbL2znD83FAr2IckYa3KR7VcdNA=
 go.opencensus.io v0.21.0/go.mod h1:mSImk1erAIZhrmZN+AvHh14ztQfjbGwt4TtuofqLduU=
