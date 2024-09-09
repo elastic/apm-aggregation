@@ -45,11 +45,9 @@ PROTOC_OUT?=.
 .PHONY: gen-proto
 gen-proto: $(PROTOC_GEN_GO) $(PROTOC_GEN_GO_VTPROTO) $(PROTOC)
 	$(eval STRUCTS := $(shell grep '^message' proto/*.proto | cut -d ' ' -f2))
-	$(eval PROTOC_VT_STRUCTS := $(shell for s in $(STRUCTS); do echo --go-vtproto_opt=pool=./aggregationpb.$$s ;done))
 	$(PROTOC) -I . --go_out=$(PROTOC_OUT) --plugin protoc-gen-go="$(PROTOC_GEN_GO)" \
 	--go-vtproto_out=$(PROTOC_OUT) --plugin protoc-gen-go-vtproto="$(PROTOC_GEN_GO_VTPROTO)" \
-	--go-vtproto_opt=features=marshal+unmarshal+size+pool+clone \
-	$(PROTOC_VT_STRUCTS) \
+	--go-vtproto_opt=features=marshal+unmarshal+size+clone \
 	$(wildcard proto/*.proto)
 	go generate ./aggregators/internal/protohash
 	$(MAKE) fmt

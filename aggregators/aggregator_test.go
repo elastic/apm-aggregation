@@ -1784,7 +1784,6 @@ func BenchmarkAggregateCombinedMetrics(b *testing.B) {
 			TransactionType: "txntype",
 		}).
 		GetProto()
-	b.Cleanup(func() { cm.ReturnToVTPool() })
 	ctx, cancel := context.WithCancel(context.Background())
 	b.Cleanup(func() { cancel() })
 	b.ReportAllocs()

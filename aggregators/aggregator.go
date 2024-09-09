@@ -77,12 +77,11 @@ func New(opts ...Option) (*Aggregator, error) {
 					limits:      cfg.Limits,
 					constraints: newConstraints(cfg.Limits),
 				}
-				pb := aggregationpb.CombinedMetricsFromVTPool()
-				defer pb.ReturnToVTPool()
+				var pb aggregationpb.CombinedMetrics
 				if err := pb.UnmarshalVT(value); err != nil {
 					return nil, fmt.Errorf("failed to unmarshal metrics: %w", err)
 				}
-				merger.merge(pb)
+				merger.merge(&pb)
 				return &merger, nil
 			},
 		},
@@ -609,8 +608,7 @@ func (a *Aggregator) processHarvest(
 	cmb []byte,
 	aggIvl time.Duration,
 ) (harvestStats, error) {
-	cm := aggregationpb.CombinedMetricsFromVTPool()
-	defer cm.ReturnToVTPool()
+	var cm aggregationpb.CombinedMetrics
 	if err := cm.UnmarshalVT(cmb); err != nil {
 		return harvestStats{}, fmt.Errorf("failed to unmarshal metrics: %w", err)
 	}
@@ -630,9 +628,9 @@ func (a *Aggregator) processHarvest(
 		}, otelKVsToZapFields(a.cfg.CombinedMetricsIDToKVs(cmk.ID))...)
 		overflowLogger = a.cfg.Logger.WithLazy(fields...)
 	}
-	hs.addOverflows(cm, a.cfg.Limits, overflowLogger)
+	hs.addOverflows(&cm, a.cfg.Limits, overflowLogger)
 
-	if err := a.cfg.Processor(ctx, cmk, cm, aggIvl); err != nil {
+	if err := a.cfg.Processor(ctx, cmk, &cm, aggIvl); err != nil {
 		return harvestStats{}, fmt.Errorf("failed to process combined metrics ID %s: %w", cmk.ID, err)
 	}
 	return hs, nil
