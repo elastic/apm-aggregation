@@ -199,9 +199,9 @@ func (tsm *TestServiceMetrics) AddTransaction(
 
 	hdr := hdrhistogram.New()
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
-	ktm := aggregationpb.KeyedTransactionMetricsFromVTPool()
+	ktm := &aggregationpb.KeyedTransactionMetrics{}
 	ktm.Key = tk.ToProto()
-	ktm.Metrics = aggregationpb.TransactionMetricsFromVTPool()
+	ktm.Metrics = &aggregationpb.TransactionMetrics{}
 	ktm.Metrics.Histogram = histogramToProto(hdr)
 
 	svc := tsm.tcm.value.Services[tsm.sk]
@@ -225,7 +225,7 @@ func (tsm *TestServiceMetrics) AddTransactionOverflow(
 
 	hdr := hdrhistogram.New()
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
-	from := aggregationpb.TransactionMetricsFromVTPool()
+	from := &aggregationpb.TransactionMetrics{}
 	from.Histogram = histogramToProto(hdr)
 
 	hash := protohash.HashTransactionAggregationKey(
@@ -255,9 +255,9 @@ func (tsm *TestServiceMetrics) AddServiceTransaction(
 
 	hdr := hdrhistogram.New()
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
-	kstm := aggregationpb.KeyedServiceTransactionMetricsFromVTPool()
+	kstm := &aggregationpb.KeyedServiceTransactionMetrics{}
 	kstm.Key = stk.ToProto()
-	kstm.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
+	kstm.Metrics = &aggregationpb.ServiceTransactionMetrics{}
 	kstm.Metrics.Histogram = histogramToProto(hdr)
 	switch cfg.outcome {
 	case "failure":
@@ -286,7 +286,7 @@ func (tsm *TestServiceMetrics) AddServiceTransactionOverflow(
 
 	hdr := hdrhistogram.New()
 	hdr.RecordDuration(cfg.duration, float64(cfg.count))
-	from := aggregationpb.ServiceTransactionMetricsFromVTPool()
+	from := &aggregationpb.ServiceTransactionMetrics{}
 	from.Histogram = histogramToProto(hdr)
 	switch cfg.outcome {
 	case "failure":
@@ -320,9 +320,9 @@ func (tsm *TestServiceMetrics) AddSpan(
 		cfg = opt(cfg)
 	}
 
-	ksm := aggregationpb.KeyedSpanMetricsFromVTPool()
+	ksm := &aggregationpb.KeyedSpanMetrics{}
 	ksm.Key = spk.ToProto()
-	ksm.Metrics = aggregationpb.SpanMetricsFromVTPool()
+	ksm.Metrics = &aggregationpb.SpanMetrics{}
 	ksm.Metrics.Sum += float64(cfg.duration * time.Duration(cfg.count))
 	ksm.Metrics.Count += float64(cfg.count)
 
@@ -344,7 +344,7 @@ func (tsm *TestServiceMetrics) AddSpanOverflow(
 		cfg = opt(cfg)
 	}
 
-	from := aggregationpb.SpanMetricsFromVTPool()
+	from := &aggregationpb.SpanMetrics{}
 	from.Sum += float64(cfg.duration * time.Duration(cfg.count))
 	from.Count += float64(cfg.count)
 

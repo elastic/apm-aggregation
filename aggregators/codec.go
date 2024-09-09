@@ -94,7 +94,7 @@ func GetEncodedCombinedMetricsKeyWithoutPartitionID(src []byte) []byte {
 
 // ToProto converts CombinedMetrics to its protobuf representation.
 func (m *combinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
-	pb := aggregationpb.CombinedMetricsFromVTPool()
+	var pb aggregationpb.CombinedMetrics
 	pb.ServiceMetrics = slices.Grow(pb.ServiceMetrics, len(m.Services))[:len(m.Services)]
 	var i int
 	for k, m := range m.Services {
@@ -111,19 +111,19 @@ func (m *combinedMetrics) ToProto() *aggregationpb.CombinedMetrics {
 	}
 	pb.EventsTotal = m.EventsTotal
 	pb.YoungestEventTimestamp = m.YoungestEventTimestamp
-	return pb
+	return &pb
 }
 
 // ToProto converts ServiceAggregationKey to its protobuf representation.
 func (k *serviceAggregationKey) ToProto() *aggregationpb.ServiceAggregationKey {
-	pb := aggregationpb.ServiceAggregationKeyFromVTPool()
+	var pb aggregationpb.ServiceAggregationKey
 	pb.Timestamp = modelpb.FromTime(k.Timestamp)
 	pb.ServiceName = k.ServiceName
 	pb.ServiceEnvironment = k.ServiceEnvironment
 	pb.ServiceLanguageName = k.ServiceLanguageName
 	pb.AgentName = k.AgentName
 	pb.GlobalLabelsStr = []byte(k.GlobalLabelsStr)
-	return pb
+	return &pb
 }
 
 // FromProto converts protobuf representation to ServiceAggregationKey.
@@ -138,7 +138,7 @@ func (k *serviceAggregationKey) FromProto(pb *aggregationpb.ServiceAggregationKe
 
 // ToProto converts ServiceMetrics to its protobuf representation.
 func (m *serviceMetrics) ToProto() *aggregationpb.ServiceMetrics {
-	pb := aggregationpb.ServiceMetricsFromVTPool()
+	var pb aggregationpb.ServiceMetrics
 	pb.OverflowGroups = m.OverflowGroups.ToProto()
 
 	pb.TransactionMetrics = slices.Grow(pb.TransactionMetrics, len(m.TransactionGroups))
@@ -156,12 +156,12 @@ func (m *serviceMetrics) ToProto() *aggregationpb.ServiceMetrics {
 		pb.SpanMetrics = append(pb.SpanMetrics, m)
 	}
 
-	return pb
+	return &pb
 }
 
 // ToProto converts TransactionAggregationKey to its protobuf representation.
 func (k *transactionAggregationKey) ToProto() *aggregationpb.TransactionAggregationKey {
-	pb := aggregationpb.TransactionAggregationKeyFromVTPool()
+	var pb aggregationpb.TransactionAggregationKey
 	pb.TraceRoot = k.TraceRoot
 
 	pb.ContainerId = k.ContainerID
@@ -199,7 +199,7 @@ func (k *transactionAggregationKey) ToProto() *aggregationpb.TransactionAggregat
 	pb.CloudMachineType = k.CloudMachineType
 	pb.CloudProjectId = k.CloudProjectID
 	pb.CloudProjectName = k.CloudProjectName
-	return pb
+	return &pb
 }
 
 // FromProto converts protobuf representation to TransactionAggregationKey.
@@ -245,9 +245,9 @@ func (k *transactionAggregationKey) FromProto(pb *aggregationpb.TransactionAggre
 
 // ToProto converts ServiceTransactionAggregationKey to its protobuf representation.
 func (k *serviceTransactionAggregationKey) ToProto() *aggregationpb.ServiceTransactionAggregationKey {
-	pb := aggregationpb.ServiceTransactionAggregationKeyFromVTPool()
+	var pb aggregationpb.ServiceTransactionAggregationKey
 	pb.TransactionType = k.TransactionType
-	return pb
+	return &pb
 }
 
 // FromProto converts protobuf representation to ServiceTransactionAggregationKey.
@@ -257,7 +257,7 @@ func (k *serviceTransactionAggregationKey) FromProto(pb *aggregationpb.ServiceTr
 
 // ToProto converts SpanAggregationKey to its protobuf representation.
 func (k *spanAggregationKey) ToProto() *aggregationpb.SpanAggregationKey {
-	pb := aggregationpb.SpanAggregationKeyFromVTPool()
+	var pb aggregationpb.SpanAggregationKey
 	pb.SpanName = k.SpanName
 	pb.Outcome = k.Outcome
 
@@ -265,7 +265,7 @@ func (k *spanAggregationKey) ToProto() *aggregationpb.SpanAggregationKey {
 	pb.TargetName = k.TargetName
 
 	pb.Resource = k.Resource
-	return pb
+	return &pb
 }
 
 // FromProto converts protobuf representation to SpanAggregationKey.
@@ -281,7 +281,7 @@ func (k *spanAggregationKey) FromProto(pb *aggregationpb.SpanAggregationKey) {
 
 // ToProto converts Overflow to its protobuf representation.
 func (o *overflow) ToProto() *aggregationpb.Overflow {
-	pb := aggregationpb.OverflowFromVTPool()
+	var pb aggregationpb.Overflow
 	if !o.OverflowTransaction.Empty() {
 		pb.OverflowTransactions = o.OverflowTransaction.Metrics
 		pb.OverflowTransactionsEstimator = hllBytes(o.OverflowTransaction.Estimator)
@@ -294,7 +294,7 @@ func (o *overflow) ToProto() *aggregationpb.Overflow {
 		pb.OverflowSpans = o.OverflowSpan.Metrics
 		pb.OverflowSpansEstimator = hllBytes(o.OverflowSpan.Estimator)
 	}
-	return pb
+	return &pb
 }
 
 // FromProto converts protobuf representation to Overflow.
@@ -318,7 +318,7 @@ func (o *overflow) FromProto(pb *aggregationpb.Overflow) {
 
 // ToProto converts GlobalLabels to its protobuf representation.
 func (gl *globalLabels) ToProto() *aggregationpb.GlobalLabels {
-	pb := aggregationpb.GlobalLabelsFromVTPool()
+	var pb aggregationpb.GlobalLabels
 
 	// Keys must be sorted to ensure wire formats are deterministically generated and strings are directly comparable
 	// i.e. Protobuf formats are equal if and only if the structs are equal
@@ -354,7 +354,7 @@ func (gl *globalLabels) ToProto() *aggregationpb.GlobalLabels {
 		return pb.NumericLabels[i].Key < pb.NumericLabels[j].Key
 	})
 
-	return pb
+	return &pb
 }
 
 // FromProto converts protobuf representation to globalLabels.
@@ -379,7 +379,6 @@ func (gl *globalLabels) MarshalBinary() ([]byte, error) {
 		return nil, nil
 	}
 	pb := gl.ToProto()
-	defer pb.ReturnToVTPool()
 	return pb.MarshalVT()
 }
 
@@ -396,12 +395,11 @@ func (gl *globalLabels) UnmarshalBinary(data []byte) error {
 		gl.NumericLabels = nil
 		return nil
 	}
-	pb := aggregationpb.GlobalLabelsFromVTPool()
-	defer pb.ReturnToVTPool()
+	var pb aggregationpb.GlobalLabels
 	if err := pb.UnmarshalVT(data); err != nil {
 		return err
 	}
-	gl.FromProto(pb)
+	gl.FromProto(&pb)
 	return nil
 }
 
@@ -428,9 +426,9 @@ func histogramToProto(h *hdrhistogram.HistogramRepresentation) *aggregationpb.HD
 	if h == nil {
 		return nil
 	}
-	pb := aggregationpb.HDRHistogramFromVTPool()
-	setHistogramProto(h, pb)
-	return pb
+	var pb aggregationpb.HDRHistogram
+	setHistogramProto(h, &pb)
+	return &pb
 }
 
 func setHistogramProto(h *hdrhistogram.HistogramRepresentation, pb *aggregationpb.HDRHistogram) {

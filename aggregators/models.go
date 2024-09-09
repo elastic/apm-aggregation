@@ -151,7 +151,7 @@ func (o *overflowTransaction) Merge(
 	hash uint64,
 ) {
 	if o.Metrics == nil {
-		o.Metrics = aggregationpb.TransactionMetricsFromVTPool()
+		o.Metrics = &aggregationpb.TransactionMetrics{}
 	}
 	mergeTransactionMetrics(o.Metrics, from)
 	insertHash(&o.Estimator, hash)
@@ -160,7 +160,7 @@ func (o *overflowTransaction) Merge(
 func (o *overflowTransaction) MergeOverflow(from *overflowTransaction) {
 	if from.Estimator != nil {
 		if o.Metrics == nil {
-			o.Metrics = aggregationpb.TransactionMetricsFromVTPool()
+			o.Metrics = &aggregationpb.TransactionMetrics{}
 		}
 		mergeTransactionMetrics(o.Metrics, from.Metrics)
 		mergeEstimator(&o.Estimator, from.Estimator)
@@ -181,7 +181,7 @@ func (o *overflowServiceTransaction) Merge(
 	hash uint64,
 ) {
 	if o.Metrics == nil {
-		o.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
+		o.Metrics = &aggregationpb.ServiceTransactionMetrics{}
 	}
 	mergeServiceTransactionMetrics(o.Metrics, from)
 	insertHash(&o.Estimator, hash)
@@ -190,7 +190,7 @@ func (o *overflowServiceTransaction) Merge(
 func (o *overflowServiceTransaction) MergeOverflow(from *overflowServiceTransaction) {
 	if from.Estimator != nil {
 		if o.Metrics == nil {
-			o.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
+			o.Metrics = &aggregationpb.ServiceTransactionMetrics{}
 		}
 		mergeServiceTransactionMetrics(o.Metrics, from.Metrics)
 		mergeEstimator(&o.Estimator, from.Estimator)
@@ -211,7 +211,7 @@ func (o *overflowSpan) Merge(
 	hash uint64,
 ) {
 	if o.Metrics == nil {
-		o.Metrics = aggregationpb.SpanMetricsFromVTPool()
+		o.Metrics = &aggregationpb.SpanMetrics{}
 	}
 	mergeSpanMetrics(o.Metrics, from)
 	insertHash(&o.Estimator, hash)
@@ -220,7 +220,7 @@ func (o *overflowSpan) Merge(
 func (o *overflowSpan) MergeOverflow(from *overflowSpan) {
 	if from.Estimator != nil {
 		if o.Metrics == nil {
-			o.Metrics = aggregationpb.SpanMetricsFromVTPool()
+			o.Metrics = &aggregationpb.SpanMetrics{}
 		}
 		mergeSpanMetrics(o.Metrics, from.Metrics)
 		mergeEstimator(&o.Estimator, from.Estimator)

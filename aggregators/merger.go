@@ -23,8 +23,7 @@ type combinedMetricsMerger struct {
 }
 
 func (m *combinedMetricsMerger) MergeNewer(value []byte) error {
-	from := aggregationpb.CombinedMetricsFromVTPool()
-	defer from.ReturnToVTPool()
+	from := &aggregationpb.CombinedMetrics{}
 	if err := from.UnmarshalVT(value); err != nil {
 		return err
 	}
@@ -33,8 +32,7 @@ func (m *combinedMetricsMerger) MergeNewer(value []byte) error {
 }
 
 func (m *combinedMetricsMerger) MergeOlder(value []byte) error {
-	from := aggregationpb.CombinedMetricsFromVTPool()
-	defer from.ReturnToVTPool()
+	from := &aggregationpb.CombinedMetrics{}
 	if err := from.UnmarshalVT(value); err != nil {
 		return err
 	}
@@ -44,7 +42,6 @@ func (m *combinedMetricsMerger) MergeOlder(value []byte) error {
 
 func (m *combinedMetricsMerger) Finish(includesBase bool) ([]byte, io.Closer, error) {
 	pb := m.metrics.ToProto()
-	defer pb.ReturnToVTPool()
 	data, err := pb.MarshalVT()
 	return data, nil, err
 }
@@ -287,7 +284,7 @@ func mergeKeyedTransactionMetrics(
 		return
 	}
 	if to.Metrics == nil {
-		to.Metrics = aggregationpb.TransactionMetricsFromVTPool()
+		to.Metrics = &aggregationpb.TransactionMetrics{}
 	}
 	mergeTransactionMetrics(to.Metrics, from.Metrics)
 }
@@ -296,7 +293,7 @@ func mergeTransactionMetrics(
 	to, from *aggregationpb.TransactionMetrics,
 ) {
 	if to.Histogram == nil && from.Histogram != nil {
-		to.Histogram = aggregationpb.HDRHistogramFromVTPool()
+		to.Histogram = &aggregationpb.HDRHistogram{}
 	}
 	if to.Histogram != nil && from.Histogram != nil {
 		mergeHistogram(to.Histogram, from.Histogram)
@@ -310,7 +307,7 @@ func mergeKeyedServiceTransactionMetrics(
 		return
 	}
 	if to.Metrics == nil {
-		to.Metrics = aggregationpb.ServiceTransactionMetricsFromVTPool()
+		to.Metrics = &aggregationpb.ServiceTransactionMetrics{}
 	}
 	mergeServiceTransactionMetrics(to.Metrics, from.Metrics)
 }
@@ -319,7 +316,7 @@ func mergeServiceTransactionMetrics(
 	to, from *aggregationpb.ServiceTransactionMetrics,
 ) {
 	if to.Histogram == nil && from.Histogram != nil {
-		to.Histogram = aggregationpb.HDRHistogramFromVTPool()
+		to.Histogram = &aggregationpb.HDRHistogram{}
 	}
 	if to.Histogram != nil && from.Histogram != nil {
 		mergeHistogram(to.Histogram, from.Histogram)
@@ -333,7 +330,7 @@ func mergeKeyedSpanMetrics(to, from *aggregationpb.KeyedSpanMetrics) {
 		return
 	}
 	if to.Metrics == nil {
-		to.Metrics = aggregationpb.SpanMetricsFromVTPool()
+		to.Metrics = &aggregationpb.SpanMetrics{}
 	}
 	mergeSpanMetrics(to.Metrics, from.Metrics)
 }
