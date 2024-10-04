@@ -20,7 +20,7 @@ require (
 	go.opentelemetry.io/otel/trace v1.30.0
 	go.uber.org/zap v1.27.0
 	golang.org/x/sync v0.8.0
-	golang.org/x/tools v0.25.0
+	golang.org/x/tools v0.26.0
 	google.golang.org/protobuf v1.34.2
 )
 
@@ -68,9 +68,9 @@ require (
 	go.uber.org/multierr v1.11.0 // indirect
 	golang.org/x/exp v0.0.0-20230713183714-613f0c0eb8a1 // indirect
 	golang.org/x/mod v0.21.0 // indirect
-	golang.org/x/net v0.29.0 // indirect
-	golang.org/x/sys v0.25.0 // indirect
-	golang.org/x/text v0.18.0 // indirect
+	golang.org/x/net v0.30.0 // indirect
+	golang.org/x/sys v0.26.0 // indirect
+	golang.org/x/text v0.19.0 // indirect
 	google.golang.org/genproto/googleapis/rpc v0.0.0-20240701130421-f6361c86f094 // indirect
 	google.golang.org/grpc v1.66.0 // indirect
 	gopkg.in/yaml.v3 v3.0.1 // indirect
