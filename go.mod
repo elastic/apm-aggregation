@@ -7,7 +7,7 @@ require (
 	github.com/axiomhq/hyperloglog v0.2.0
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cockroachdb/pebble v1.1.2
-	github.com/elastic/apm-data v1.14.0
+	github.com/elastic/apm-data v1.14.1
 	github.com/google/go-cmp v0.6.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/stretchr/testify v1.9.0
@@ -37,7 +37,7 @@ require (
 	github.com/dgryski/go-metro v0.0.0-20180109044635-280f6062b5bc // indirect
 	github.com/elastic/go-sysinfo v1.7.1 // indirect
 	github.com/elastic/go-windows v1.0.1 // indirect
-	github.com/elastic/opentelemetry-lib v0.10.0 // indirect
+	github.com/elastic/opentelemetry-lib v0.12.0 // indirect
 	github.com/getsentry/sentry-go v0.27.0 // indirect
 	github.com/go-logr/logr v1.4.2 // indirect
 	github.com/go-logr/stdr v1.2.2 // indirect
