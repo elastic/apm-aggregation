@@ -34,11 +34,11 @@ PROTOC_GEN_GO=$(GOOSBUILD)/protoc-gen-go
 $(PROTOC):
 	@./tools/install-protoc.sh
 
-$(PROTOC_GEN_GO_VTPROTO): $(GITROOT)/tools/go.mod
-	go build -o $@ -modfile=$< github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto
+$(PROTOC_GEN_GO_VTPROTO):
+	GOBIN=$(GOOSBUILD) go install github.com/planetscale/vtprotobuf/cmd/protoc-gen-go-vtproto
 
-$(PROTOC_GEN_GO): $(GITROOT)/tools/go.mod
-	go build -o $@ -modfile=$< google.golang.org/protobuf/cmd/protoc-gen-go
+$(PROTOC_GEN_GO):
+	GOBIN=$(GOOSBUILD) go install google.golang.org/protobuf/cmd/protoc-gen-go
 
 PROTOC_OUT?=.
 
