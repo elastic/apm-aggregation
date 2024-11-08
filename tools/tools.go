@@ -8,9 +8,8 @@
 package main
 
 import (
-	_ "github.com/planetscale/vtprotobuf/generator" // go.mod
-	_ "golang.org/x/tools/cmd/goimports"            // go.mod
-	_ "honnef.co/go/tools/cmd/staticcheck"          // go.mod
+	_ "golang.org/x/tools/cmd/goimports"   // go.mod
+	_ "honnef.co/go/tools/cmd/staticcheck" // go.mod
 
 	_ "github.com/elastic/go-licenser" // go.mod
 )
