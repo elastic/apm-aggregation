@@ -1,7 +1,6 @@
 module github.com/elastic/apm-aggregation
 
-go 1.22.1
-toolchain go1.22.10
+go 1.22.7
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
