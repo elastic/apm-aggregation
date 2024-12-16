@@ -448,3 +448,15 @@ func newConstraints(limits Limits) constraints {
 		totalSpanGroups:               constraint.New(0, limits.MaxSpanGroups),
 	}
 }
+
+// MergeCombinedMetrics merges provided CombinedMetrics together.
+func MergeCombinedMetrics(limits Limits, metrics ...*aggregationpb.CombinedMetrics) *aggregationpb.CombinedMetrics {
+	merger := combinedMetricsMerger{
+		limits:      limits,
+		constraints: newConstraints(limits),
+	}
+	for _, m := range metrics {
+		merger.merge(m)
+	}
+	return merger.metrics.ToProto()
+}
