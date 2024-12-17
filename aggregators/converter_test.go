@@ -334,7 +334,7 @@ func TestEventToCombinedMetrics(t *testing.T) {
 				return nil
 			}
 			for _, e := range tc.input() {
-				err := eventToCombinedMetrics(e, cmk, tc.partitions, collector)
+				err := EventToCombinedMetrics(e, cmk, tc.partitions, collector)
 				require.NoError(t, err)
 			}
 			assert.Empty(t, cmp.Diff(
@@ -569,7 +569,7 @@ func BenchmarkEventToCombinedMetrics(b *testing.B) {
 	}
 	b.ResetTimer()
 	for i := 0; i < b.N; i++ {
-		err := eventToCombinedMetrics(event, cmk, 1 /*partitions*/, noop)
+		err := EventToCombinedMetrics(event, cmk, 1 /*partitions*/, noop)
 		if err != nil {
 			b.Fatal(err)
 		}
