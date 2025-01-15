@@ -11,8 +11,8 @@ require (
 	github.com/google/go-cmp v0.6.0
 	github.com/planetscale/vtprotobuf v0.6.1-0.20240319094008-0393e58bdf10
 	github.com/stretchr/testify v1.10.0
-	go.elastic.co/apm/module/apmotel/v2 v2.6.2
-	go.elastic.co/apm/v2 v2.6.2
+	go.elastic.co/apm/module/apmotel/v2 v2.6.3
+	go.elastic.co/apm/v2 v2.6.3
 	go.opentelemetry.io/otel v1.33.0
 	go.opentelemetry.io/otel/metric v1.33.0
 	go.opentelemetry.io/otel/sdk v1.33.0
@@ -59,7 +59,7 @@ require (
 	github.com/prometheus/common v0.60.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
 	github.com/rogpeppe/go-internal v1.13.1 // indirect
-	go.elastic.co/apm/module/apmhttp/v2 v2.6.2 // indirect
+	go.elastic.co/apm/module/apmhttp/v2 v2.6.3 // indirect
 	go.elastic.co/fastjson v1.4.0 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
 	go.opentelemetry.io/collector/consumer v0.111.0 // indirect
