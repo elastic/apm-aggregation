@@ -8,6 +8,7 @@ package telemetry
 import (
 	"context"
 	"fmt"
+
 	"github.com/cockroachdb/pebble"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
