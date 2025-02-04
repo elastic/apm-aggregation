@@ -8,7 +8,6 @@ package telemetry
 import (
 	"context"
 	"fmt"
-
 	"github.com/cockroachdb/pebble"
 	"go.opentelemetry.io/otel/attribute"
 	"go.opentelemetry.io/otel/metric"
@@ -33,6 +32,10 @@ type Metrics struct {
 	MinQueuedDelay    metric.Float64Histogram
 	ProcessingLatency metric.Float64Histogram
 	MetricsOverflowed metric.Int64Counter
+
+	// Synchronous metric for capturing aggregation panics.
+
+	PanicsOccurred metric.Int64Counter
 
 	// Asynchronous metrics used to get pebble metrics and
 	// record measurements. These are kept unexported as they are
@@ -109,6 +112,16 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 	)
 	if err != nil {
 		return nil, fmt.Errorf("failed to create metric for metrics overflowed: %w", err)
+	}
+
+	// Panic metric
+	i.PanicsOccurred, err = meter.Int64Counter(
+		"panics.occurred.count",
+		metric.WithDescription("Number of times a panic has occurred"),
+		metric.WithUnit(countUnit),
+	)
+	if err != nil {
+		return nil, fmt.Errorf("failed to create metric for panics: %w", err)
 	}
 
 	// Pebble metrics
@@ -229,6 +242,16 @@ func NewMetrics(provider pebbleProvider, opts ...Option) (*Metrics, error) {
 		return nil, fmt.Errorf("failed to register callback: %w", err)
 	}
 	return &i, nil
+}
+
+// CapturePanic recovers from panic if any, increments the panic counter and re-panics.
+func (i *Metrics) CapturePanic() {
+	if r := recover(); r != nil {
+		panicStr := fmt.Sprintf("%v", r)
+		attrSet := metric.WithAttributeSet(attribute.NewSet(attribute.String("panic", panicStr)))
+		i.PanicsOccurred.Add(context.Background(), 1, attrSet)
+		panic(r)
+	}
 }
 
 // CleanUp unregisters any registered callback for collecting async

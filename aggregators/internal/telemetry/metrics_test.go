@@ -6,6 +6,7 @@ package telemetry
 
 import (
 	"context"
+	"go.opentelemetry.io/otel/attribute"
 	"testing"
 
 	"github.com/cockroachdb/pebble"
@@ -190,4 +191,54 @@ func TestNewInstruments(t *testing.T) {
 	for i, em := range expected {
 		metricdatatest.AssertEqual(t, em, sm.Metrics[i], metricdatatest.IgnoreTimestamp())
 	}
+}
+
+func TestMetrics_CapturePanic(t *testing.T) {
+	rdr := metric.NewManualReader()
+	meter := metric.NewMeterProvider(metric.WithReader(rdr)).Meter("test")
+	mt, err := NewMetrics(
+		func() *pebble.Metrics { return &pebble.Metrics{} },
+		WithMeter(meter),
+	)
+	require.NoError(t, err)
+	require.NotNil(t, mt)
+
+	// Capture panic
+	assert.Panics(t, func() {
+		defer mt.CapturePanic()
+		panic("something bad happened")
+	})
+
+	var rm metricdata.ResourceMetrics
+	assert.NoError(t, rdr.Collect(context.Background(), &rm))
+	require.Len(t, rm.ScopeMetrics, 1)
+
+	findPanicsOccurredCountMetric := func(mts []metricdata.Metrics) (metricdata.Metrics, bool) {
+		for _, m := range mts {
+			if m.Name == "panics.occurred.count" {
+				return m, true
+			}
+		}
+		return metricdata.Metrics{}, false
+	}
+
+	m, found := findPanicsOccurredCountMetric(rm.ScopeMetrics[0].Metrics)
+	require.True(t, found, "panics not counted in metrics")
+
+	expected := metricdata.Metrics{
+		Name:        "panics.occurred.count",
+		Description: "Number of times a panic has occurred",
+		Unit:        "1",
+		Data: metricdata.Sum[int64]{
+			DataPoints: []metricdata.DataPoint[int64]{
+				{
+					Attributes: attribute.NewSet(attribute.String("panic", "something bad happened")),
+					Value:      1,
+				},
+			},
+			Temporality: metricdata.CumulativeTemporality,
+			IsMonotonic: true,
+		},
+	}
+	metricdatatest.AssertEqual(t, expected, m, metricdatatest.IgnoreTimestamp())
 }

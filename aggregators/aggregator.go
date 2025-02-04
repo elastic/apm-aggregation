@@ -123,6 +123,8 @@ func (a *Aggregator) AggregateBatch(
 	id [16]byte,
 	b *modelpb.Batch,
 ) error {
+	defer a.metrics.CapturePanic()
+
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(id)
 
 	a.mu.Lock()
@@ -178,6 +180,8 @@ func (a *Aggregator) AggregateCombinedMetrics(
 	cmk CombinedMetricsKey,
 	cm *aggregationpb.CombinedMetrics,
 ) error {
+	defer a.metrics.CapturePanic()
+
 	cmIDAttrs := a.cfg.CombinedMetricsIDToKVs(cmk.ID)
 	traceAttrs := append(cmIDAttrs,
 		attribute.String(aggregationIvlKey, formatDuration(cmk.Interval)),
@@ -238,6 +242,8 @@ func (a *Aggregator) AggregateCombinedMetrics(
 // - Running more than once will return an error
 // - Running after aggregator is stopped will return ErrAggregatorClosed.
 func (a *Aggregator) Run(ctx context.Context) error {
+	defer a.metrics.CapturePanic()
+
 	a.mu.Lock()
 	if a.runStopped != nil {
 		a.mu.Unlock()
@@ -280,6 +286,8 @@ func (a *Aggregator) Run(ctx context.Context) error {
 // No further writes may be performed after Close is called, and no further
 // harvests will be performed once Close returns.
 func (a *Aggregator) Close(ctx context.Context) error {
+	defer a.metrics.CapturePanic()
+
 	ctx, span := a.cfg.Tracer.Start(ctx, "Aggregator.Close")
 	defer span.End()
 
