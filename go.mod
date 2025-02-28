@@ -1,10 +1,11 @@
 module github.com/elastic/apm-aggregation
 
 go 1.22.1
+toolchain go1.23.6
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
-	github.com/axiomhq/hyperloglog v0.2.0
+	github.com/axiomhq/hyperloglog v0.2.4
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cockroachdb/pebble v1.1.4
 	github.com/elastic/apm-data v1.14.1
@@ -46,6 +47,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
+	github.com/kamstrup/intmap v0.5.1 // indirect
 	github.com/klauspost/compress v1.17.11 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
