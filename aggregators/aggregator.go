@@ -505,7 +505,8 @@ func (a *Aggregator) harvestForInterval(
 	var errs []error
 	var cmCount int
 	ivlAttr := attribute.String(aggregationIvlKey, formatDuration(ivl))
-	for iter.First(); iter.Valid(); iter.Next() {
+	hasRangeData := iter.First()
+	for ; iter.Valid(); iter.Next() {
 		var cmk CombinedMetricsKey
 		if err := cmk.UnmarshalBinary(iter.Key()); err != nil {
 			errs = append(errs, fmt.Errorf("failed to unmarshal key: %w", err))
@@ -565,12 +566,16 @@ func (a *Aggregator) harvestForInterval(
 		a.metrics.EventsProcessed.Add(context.Background(), harvestStats.eventsTotal, commonAttrsOpt, outcomeAttrOpt)
 		cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
 	}
-	err = a.db.DeleteRange(lb, ub, a.writeOptions)
-	if len(errs) > 0 {
-		err = errors.Join(err, fmt.Errorf(
-			"failed to process %d out of %d metrics:\n%w",
-			len(errs), cmCount, errors.Join(errs...),
-		))
+	if hasRangeData {
+		// DeleteRange will create range tombstones so we only do the operation
+		// if we identify that there is data in the interval.
+		err = a.db.DeleteRange(lb, ub, a.writeOptions)
+		if len(errs) > 0 {
+			err = errors.Join(err, fmt.Errorf(
+				"failed to process %d out of %d metrics:\n%w",
+				len(errs), cmCount, errors.Join(errs...),
+			))
+		}
 	}
 
 	// All remaining events in the cached events map should be failed events.
