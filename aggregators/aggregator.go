@@ -502,19 +502,19 @@ func (a *Aggregator) harvestForInterval(
 	}
 	defer iter.Close()
 
-	var errs []error
+	var harvestErrs []error
 	var cmCount int
 	ivlAttr := attribute.String(aggregationIvlKey, formatDuration(ivl))
 	hasRangeData := iter.First()
 	for ; iter.Valid(); iter.Next() {
 		var cmk CombinedMetricsKey
 		if err := cmk.UnmarshalBinary(iter.Key()); err != nil {
-			errs = append(errs, fmt.Errorf("failed to unmarshal key: %w", err))
+			harvestErrs = append(harvestErrs, fmt.Errorf("failed to unmarshal key: %w", err))
 			continue
 		}
 		harvestStats, err := a.processHarvest(ctx, cmk, iter.Value(), ivl)
 		if err != nil {
-			errs = append(errs, err)
+			harvestErrs = append(harvestErrs, err)
 			continue
 		}
 		cmCount++
@@ -566,15 +566,18 @@ func (a *Aggregator) harvestForInterval(
 		a.metrics.EventsProcessed.Add(context.Background(), harvestStats.eventsTotal, commonAttrsOpt, outcomeAttrOpt)
 		cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
 	}
+	if len(harvestErrs) > 0 {
+		// Each harvest error represents failed processing of an aggregated metric
+		err = errors.Join(err, fmt.Errorf(
+			"failed to process %d out of %d metrics:\n%w",
+			len(harvestErrs), cmCount, errors.Join(harvestErrs...),
+		))
+	}
 	if hasRangeData {
 		// DeleteRange will create range tombstones so we only do the operation
 		// if we identify that there is data in the interval.
-		err = a.db.DeleteRange(lb, ub, a.writeOptions)
-		if len(errs) > 0 {
-			err = errors.Join(err, fmt.Errorf(
-				"failed to process %d out of %d metrics:\n%w",
-				len(errs), cmCount, errors.Join(errs...),
-			))
+		if rangeCleanupErr := a.db.DeleteRange(lb, ub, a.writeOptions); rangeCleanupErr != nil {
+			err = errors.Join(err, fmt.Errorf("failed to delete processed range: %w", rangeCleanupErr))
 		}
 	}
 
