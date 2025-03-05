@@ -1,11 +1,11 @@
 module github.com/elastic/apm-aggregation/tools
 
-go 1.22.1
+go 1.23
 
 require (
 	github.com/elastic/go-licenser v0.4.2
 	golang.org/x/tools v0.30.0
-	honnef.co/go/tools v0.5.1
+	honnef.co/go/tools v0.6.0
 )
 
 require (
