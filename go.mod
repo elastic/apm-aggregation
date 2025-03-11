@@ -1,6 +1,7 @@
 module github.com/elastic/apm-aggregation
 
-go 1.23
+go 1.23.6
+
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.1.2
 	github.com/axiomhq/hyperloglog v0.2.5
