@@ -2,12 +2,12 @@
 all: test
 
 fmt:
-	@go tool run github.com/elastic/go-licenser -license=Elasticv2 .
-	@go tool run golang.org/x/tools/cmd/goimports -local github.com/elastic/ -w .
+	@go tool github.com/elastic/go-licenser -license=Elasticv2 .
+	@go tool golang.org/x/tools/cmd/goimports -local github.com/elastic/ -w .
 
 lint:
-	for dir in $(shell find . -type f -name go.mod -exec dirname '{}' \;); do (cd $$dir && go mod tidy && git diff --stat --exit-code -- go.mod go.sum) || exit $$?; done
-	go tool run honnef.co/go/tools/cmd/staticcheck -checks=all ./...
+	go mod tidy -diff
+	go tool honnef.co/go/tools/cmd/staticcheck -checks=all ./...
 
 protolint:
 	docker run --volume "$(PWD):/workspace" --workdir /workspace bufbuild/buf lint proto
