@@ -15,15 +15,6 @@ updates:
       go-agent:
         patterns:
         - "go.elastic.co/apm*"
-  # go tools
-  - package-ecosystem: "gomod"
-    directory: "tools/"
-    schedule:
-      interval: "weekly"
-    groups:
-      dependencies:
-        patterns:
-          - "*"
   # GitHub actions
   - package-ecosystem: "github-actions"
     directory: "/"
