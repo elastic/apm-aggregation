@@ -250,20 +250,20 @@ func (i *Metrics) registerCallback(meter metric.Meter, provider pebbleProvider) 
 		obs.ObserveInt64(i.pebbleTotalDiskUsage, int64(pm.DiskSpaceUsage()))
 
 		obs.ObserveInt64(i.pebbleFlushes, pm.Flush.Count)
-		obs.ObserveInt64(i.pebbleFlushedBytes, int64(pm.Levels[0].BytesFlushed))
+		obs.ObserveInt64(i.pebbleFlushedBytes, int64(pm.Levels[0].TableBytesFlushed))
 
 		obs.ObserveInt64(i.pebbleCompactions, pm.Compact.Count)
 		obs.ObserveInt64(i.pebblePendingCompaction, int64(pm.Compact.EstimatedDebt))
 		obs.ObserveInt64(i.pebbleMarkedForCompactionFiles, int64(pm.Compact.MarkedFiles))
 
-		obs.ObserveInt64(i.pebbleTableReadersMemEstimate, pm.TableCache.Size)
+		obs.ObserveInt64(i.pebbleTableReadersMemEstimate, pm.FileCache.Size)
 		obs.ObserveInt64(i.pebbleKeysTombstones, int64(pm.Keys.TombstoneCount))
 
 		lm := pm.Total()
-		obs.ObserveInt64(i.pebbleNumSSTables, lm.NumFiles)
-		obs.ObserveInt64(i.pebbleIngestedBytes, int64(lm.BytesIngested))
-		obs.ObserveInt64(i.pebbleCompactedBytesRead, int64(lm.BytesRead))
-		obs.ObserveInt64(i.pebbleCompactedBytesWritten, int64(lm.BytesCompacted))
+		obs.ObserveInt64(i.pebbleNumSSTables, lm.TablesCount)
+		obs.ObserveInt64(i.pebbleIngestedBytes, int64(lm.TableBytesIngested))
+		obs.ObserveInt64(i.pebbleCompactedBytesRead, int64(lm.TableBytesRead))
+		obs.ObserveInt64(i.pebbleCompactedBytesWritten, int64(lm.TableBytesCompacted))
 		obs.ObserveInt64(i.pebbleReadAmplification, int64(lm.Sublevels))
 		return nil
 	},
