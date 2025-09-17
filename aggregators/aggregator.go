@@ -447,8 +447,19 @@ func (a *Aggregator) harvest(
 		// Check if the given aggregation interval needs to be harvested now
 		if end.Truncate(ivl).Equal(end) {
 			start := end.Add(-ivl).Add(-a.cfg.Lookback)
+			intervalMetrics := cachedEventsStats[ivl]
+			if intervalMetrics == nil {
+				a.cfg.Logger.Error(
+					"skipping missing interval metrics",
+					zap.Duration("aggregation_interval_ns", ivl),
+					zap.Time("harvested_till(exclusive)", end),
+					zap.Error(errors.New("nil interval metrics")),
+				)
+				continue
+			}
+
 			cmCount, err := a.harvestForInterval(
-				ctx, snap, start, end, ivl, cachedEventsStats[ivl],
+				ctx, snap, start, end, ivl, intervalMetrics,
 			)
 			if err != nil {
 				errs = append(errs, fmt.Errorf(
