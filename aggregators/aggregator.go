@@ -569,6 +569,8 @@ func (a *Aggregator) harvestForInterval(
 		// of the aggregator caused the cache to be nil, however, the data in DB is
 		// present and can be harvested. In this event, we will go forward with the
 		// harvest but not publish the `events.processed` metrics.
+		//
+		// Note that data loss can still happen in an event of ungraceful shutdown.
 		if cachedEventsStats != nil {
 			a.cfg.Logger.Warn(
 				"cached events statistics is nil but data exists, this can happen due to ungraceful shutdown of the aggregator and will result in the events processed metrics to not record the data harvested",
