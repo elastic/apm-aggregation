@@ -572,10 +572,11 @@ func (a *Aggregator) harvestForInterval(
 		//
 		// Note that data loss can still happen in an event of ungraceful shutdown.
 		if cachedEventsStats != nil {
+			cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
+		} else {
 			a.cfg.Logger.Warn(
 				"cached events statistics is nil but data exists, this can happen due to ungraceful shutdown of the aggregator and will result in the events processed metrics to not record the data harvested",
 			)
-			cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
 		}
 	}
 	if len(harvestErrs) > 0 {
