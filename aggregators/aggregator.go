@@ -564,7 +564,17 @@ func (a *Aggregator) harvestForInterval(
 		// Events harvested have been successfully processed, publish these
 		// as success. Update the map to keep track of events failed.
 		a.metrics.EventsProcessed.Add(context.Background(), harvestStats.eventsTotal, commonAttrsOpt, outcomeAttrOpt)
-		cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
+		// The cachedEventsStats is an in-memory cache, however, the pebble database
+		// can be persisted. Due to this, it is possible that an ungraceful shutdown
+		// of the aggregator caused the cache to be nil, however, the data in DB is
+		// present and can be harvested. In this event, we will go forward with the
+		// harvest but not publish the `events.processed` metrics.
+		if cachedEventsStats != nil {
+			a.cfg.Logger.Warn(
+				"cached events statistics is nil but data exists, this can happen due to ungraceful shutdown of the aggregator and will result in the events processed metrics to not record the data harvested",
+			)
+			cachedEventsStats[cmk.ID] -= harvestStats.eventsTotal
+		}
 	}
 	if len(harvestErrs) > 0 {
 		// Each harvest error represents failed processing of an aggregated metric
