@@ -3,7 +3,7 @@ module github.com/elastic/apm-aggregation
 go 1.24.0
 
 require (
-	github.com/HdrHistogram/hdrhistogram-go v1.1.2
+	github.com/HdrHistogram/hdrhistogram-go v1.2.0
 	github.com/axiomhq/hyperloglog v0.2.5
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cockroachdb/pebble/v2 v2.1.1
@@ -65,7 +65,7 @@ require (
 	github.com/prometheus/client_model v0.6.1 // indirect
 	github.com/prometheus/common v0.60.1 // indirect
 	github.com/prometheus/procfs v0.15.1 // indirect
-	github.com/rogpeppe/go-internal v1.13.1 // indirect
+	github.com/rogpeppe/go-internal v1.14.1 // indirect
 	go.elastic.co/apm/module/apmhttp/v2 v2.7.1 // indirect
 	go.elastic.co/fastjson v1.5.1 // indirect
 	go.opentelemetry.io/auto/sdk v1.1.0 // indirect
