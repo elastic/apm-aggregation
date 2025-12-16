@@ -4,7 +4,7 @@ go 1.24.0
 
 require (
 	github.com/HdrHistogram/hdrhistogram-go v1.2.0
-	github.com/axiomhq/hyperloglog v0.2.5
+	github.com/axiomhq/hyperloglog v0.2.6
 	github.com/cespare/xxhash/v2 v2.3.0
 	github.com/cockroachdb/pebble/v2 v2.1.2
 	github.com/elastic/apm-data v1.19.5
@@ -38,7 +38,7 @@ require (
 	github.com/cockroachdb/swiss v0.0.0-20250624142022-d6e517c1d961 // indirect
 	github.com/cockroachdb/tokenbucket v0.0.0-20230807174530-cc333fc44b06 // indirect
 	github.com/davecgh/go-spew v1.1.2-0.20180830191138-d8f796af33cc // indirect
-	github.com/dgryski/go-metro v0.0.0-20211217172704-adc40b04c140 // indirect
+	github.com/dgryski/go-metro v0.0.0-20250106013310-edb8663e5e33 // indirect
 	github.com/elastic/go-licenser v0.4.2 // indirect
 	github.com/elastic/go-sysinfo v1.7.1 // indirect
 	github.com/elastic/go-windows v1.0.1 // indirect
@@ -51,7 +51,7 @@ require (
 	github.com/google/uuid v1.6.0 // indirect
 	github.com/joeshaw/multierror v0.0.0-20140124173710-69b34d4ec901 // indirect
 	github.com/json-iterator/go v1.1.12 // indirect
-	github.com/kamstrup/intmap v0.5.1 // indirect
+	github.com/kamstrup/intmap v0.5.2 // indirect
 	github.com/klauspost/compress v1.18.0 // indirect
 	github.com/kr/pretty v0.3.1 // indirect
 	github.com/kr/text v0.2.0 // indirect
